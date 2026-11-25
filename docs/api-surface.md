@@ -26,7 +26,7 @@ Anything that is not on this page is internal. For example:
 
 - The admin's own components (the other `Cms*` components). [The frontend kit](#the-frontend-kit) lists the ones a website uses.
 - The server's other utilities (`audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail` and the rest). Only [the two helpers for plugins](#server-helpers-for-plugins) are covered.
-- The admin's API (`/api/cms/**`), apart from the three [media and logo addresses](#media-and-logo-addresses).
+- The admin's API (`/api/cms/**`), apart from the three [media and logo addresses](#media-and-logo-addresses) (and the experimental routes of a site's own content types listed with the content API, which may change with the feature).
 - Anything marked `@internal`.
 - The SQL tables and their column names. tinyzoo migrates them for you, and [upgrading.md](upgrading.md) lists the steps. An entity's `table` object is frozen for reading (see [Types](#types)). tinyzoo's own `cms_*` tables only gain things within 1.x, so a site can skip minor releases ([upgrading](upgrading.md#skipping-minor-versions)).
 - The driver under `useCms().db` (today node-postgres, `db.$client`). See [server helpers](#server-helpers-for-plugins).
@@ -424,6 +424,7 @@ The content API is public and read-only. It is the only HTTP API a site's fronte
 | `POST /api/mcp` | the MCP server: tools that read and edit the content, for a person's access token (`Authorization: Bearer tzp_…`, made by hand or by signing in). Built-in sign-in only; `404` with `cms.mcp: false`. Tools and their names are kept within 1.x; a minor may add tools and keys. See [the MCP server](guide/mcp.md) |
 | `GET /.well-known/oauth-protected-resource`, `GET /.well-known/oauth-authorization-server` (each also with `/api/mcp` after it) | the MCP server's OAuth discovery documents (RFC 9728, RFC 8414) |
 | `POST /api/mcp/oauth/register`, `GET /api/mcp/oauth/authorize`, `POST /api/mcp/oauth/token`, `POST /api/mcp/oauth/revoke` | signing in to the MCP server: registration (RFC 7591), the authorization code flow with PKCE (S256), refresh, revocation (RFC 7009). See [signing in](guide/mcp.md#signing-in-oauth) |
+| `GET /api/cms/_model/file`, `POST /api/cms/_model/fit`, `POST /api/cms/_model`, `GET /api/cms/_model/code`, `PUT /api/cms/_model/code/<name>`, `DELETE /api/cms/_model/code/<name>` | **experimental**, with `NUXT_CMS_CUSTOM_TYPES=on`: a site's own content types for a developer's tools (`tinyzoo model …`). The model file now or at `?version=N`; whether a model file fits the site (`{ version, fits, breaks }`); a change of structure (`{ baseVersion, ops, dryRun? }`); the code registered against the site, registering a model file under a name and removing it. An administrator signed in, or a personal access token (`Authorization: Bearer tzp_…`) with the right `model` ("Content types"), which only an administrator can give and which works only while that person is one; such a token never deletes for good (`purge`). `404` when the feature is off for the site. These are the only routes under `/api/cms` that take a token. Not part of what 1.0 freezes: they may change with the feature |
 
 When `cms.content.token` is set, requests carry the token as `x-api-key` or `Authorization: Bearer`.
 

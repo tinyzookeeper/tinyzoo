@@ -317,3 +317,31 @@ Each part ends with its own tests green and is useful without the next.
 - The file keeps the types in the document's order, but the difference does not: a type added by a push comes last.
 - `customModelConfig(design, doc)` is the one way to lay a site's own types over its design (`custom:<name>` keys), for the CLI now and for the server's `readCustomPart` in part 2.
 - An open choice is `open: true` on the scalar kind of `ContentFieldType` and on `FilterParam`, decided by the entity (a `custom_` name, and not its publish field), not by the field's `meta`. In OpenAPI it is `{ type: 'string', examples: [...] }`.
+
+**Part 2, the server** (`server/utils/cmsModelCode.ts`, the check in `cmsModelChange.ts`, the token's right in `cmsAccessTokens.ts`, six routes under `server/api/cms/_model`; tests in `test/api/model-file.spec.ts`, 27 tests on two sites in one process). What exists:
+
+- **The right.** `CmsTokenRights.model` ("Content types"), optional, so stored tokens need nothing. `clampTokenRights` keeps it only for a person whose role manages, on a site with the feature on; otherwise the key is left out. A client signed in over OAuth gets it only when the connect page sent it and the same rule allows it, and never with the read scope.
+- **Who may call** (`requireModelCaller`, used by every route below). With `Authorization: Bearer …`: the token's person (`requireTokenUser`: 401, and its count of wrong tokens), then 404 when the feature is off for the site, then 403 `token-cannot-model` without the right, then 403 unless the person's own role manages now (`roleOf({ role })`, as `roleOf` narrows a token's role to `manage: false`). The token's user becomes the request's user, so `cms_model.user_id` and the audit line name the person, and the audit line carries `via: 'token'` and the token's id. Without a bearer: 401, 404, 403, as before. No middleware changed: the session middleware leaves a request without a cookie anonymous and the CSRF guard lets JSON through, so every other admin route answers a bearer request 401 as it did.
+- **The routes.** `GET /api/cms/_model/file[?version=N]` (the file read from the database, not the instance's memory; `site` is the site's public address; version 0 is the empty model; 404 `version-not-kept` for a version the site does not keep, or does not have yet). `POST /api/cms/_model/fit { file }` → `{ version, fits, breaks }`. `GET /api/cms/_model/code` → `{ registrations: [{ name, registeredAt, updatedAt, source, by, version, types, breaks }] }`. `PUT /api/cms/_model/code/<name> { file }` → the registration as listed. `DELETE /api/cms/_model/code/<name>` → `{ removed }`. `POST /api/cms/_model` takes the token. All `no-store`.
+- **Registering.** One transaction under `MODEL_LOCK`: the table is made, the count checked (422 `limit-code` over 10, a name that exists not counted), the newest model read, `modelMisfits`; 409 `does-not-fit` with `version` and `breaks` unless `force`; an upsert that keeps `created_at`; the audit line. A refusal rolls the table back too, so a site that never registered has no table after one. 422 `invalid-name`, `invalid-file`; 503 `busy` on the lock timeout.
+- **The check.** In `changeModel`, after the guard of the stored content and before the statements: `cmsRegistrationsBrokenBy` reads the registrations with the change's own transaction (one `to_regclass` for a site without them) and refuses with 409 `breaks-code` and `registrations: [{ name, registeredAt, updatedAt, source, breaks }]`. A dry run and the server's own sweep pass through it. A stored file that cannot be read is skipped with a log line.
+- **A token never purges.** `changeModel` refuses a `purge` from a request whose user is a token's with 403 `token-cannot-purge`, before the transaction. It sits in the function, not the route, so any later caller with a token meets it too.
+
+What I decided where this design was silent:
+
+- `registeredAt` is when the name was first registered and `updatedAt` when the file in force was; both are in the list and in a `breaks-code` refusal. `version` of a registration is the site's version when it registered, not the file's.
+- `source` is `app`, `token` or `session` (a person signed in, from the admin).
+- `GET /api/cms/_model`, `/usage`, `/attention` and `/history` stay for a session only. They are the editor's views (places in pages, people's names); the developer's flow needs the file, the fit, the change and the registrations. They answer a token 401, as before.
+- `limit-code` is 422, like the model's other limits. A wrong name on `DELETE` is 404 `no-registration`.
+- With `cms.mcp: false` or an external sign-in, a bearer request to these routes is 401: there are no tokens then.
+- `readCustomPart` was left as it is: using `customModelConfig` there changes no behaviour but needs a second way to tell "no custom entity", which is not simpler.
+
+**Measured** (over HTTP on a laptop, a label change of one type, median of 20): 12 ms with no registration, 14 ms with one registration of one type.
+
+**Leaks put in on purpose,** one at a time, each reverted:
+
+| Leak | Failed in `model-file.spec.ts` |
+|---|---|
+| The fit check skipped when the operations hold a `field.remove` | 5: "refuses removing a field it reads, also as a dry run", "lifts the refusal when the registration is removed", "does not let a registration that already does not fit block what it did not make worse", "a registration made on one instance refuses a change made on the other", "compares 20 changes …" |
+| The registrations read once and kept for the process | 10: the first is "refuses removing a field it reads, also as a dry run"; with it the type and required-to-optional refusals, the two-instance test and those that follow on the same state |
+| A token with the right accepted for `purge` | 1: "a token cannot purge, even a purge that is valid when a person does it" |
