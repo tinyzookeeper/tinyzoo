@@ -5,13 +5,18 @@
 //   node templates/app/scripts/shots.mjs --entry <.output/server/index.mjs> --templates photographer,wedding
 //        --out <folder> --pg postgres://user:pw@host:port/postgres --prefix tzshots_a_ [--model]
 //        [--templates-dir <folder of templates, for looks and seeds>] [--port 4870] [--keep] [--reuse]
-//        [--now 2026-11-25T09:40:00]
+//        [--now 2026-11-25T09:40:00] [--own '#2f6f4f']
 //
 // For every look (one site each, seeded in that look): the home page in the default colours at
 // 1440 × 900 and 390 × 844 (whole page, up to 8 000 px), the first screen in each other colour
 // preset, one page of each kind of entry the template gives an address (an album…) and a
 // missing address. `--model`: the rows name their content model (the one app). `--keep` keeps
 // the databases; `--reuse` takes kept ones as they are (no seed).
+//
+// `--own '#2f6f4f'` pictures every look's pages with that own colour as the site's main colour
+// (the palette that follows from it, templates/kit/palette.ts), in the default colours and in each
+// other preset. Without it the script leaves the own colour as the settings hold it: databases
+// kept with `--keep` and taken again with `--reuse` keep one an earlier run set.
 //
 // Time: the browser's clock stands still at one moment (`--now`, by default the first Wednesday
 // from today on at 9.40), so what a look works out from "now" in the browser (open now, the next
@@ -30,7 +35,7 @@ const prefix = arg('prefix')
 const templatesDir = resolve(arg('templates-dir', join(repoRoot, 'templates')))
 const templates = String(arg('templates', '')).split(',').filter(Boolean)
 if (!entry || !out || !pgUrl || !prefix || !templates.length) {
-  console.error('usage: shots.mjs --entry <server> --templates a,b --out <folder> --pg <postgres url> --prefix <db prefix_> [--model] [--keep] [--reuse]')
+  console.error('usage: shots.mjs --entry <server> --templates a,b --out <folder> --pg <postgres url> --prefix <db prefix_> [--model] [--keep] [--reuse] [--now <moment>] [--own <#rrggbb>]')
   process.exit(2)
 }
 const { chromium } = createRequire(join(repoRoot, 'cloud', 'package.json'))('playwright')
@@ -47,6 +52,13 @@ if (Number.isNaN(clock.getTime())) {
   console.error(`--now is not a moment: ${arg('now')}`)
   process.exit(2)
 }
+const own = arg('own', null)
+if (own !== null && !(typeof own === 'string' && /^#[0-9a-f]{6}$/i.test(own))) {
+  console.error(`--own is not a colour like #2f6f4f: ${own}`)
+  process.exit(2)
+}
+/** Set a site's look and colours, and the own colour when the run has one. */
+const choose = (base, cookie, look, colors) => (own === null ? chooseLook(base, cookie, look, colors) : chooseLook(base, cookie, look, colors, own))
 /** The local day of a moment, 2026-11-24. */
 const dayOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
@@ -102,7 +114,7 @@ mkdirSync(out, { recursive: true })
 
 let server = null
 let browser = null
-const report = { entry, started: new Date().toISOString(), clock: clock.toISOString(), seededOn: null, shots: [], pages: {}, failures: {} }
+const report = { entry, started: new Date().toISOString(), clock: clock.toISOString(), own, seededOn: null, shots: [], pages: {}, failures: {} }
 try {
   server = await startServer({ entry, directoryFile, port, logFile: join(dataDir, 'server.log') })
   log(`server ${server.pid} on ${port}, up in ${Math.round(server.readyMs)} ms`)
@@ -119,7 +131,7 @@ try {
     const s = row._site
     const cookie = await signIn(s.url)
     const [first, ...others] = s.presets
-    await chooseLook(s.url, cookie, s.look, first)
+    await choose(s.url, cookie, s.look, first)
     const name = (what) => join(out, `${s.slug}-${what}.png`)
     const take = async (what, url, size) => {
       const { failures, meta, formFile } = await shoot(browser, url, name(what), size)
@@ -136,10 +148,10 @@ try {
       if (slug) await take(`entry-${page.prefix}`, `${s.url}/${page.prefix}/${slug}`, { width: 1440, height: 900, full: true })
     }
     for (const preset of others) {
-      await chooseLook(s.url, cookie, s.look, preset)
+      await choose(s.url, cookie, s.look, preset)
       await take(preset, s.url, { width: 1440, height: 900, full: false })
     }
-    await chooseLook(s.url, cookie, s.look, first)
+    await choose(s.url, cookie, s.look, first)
     log(`${s.slug}: ${report.shots.filter((f) => f.startsWith(`${s.slug}-`)).length} shots`)
   }
 }

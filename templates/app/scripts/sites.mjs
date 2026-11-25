@@ -216,12 +216,12 @@ function writableRow(row) {
   return out
 }
 
-/** Set the site's look and colours (Site settings), as the cloud does when it hands a site over. */
-export async function chooseLook(base, cookie, look, colors) {
+/** Set the site's look and colours (Site settings), as the cloud does when it hands a site over. `own`, when given, also sets the own colour (`#rrggbb`, or null to clear it). */
+export async function chooseLook(base, cookie, look, colors, own) {
   const headers = { 'content-type': 'application/json', accept: 'application/json', origin: base, cookie }
   const got = await (await fetch(`${base}/api/cms/_singleton/siteSettings`, { headers })).json()
   const res = await fetch(`${base}/api/cms/_singleton/siteSettings`, {
-    method: 'PUT', headers, body: JSON.stringify({ ...(got.row ? writableRow(got.row) : {}), look, colors }),
+    method: 'PUT', headers, body: JSON.stringify({ ...(got.row ? writableRow(got.row) : {}), look, colors, ...(own === undefined ? {} : { ownColor: own }) }),
   })
   if (!res.ok) throw new Error(`settings on ${base}: ${res.status} ${await res.text()}`)
 }
