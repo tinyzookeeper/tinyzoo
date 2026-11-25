@@ -1131,7 +1131,7 @@ export function seo(opts?: {
 // ── re-exported from other packages (18) ───────────────────────────
 alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql
 
-// ── internal (278): exported, not part of the frozen API, may change in any minor ──
+// ── internal (280): exported, not part of the frozen API, may change in any minor ──
 const BINDING_ENTRIES_MAX
 const BINDING_LIMIT_DEFAULT
 const BINDING_LIMIT_MAX
@@ -1196,6 +1196,7 @@ interface LinkVisitor
 const MODEL_DELETE_WAIT_MS
 const MODEL_DOC_MAX_BYTES
 const MODEL_FIELD_TYPES
+const MODEL_FILE_ASSET
 const MODEL_FILE_NAME
 const MODEL_FORMAT
 const MODEL_HELP_MAX
@@ -1343,6 +1344,7 @@ function matchRoute
 function mediaIdsInBlocks
 function mediaIdsInFields
 function menuSources
+function mergeModelFileAdditions
 function modelEntities
 function modelFieldKey
 function modelFileDoc

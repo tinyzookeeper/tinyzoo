@@ -35,7 +35,7 @@ export {
 } from './model-doc'
 export { modelEntities, type ModelMapProblem } from './model-map'
 export {
-  MODEL_FILE_NAME, modelFileOf, writeModelFile, parseModelFile, modelFileDoc, diffModelFile, describeModelOps, customModelConfig,
+  MODEL_FILE_NAME, MODEL_FILE_ASSET, modelFileOf, writeModelFile, parseModelFile, modelFileDoc, diffModelFile, mergeModelFileAdditions, describeModelOps, customModelConfig,
   type ModelFile, type ModelFileType, type ModelFileField, type ModelDiffProblem,
 } from './model-file'
 export { modelMisfits, newModelMisfits, type ModelMisfit, type ModelMisfitWhy } from './model-fit'

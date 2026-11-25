@@ -34,6 +34,9 @@ import { modelEntities, type ModelMapProblem } from './model-map'
 /** The name of the model file, in the app's root beside `cms.config.ts`. @internal */
 export const MODEL_FILE_NAME = 'cms.model.json'
 
+/** The server asset a single-site app's build carries its model file as (`assets:<this>`, key `cms.model.json`). @internal */
+export const MODEL_FILE_ASSET = 'cms-model-file'
+
 /** A field as the file holds it: visible, so without `removedAt` and `removedEmpty`. @internal */
 export type ModelFileField = ModelField extends infer F ? (F extends ModelField ? Omit<F, 'removedAt' | 'removedEmpty'> : never) : never
 
@@ -144,6 +147,30 @@ export function writeModelFile(file: ModelFile): string {
 /** The document a model file stands for: its types, nothing removed. @internal */
 export function modelFileDoc(file: ModelFile): ModelDoc {
   return { format: MODEL_FORMAT, types: structuredClone(file.types) as ModelType[] }
+}
+
+/**
+ * What `NUXT_CMS_MODEL_FILE=follow` makes of a site at start: its model `current` with what the
+ * app's `file` has and the site lacks, and nothing taken away or changed. A type the file has
+ * and `current` lacks comes whole. For a type both have, the fields the file has and `current`
+ * lacks come after the type's own fields, in the file's order. Everything `current` has stays as
+ * it is (its labels, its order, its choices), so `diffModelFile(current, merged)` only adds: a
+ * new type with its fields and settings, or a new field. `version` and `site` are `current`'s.
+ * @internal
+ */
+export function mergeModelFileAdditions(current: ModelFile, file: ModelFile): ModelFile {
+  const merged = normalFile(current)
+  const have = new Map(merged.types.map((t) => [t.name, t]))
+  for (const t of normalFile(file).types) {
+    const own = have.get(t.name)
+    if (!own) {
+      merged.types.push(t)
+      continue
+    }
+    const keys = new Set(own.fields.map((f) => f.key))
+    for (const f of t.fields) if (!keys.has(f.key)) own.fields.push(f)
+  }
+  return merged
 }
 
 // ---------------------------------------------------------------------------------------------
