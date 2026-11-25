@@ -74,7 +74,7 @@ The designs of the shared app need nothing here: they read the design's part of 
 
 - `types` is the stored document of step 2 (`ModelDoc`, `src/model-doc.ts`) with the removed types and fields left out, and without `removedAt` and `removedEmpty`. A removed choice stays, marked `removed`: an entry can still hold it, so the types must know it.
 - `version` is the version of the site's model the file was read at. `push` needs it (section 4).
-- `site` is the address the file came from, so later commands need no address. `--url` and `TINYZOO_MODEL_URL` go before it.
+- `site` is the address the file came from, so later commands need no address. `--url` and `TINYZOO_MODEL_URL` go before it. In CI (`CI` set) the address is never taken from the file: the file is what a pull request wrote, and the token must not travel to an address somebody put there. CI sets `TINYZOO_MODEL_URL`.
 - **One way to write it.** Keys come in a fixed order, values that are empty or `false` are left out, two spaces, a newline at the end. The site and the CLI write a file with the same function, so two pulls of the same model give the same bytes.
 - **Reading it** is strict: an unknown key or a `removedAt` is refused, with the place.
 - A file larger than the document's limit (256 KB) is refused.

@@ -16,7 +16,7 @@
  *
  * Common to all: the token is $TINYZOO_TOKEN only (an argument would stay in the shell's
  * history), sent as `Authorization: Bearer`. The address is --url, else $TINYZOO_MODEL_URL, else
- * the file's `site`. The file is cms.model.json in this folder, or --file.
+ * the file's `site`; never the file's in CI ($CI set), where the file is what a pull request wrote. The file is cms.model.json in this folder, or --file.
  *
  * Exit codes: 0 all is well; 1 something needs a person (a refusal, a file that does not fit);
  * 2 the command was used wrongly (an unknown flag, no address, no token).
@@ -72,7 +72,7 @@ export const MODEL_USAGE = `usage: tinyzoo model <pull|push|check|register> [opt
   check      the file reads and the site still has what it says (--offline: the file alone, --strict: fail on any difference)
   register   tell the site that code built from the file runs against it (--name <name>, default web; --remove)
 
-  All: --url <address> (else $TINYZOO_MODEL_URL, else the file's site), --file <path> (default ${MODEL_FILE_NAME}).
+  All: --url <address> (else $TINYZOO_MODEL_URL, else the file's site; in CI one of the first two), --file <path> (default ${MODEL_FILE_NAME}).
   The token is $TINYZOO_TOKEN: an access token with the right "Content types".`
 
 const TOKEN_NEEDED = 'It needs an access token with the right "Content types", made by an administrator: admin, your account, Access tokens.'
@@ -243,7 +243,14 @@ function connect(ctx: Context, file: ModelFile | null): ModelSite {
   if (new URL(base).protocol === 'http:' && !isLocal(new URL(base).hostname)) {
     ctx.io.log(`! ${base} is not encrypted: the token travels in the clear. Use https:// for a site on the internet.`)
   }
-  if (from === 'file') ctx.io.log(`· The site: ${base} (from ${ctx.shown}; --url or TINYZOO_MODEL_URL names another).`)
+  if (from === 'file') {
+    // In CI the file is whatever a pull request wrote: its address must not get the token.
+    const ci = String(ctx.io.env.CI ?? '').trim().toLowerCase()
+    if (ci && ci !== 'false' && ci !== '0') {
+      throw stop(2, `In CI the site's address is not taken from ${ctx.shown}: a changed file would send the token to another address. Set TINYZOO_MODEL_URL, or pass --url.`)
+    }
+    ctx.io.log(`· The site: ${base} (from ${ctx.shown}; --url or TINYZOO_MODEL_URL names another).`)
+  }
   return new ModelSite(base, token, ctx.io.fetch ?? fetch)
 }
 

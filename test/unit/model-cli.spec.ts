@@ -161,6 +161,22 @@ describe('tinyzoo model: where the address comes from', () => {
     expect(r.calls.every((c) => c.url.startsWith(`${SITE}/`))).toBe(true)
     expect(r.out.some((l) => l.includes(`The site: ${SITE}`) && l.includes('from cms.model.json'))).toBe(true)
   })
+  it('in CI never takes the address from the file: nothing is sent, and it names the two ways to give one', async () => {
+    fresh()
+    putLocal(fileOf(1))
+    for (const CI of ['true', '1']) {
+      const r = await run(['check'], siteRoutes({ 1: fileOf(1) }, 1), { env: { TINYZOO_TOKEN: 'tzp_secret', CI } })
+      expect(r.code).toBe(2)
+      expect(r.calls).toEqual([])
+      expect(r.all).toContain('TINYZOO_MODEL_URL')
+      expect(r.all).toContain('--url')
+    }
+    // With the address given, CI works; and CI=false is not CI.
+    const given = await run(['push'], siteRoutes({ 1: fileOf(1) }, 1), { env: { TINYZOO_TOKEN: 'tzp_secret', CI: 'true', TINYZOO_MODEL_URL: SITE } })
+    expect(given.code).toBe(0)
+    const notCi = await run(['push'], siteRoutes({ 1: fileOf(1) }, 1), { env: { TINYZOO_TOKEN: 'tzp_secret', CI: 'false' } })
+    expect(notCi.code).toBe(0)
+  })
   it('exits 2 and names --url and TINYZOO_MODEL_URL when there is no address', async () => {
     fresh()
     const r = await run(['pull'])
