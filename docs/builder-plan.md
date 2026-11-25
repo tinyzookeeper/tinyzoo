@@ -24,7 +24,7 @@
 
 ## 3. The design
 
-**3.1 The frame.** Each look's `Text.vue` gets `<slot />` as the last child of the element that carries its container (50 times the section itself, twice a `div` inside it). A section of the kit is then drawn as the look's Text part with the section's heading and its own content in the slot. A look that wants a section drawn its own way can still bring a part of its own for it, as it does for its blocks. Pages without a kit section must stay as they are, to the pixel: the pictures of step 1 prove or disprove it.
+**3.1 The frame.** Each look's `Text.vue` gets `<slot />` as the last child of the element that carries its container (50 times the section itself, twice a `div` inside it). A section of the kit is then drawn as the look's Text part with the section's heading and its own content in the slot. A look that wants a section drawn its own way can still bring a part of its own for it, as it does for its blocks. Pages without a kit section must stay as they are, to the pixel: the pictures of step 1 prove or disprove it. Seven looks centre a narrow column for the heading of a text; as a frame, with something in the slot, they put the heading at the left of the container, in line with what follows (the eighth, Wedding's announcement, centres its headings and stays so).
 
 **3.2 The sections.** Defined once in the kit (`kitSections()`, added to each template's page blocks as `customTypeBlocks()` is; blocks are one column, so no migration). The first list, from what comes back in the templates:
 
@@ -60,7 +60,9 @@ On the branch: the slot in all 52 Text parts, slots passed on by `LookPart`, and
 ## 5. The order of work
 
 1. **The frame,** with the proof that pages without a section are unchanged.
-2. **A site's own types in the frame, with choices.** The engine carries defaults. *Useful alone: an owner says how their courses are shown.*
+2. **A site's own types in the frame, with choices.** *Useful alone: an owner says how their courses are shown.*
+   - **Built (2026-11-25): two choices for cards,** "Cards side by side" (2, 3 or 4; 3 when empty) and "Picture shape" (landscape, square, portrait; landscape when empty). They are the kit's (`templates/kit/sections.ts`, `kitEntryBlocks()` in the page blocks of all 20 templates in place of `customTypeBlocks()`), so the package is unchanged. An empty choice is the default, so the admin does not have to carry one, and a block saved before is drawn as a new one. The number of columns is the most in a row: a card is never narrower than 13 to 18 rem, so a narrower screen shows fewer and a phone one, with no breakpoint of the kit's own. Pictured in all 52 looks at 1440 and 390 px (`custom-shots.mjs`, which now also makes a block of four columns with square pictures and one of two with upright pictures): 624 pictures, no failures. The 376 pictures of that build against `main` again: 365 identical, 11 within a few pixels inside photographs, none failing. Not checked: the two new fields in the admin form in a real browser.
+   - **Not built yet:** the table, and the layouts of the page of an entry.
 3. **The first three sections** (Text and picture, Cards, Questions) and the settings every section has. The picker's groups.
 4. **The other sections.** The click in the preview.
 5. **The page of an entry.** 6. **Header and footer.** 7. **A website without a template.**

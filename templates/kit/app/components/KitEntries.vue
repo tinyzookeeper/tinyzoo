@@ -7,7 +7,7 @@
 // made from the text colour.
 // A look may refine it with `--custom-radius` (the pictures' corners), `--custom-line` (the lines) and
 // `--custom-gap` (the space between cards); each has a fallback, so no look has to.
-import type { CustomCard } from '../utils/customTypes'
+import type { CustomCard, CustomColumns, CustomPicture } from '../utils/customTypes'
 
 const props = defineProps<{
   /** The block's id: the section's id is made from it. */
@@ -15,6 +15,10 @@ const props = defineProps<{
   heading: string
   text: string
   layout: 'cards' | 'rows'
+  /** Cards side by side at most; the page shows fewer on narrow screens, one on a phone. */
+  columns?: CustomColumns
+  /** The shape every card's picture is cut to. */
+  picture?: CustomPicture
   cards: CustomCard[]
 }>()
 
@@ -23,6 +27,13 @@ const sectionId = computed(() => `custom-${props.id}`)
 const intro = computed(() => paragraphs(props.text))
 // Rows keep the column of the quiet line only when an entry has one.
 const plainRows = computed(() => props.cards.every((c) => !c.meta))
+// What the browser is told about a card's picture: the widest it is drawn, by the columns chosen.
+const PICTURE_SIZES: Record<CustomColumns, string> = {
+  2: '(min-width: 48rem) 46vw, 100vw',
+  3: '(min-width: 80rem) 28rem, (min-width: 40rem) 46vw, 100vw',
+  4: '(min-width: 80rem) 21rem, (min-width: 56rem) 31vw, (min-width: 32rem) 46vw, 100vw',
+}
+const cols = computed(() => props.columns ?? 3)
 </script>
 
 <template>
@@ -32,10 +43,10 @@ const plainRows = computed(() => props.cards.every((c) => !c.meta))
         <p v-for="(p, i) in intro" :key="i">{{ p }}</p>
       </div>
 
-      <ul v-if="layout === 'cards'" class="custom-list custom-cards">
+      <ul v-if="layout === 'cards'" class="custom-list custom-cards" :class="[`custom-cols-${cols}`, `custom-pic-${picture ?? 'landscape'}`]">
         <li v-for="c in cards" :key="c.id">
           <component :is="c.href ? NuxtLink : 'div'" v-bind="c.href ? { to: c.href } : {}" class="custom-card">
-            <CmsImage v-if="c.image" :media="c.image" class="custom-pic" sizes="(min-width: 80rem) 24rem, (min-width: 48rem) 46vw, 100vw" />
+            <CmsImage v-if="c.image" :media="c.image" class="custom-pic" :sizes="PICTURE_SIZES[cols]" />
             <div class="custom-head prose-look">
               <h3 class="custom-title">{{ c.title }}</h3>
             </div>
@@ -85,9 +96,16 @@ const plainRows = computed(() => props.cards.every((c) => !c.meta))
 .custom-block .custom-more .custom-more-label { opacity: 0.66; }
 
 /* cards */
-.custom-block .custom-wrap .custom-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); gap: var(--custom-gap, clamp(2rem, 3.5vw, 2.75rem)) var(--custom-gap, clamp(1.5rem, 3vw, 2.5rem)); }
+/* The owner's choice is the most cards in a row (--custom-cols). A card is never narrower than
+   --custom-min, so the row holds fewer on a narrower screen and one on a phone, with no breakpoint
+   of the kit's own: the look's container decides. The 0.02px keeps a rounded width from dropping a column. */
+.custom-block .custom-wrap .custom-cards { --custom-cols: 3; --custom-min: 16rem; --custom-col-gap: var(--custom-gap, clamp(1.5rem, 3vw, 2.5rem)); display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(var(--custom-min), calc((100% - (var(--custom-cols) - 1) * var(--custom-col-gap)) / var(--custom-cols) - 0.02px))), 1fr)); gap: var(--custom-gap, clamp(2rem, 3.5vw, 2.75rem)) var(--custom-col-gap); }
+.custom-block .custom-wrap .custom-cols-2 { --custom-cols: 2; --custom-min: 18rem; }
+.custom-block .custom-wrap .custom-cols-4 { --custom-cols: 4; --custom-min: 13rem; }
 .custom-block .custom-cards .custom-card { display: block; height: 100%; color: inherit; text-decoration: none; }
 .custom-block .custom-card .custom-pic { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--custom-radius, 0); margin: 0 0 1.1rem; }
+.custom-block .custom-pic-square .custom-card .custom-pic { aspect-ratio: 1; }
+.custom-block .custom-pic-portrait .custom-card .custom-pic { aspect-ratio: 3 / 4; }
 
 /* rows */
 .custom-block .custom-wrap .custom-rows { border-top: 1px solid var(--custom-line, color-mix(in oklab, currentColor 16%, transparent)); }

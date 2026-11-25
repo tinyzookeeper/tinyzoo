@@ -6,6 +6,7 @@
   "description": "What the hosted templates share: looks and colour presets, the headless website form, seed helpers.",
   "exports": {
     "./looks": "./looks.ts",
+    "./sections": "./sections.ts",
     "./seed": "./seed.ts",
     "./fonts": "./fonts.ts",
     "./layer": "./nuxt.config.ts"

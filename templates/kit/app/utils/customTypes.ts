@@ -165,9 +165,14 @@ export type CustomRequest =
   | { kind: 'list'; path: string; query: { limit: number; sort?: string; dir?: 'asc' | 'desc' } }
   | { kind: 'chosen'; paths: string[] }
 
+/** How many cards stand side by side at most (the block's choice; the page shows fewer on narrow screens). */
+export type CustomColumns = 2 | 3 | 4
+/** The shape a card's picture is cut to (the block's choice). */
+export type CustomPicture = 'landscape' | 'square' | 'portrait'
+
 /** What a block of a site's type draws, or why it draws nothing. */
 export type CustomBlockPlan =
-  | { ok: true; type: CustomType; show: CustomShow; layout: 'cards' | 'rows'; request: CustomRequest; heading: string; text: string }
+  | { ok: true; type: CustomType; show: CustomShow; layout: 'cards' | 'rows'; columns: CustomColumns; picture: CustomPicture; request: CustomRequest; heading: string; text: string }
   | { ok: false; reason: string }
 
 /** How many entries a list shows when the block says nothing, and the most it may show (tinyzoo's BINDING_LIMIT_*). */
@@ -211,7 +216,8 @@ export function customShow(type: CustomType, show: unknown): CustomShow {
 
 /**
  * What a block of the type `custom_entries` (`kind: 'entries'`) or `custom_chosen` (`'chosen'`) draws:
- * its type, its places, its layout (a new block's empty layout is cards) and the request for
+ * its type, its places, its layout (a new block's empty layout is cards: three side by side at
+ * most, pictures on their side) and the request for
  * its entries. Nothing to draw (`ok: false`, with the reason) when the block has no binding, the
  * site has no such type, or a block of chosen entries has none chosen.
  *
@@ -226,6 +232,9 @@ export function customBlockPlan(block: unknown, types: CustomType[] | null | und
   if (!type) return { ok: false, reason: `the site has no type "${binding.type}"` }
   const show = customShow(type, binding.show)
   const layout = b.layout === 'rows' ? 'rows' : 'cards'
+  // The kit's choices (templates/kit/sections.ts). Empty or unknown is the default.
+  const columns: CustomColumns = b.columns === '2' || b.columns === 2 ? 2 : b.columns === '4' || b.columns === 4 ? 4 : 3
+  const picture: CustomPicture = b.picture === 'square' || b.picture === 'portrait' ? b.picture : 'landscape'
   const heading = typeof b.heading === 'string' ? b.heading.trim() : ''
   const text = typeof b.text === 'string' ? b.text.trim() : ''
   const base = `/api/content/${encodeURIComponent(type.name)}`
@@ -234,12 +243,12 @@ export function customBlockPlan(block: unknown, types: CustomType[] | null | und
       .filter((id, i, all): id is string => typeof id === 'string' && id !== '' && all.indexOf(id) === i)
       .slice(0, CUSTOM_CHOSEN_MAX)
     if (!ids.length) return { ok: false, reason: 'no entries are chosen' }
-    return { ok: true, type, show, layout, heading, text, request: { kind: 'chosen', paths: ids.map((id) => `${base}/${encodeURIComponent(id)}`) } }
+    return { ok: true, type, show, layout, columns, picture, heading, text, request: { kind: 'chosen', paths: ids.map((id) => `${base}/${encodeURIComponent(id)}`) } }
   }
   const raw = Number(binding.limit)
   const limit = Number.isInteger(raw) && raw >= 1 ? Math.min(raw, CUSTOM_LIST_MAX) : CUSTOM_LIST_LIMIT
   const order = validOrder(type, binding.order) ?? (type.order === 'manual' ? null : validOrder(type, type.order))
-  return { ok: true, type, show, layout, heading, text, request: { kind: 'list', path: base, query: { limit, ...(order ? { sort: order.by, dir: order.dir } : {}) } } }
+  return { ok: true, type, show, layout, columns, picture, heading, text, request: { kind: 'list', path: base, query: { limit, ...(order ? { sort: order.by, dir: order.dir } : {}) } } }
 }
 
 /** One entry as a card or a row draws it. Each part is null or empty when the entry has nothing for it. */

@@ -9,12 +9,13 @@
 // Every look gets a site of its own (the one app, content types switched on), seeded with its
 // template's demo content and set to the look. Each site then makes the type `custom_course` (courses
 // with a picture, a short text, a date, a level, a price and a programme) through the admin
-// routes, five entries of it, and puts five blocks at the end of its home page: a list of cards,
+// routes, five entries of it, and puts seven blocks at the end of its home page: a list of cards,
 // three that must draw nothing (no source, a missing type, a chosen entry that does not exist),
-// a list of rows and a block of two chosen entries.
+// a list of rows, a block of two chosen entries, and two with the kit's choices: a list in four
+// columns at most with square pictures, and two chosen entries in two columns with upright pictures.
 //
 // Pictures (under <out>/shots): the home page at 1440 × 900 and 390 × 844 (it must hold exactly
-// three blocks), a picture of each block (`cards`, `rows`, `chosen`), the page of the entry with
+// five blocks), a picture of each block (`cards`, `rows`, `chosen`, `four`, `two`), the page of the entry with
 // the longest title (`entry`, at most 3 000 px high), and `/kurzy/neexistuje`, which must be a 404.
 // Sheets (under <out>/sheets): per template and width, `<template>-<width>-blocks.png` (one column
 // per look, one row per block) and `<template>-<width>-entry.png`. 1440 pictures are halved.
@@ -30,7 +31,7 @@ import { pathToFileURL } from 'node:url'
 import { arg, chooseLook, clean, dropSites, freePortFrom, log, makeSites, repoRoot, seedSiteAsync, signIn, sitesFor, sleep, startServer, writeDirectory } from './sites.mjs'
 
 const SEEDS_AT_ONCE = 4
-const SHOTS = ['cards', 'rows', 'chosen']
+const SHOTS = ['cards', 'rows', 'chosen', 'four', 'two']
 const WIDTHS = [{ width: 1440, height: 900, scale: 0.5 }, { width: 390, height: 844, scale: 1 }]
 const ENTRY_MAX_HEIGHT = 3000
 
@@ -234,7 +235,7 @@ async function setUpSite(row) {
   if (pages.status !== 200) throw new Error(`page list on ${base}: ${pages.status} ${pages.text.slice(0, 300)}`)
   const home = (pages.body.rows ?? []).find((p) => p.slug === 'home')
   if (!home) throw new Error(`no home page on ${base}`)
-  const block = (type, heading, text, source, layout) => ({ id: crypto.randomUUID(), type, heading, text, source, layout })
+  const block = (type, heading, text, source, layout, choices = {}) => ({ id: crypto.randomUUID(), type, heading, text, source, layout, ...choices })
   const sections = [
     ...(home.sections ?? []),
     block('custom_entries', 'Kurzy a workshopy', 'Malé skupiny, hodně praxe a odpovědi na všechno, na co se zeptáte.', {
@@ -250,6 +251,13 @@ async function setUpSite(row) {
     block('custom_chosen', 'Doporučujeme', null, {
       type: 'custom_course', show: { image: 'cover', text: 'perex', date: 'startsAt', label: 'level' }, entries: [made[3].id, made[1].id],
     }, null),
+    // The kit's choices (templates/kit/sections.ts): four side by side at most with square pictures, two with upright ones.
+    block('custom_entries', 'Všechny kurzy', null, {
+      type: 'custom_course', show: { image: 'cover', date: 'startsAt', label: 'level' }, limit: 5,
+    }, 'cards', { columns: '4', picture: 'square' }),
+    block('custom_chosen', 'Dva tipy na jaro', null, {
+      type: 'custom_course', show: { image: 'cover', text: 'perex', date: 'startsAt', label: 'level' }, entries: [made[0].id, made[2].id],
+    }, 'cards', { columns: '2', picture: 'portrait' }),
   ]
   const saved = await call(base, cookie, 'PATCH', `/api/cms/page/${home.id}`, { sections })
   if (saved.status !== 200) throw new Error(`home page of ${base}: ${saved.status} ${saved.text.slice(0, 600)}`)
@@ -392,7 +400,7 @@ async function main() {
             await settle(page)
             const blocks = page.locator('section.custom-block')
             const count = await blocks.count()
-            if (count !== 3) fail(key('home'), `${count} blocks of section.custom-block, expected 3`)
+            if (count !== SHOTS.length) fail(key('home'), `${count} blocks of section.custom-block, expected ${SHOTS.length}`)
             // A header that stays on screen would lie over a block's picture: hidden, without moving anything.
             await page.evaluate(() => {
               for (const el of document.querySelectorAll('body *')) {

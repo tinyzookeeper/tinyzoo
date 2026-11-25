@@ -1,7 +1,8 @@
-import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, f, seo } from 'tinyzoo'
+import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
 import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
+import { kitEntryBlocks } from 'tinyzoo-template-kit/sections'
 
 // The content model of the Software template: what the makers of a product can write and change.
 // One model for all three looks (looks.ts): a look decides how a block is drawn, never what it
@@ -435,7 +436,7 @@ const richText = defineBlock({
 
 // Pages built from blocks: title, address, status, blocks, SEO, preview.
 export const Page = definePages({
-  blocks: { opening, audience, features, pricing, testimonials, changelog, questions, team, contact, cta, text: richText, ...customTypeBlocks() },
+  blocks: { opening, audience, features, pricing, testimonials, changelog, questions, team, contact, cta, text: richText, ...kitEntryBlocks() },
 })
 
 // ── menus ──

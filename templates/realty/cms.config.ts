@@ -1,7 +1,8 @@
-import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from 'tinyzoo'
+import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
 import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
+import { kitEntryBlocks } from 'tinyzoo-template-kit/sections'
 
 // The content model of the Realty template: what an agency can write and change. One model for
 // all three looks (looks.ts): a look decides how a block is drawn, never what it holds.
@@ -408,7 +409,7 @@ const richText = defineBlock({
 
 // Pages built from blocks: title, address, status, blocks, SEO, preview.
 export const Page = definePages({
-  blocks: { opening, listings, detail, sellers, sold, agents, areas, contact, text: richText, ...customTypeBlocks() },
+  blocks: { opening, listings, detail, sellers, sold, agents, areas, contact, text: richText, ...kitEntryBlocks() },
 })
 
 // ── menus ──

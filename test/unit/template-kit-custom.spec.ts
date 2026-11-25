@@ -7,6 +7,7 @@ import {
   type CustomPage, type CustomType, type CustomTypeField,
 } from '../../templates/kit/app/utils/customTypes'
 import { customPrefixProblems, exportedTypeNames } from '../../templates/kit/design-build'
+import { ENTRY_COLUMNS, ENTRY_PICTURES, kitEntryBlocks } from '../../templates/kit/sections'
 import { repoRoot } from '../setup/database'
 
 // What the kit decides about a site's own content types before it draws them
@@ -153,6 +154,29 @@ describe('which request a block leads to', () => {
     expect(layout(null)).toBe('cards')
     expect(layout('cards')).toBe('cards')
     expect(layout('rows')).toBe('rows')
+  })
+
+  it('shows three cards side by side at most, or the two or four the block chose', () => {
+    const columns = (c: unknown) => { const p = customBlockPlan(block(binding(), { columns: c }), types, 'entries'); return p.ok ? p.columns : null }
+    expect(columns(undefined)).toBe(3)
+    expect(columns(null)).toBe(3)
+    expect(columns('')).toBe(3)
+    expect(columns('2')).toBe(2)
+    expect(columns('3')).toBe(3)
+    expect(columns('4')).toBe(4)
+    expect(columns('12')).toBe(3)
+  })
+
+  it('cuts the pictures on their side, or to the square or the upright shape the block chose', () => {
+    const picture = (c: unknown) => { const p = customBlockPlan(block(binding(), { picture: c }), types, 'chosen'); return p.ok ? p.picture : null }
+    const chosen = (c: unknown) => { const p = customBlockPlan(block(binding({ entries: ['a'] }), { picture: c }), types, 'chosen'); return p.ok ? p.picture : null }
+    expect(picture('square')).toBeNull() // a block of chosen entries with none chosen draws nothing
+    expect(chosen(undefined)).toBe('landscape')
+    expect(chosen(null)).toBe('landscape')
+    expect(chosen('landscape')).toBe('landscape')
+    expect(chosen('square')).toBe('square')
+    expect(chosen('portrait')).toBe('portrait')
+    expect(chosen('round')).toBe('landscape')
   })
 
   it('asks for chosen entries one by one, in the picked order, each once and at most 12', () => {
@@ -428,5 +452,32 @@ describe('the frame every look gives the kit\'s sections', () => {
     const kit = join(repoRoot, 'templates', 'kit', 'app', 'components')
     expect(readFileSync(join(kit, 'LookPart.vue'), 'utf8')).toContain('<template v-if="$slots.default" #default><slot /></template>')
     expect(readFileSync(join(kit, 'KitEntries.vue'), 'utf8')).toMatch(/<LookPart [^>]*part="Text"/)
+  })
+})
+
+// The two blocks as the hosted templates use them (templates/kit/sections.ts): tinyzoo's, with
+// the kit's choices of how the entries are shown.
+describe('the kit\'s blocks of a site\'s own types', () => {
+  const blocks = kitEntryBlocks()
+
+  it('are tinyzoo\'s two blocks, each with its fields and the two choices after them', () => {
+    expect(Object.keys(blocks)).toEqual(['custom_entries', 'custom_chosen'])
+    for (const def of Object.values(blocks)) expect(Object.keys(def.fields)).toEqual(['heading', 'text', 'source', 'layout', 'columns', 'picture'])
+  })
+
+  it('offer two, three or four columns and three picture shapes, the default first', () => {
+    const { columns, picture } = blocks.custom_entries.fields as unknown as Record<string, { meta: { options: readonly string[] } }>
+    expect(columns!.meta.options).toEqual(['2', '3', '4'])
+    expect(picture!.meta.options).toEqual(['landscape', 'square', 'portrait'])
+    expect(ENTRY_COLUMNS[0]).toBe('3')
+    expect(ENTRY_PICTURES[0]).toBe('landscape')
+  })
+
+  it('are in the page blocks of all 20 templates, in place of tinyzoo\'s own', () => {
+    const configs = readdirSync(join(repoRoot, 'templates'), { withFileTypes: true })
+      .filter((d) => d.isDirectory() && d.name !== 'kit' && d.name !== 'app' && existsSync(join(repoRoot, 'templates', d.name, 'cms.config.ts')))
+      .map((d) => ({ id: d.name, source: readFileSync(join(repoRoot, 'templates', d.name, 'cms.config.ts'), 'utf8') }))
+    expect(configs).toHaveLength(20)
+    expect(configs.filter((c) => !c.source.includes('...kitEntryBlocks()') || c.source.includes('customTypeBlocks')).map((c) => c.id)).toEqual([])
   })
 })
