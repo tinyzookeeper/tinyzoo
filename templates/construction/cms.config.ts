@@ -1,6 +1,7 @@
 import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
+import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
 
 // The content model of the Builders and architects template: what the firm can write and
 // change. One model for all three looks (looks.ts): a look decides how a block is drawn, never
@@ -26,7 +27,7 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // The home page beside the form: a change of look or colours shows before it is saved.
     preview: '/',
     sections: [
-      { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors'] },
+      { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'ownColor'] },
       { label: { en: 'Contact', cs: 'Kontakt' }, fields: ['phone', 'email', 'street', 'postcode', 'town', 'hours', 'hoursShort'] },
       { label: { en: 'Header', cs: 'Záhlaví' }, fields: ['ctaLabel', 'ctaUrl', 'menuNotes'] },
       { label: { en: 'Company details', cs: 'Firemní údaje' }, fields: ['legalName', 'companyId', 'vatId', 'registry'] },
@@ -42,6 +43,8 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // Only the chosen look's palettes are offered; a change of look moves the colours to its first one.
     colors: f.select(looks.fields.colors).label({ en: 'Colours', cs: 'Barvy' })
       .help({ en: 'Each look has three colour palettes.', cs: 'Každý vzhled má tři barevné palety.' }),
+    // The owner's own main colour: the palette of the chosen colours follows it (templates/kit/palette.ts).
+    ownColor: f.color().optional().label(OWN_COLOR_FIELD.label).help(OWN_COLOR_FIELD.help),
     phone: f.text().optional().label({ en: 'Phone', cs: 'Telefon' })
       .help({ en: 'The number in the header, the opening and the contacts, for example “123 456 701”.', cs: 'Číslo v záhlaví, v úvodu a v kontaktech, například „123 456 701“.' }),
     email: f.text({ format: 'email' }).optional().label({ en: 'E-mail', cs: 'E-mail' }),

@@ -1,6 +1,7 @@
 import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
+import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
 
 // The content model of the Wedding template: what the couple can write and change. One model
 // for all three looks (looks.ts): a look decides how a block is drawn, never what it holds.
@@ -25,7 +26,7 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // The home page beside the form: a change of look or colours shows before it is saved.
     preview: '/',
     sections: [
-      { label: { en: 'Names and look', cs: 'Jména a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors'] },
+      { label: { en: 'Names and look', cs: 'Jména a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'ownColor'] },
       { label: { en: 'When and where', cs: 'Kdy a kde' }, fields: ['date', 'rsvpDeadline', 'venueName', 'venueArea', 'address', 'coordinates', 'mapUrl'] },
       { label: { en: 'Header and footer', cs: 'Záhlaví a zápatí' }, fields: ['ctaLabel', 'ctaUrl', 'email', 'closing', 'footerImage'] },
     ],
@@ -40,6 +41,8 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // Only the chosen look's palettes are offered; a change of look moves the colours to its first one.
     colors: f.select(looks.fields.colors).label({ en: 'Colours', cs: 'Barvy' })
       .help({ en: 'Each look has three colour palettes.', cs: 'Každý vzhled má tři barevné palety.' }),
+    // The owner's own main colour: the palette of the chosen colours follows it (templates/kit/palette.ts).
+    ownColor: f.color().optional().label(OWN_COLOR_FIELD.label).help(OWN_COLOR_FIELD.help),
     date: f.datetime().optional().label({ en: 'Day and time of the ceremony', cs: 'Den a čas obřadu' }),
     rsvpDeadline: f.datetime({ allDay: true }).optional().label({ en: 'Reply by', cs: 'Odpověď do' })
       .help({ en: 'The last day for guests to confirm.', cs: 'Poslední den, kdy mají hosté potvrdit účast.' }),

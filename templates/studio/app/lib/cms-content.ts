@@ -169,6 +169,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'sal' | 'tabule' | 'deka'
   colors: 'borovice' | 'jil' | 'indigo' | 'kobalt' | 'rumelka' | 'smaragd' | 'slunce' | 'mata' | 'pivonka'
+  ownColor: string | null
   phone: string | null
   email: string | null
   instagram: string | null

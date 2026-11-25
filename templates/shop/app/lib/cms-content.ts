@@ -133,6 +133,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'portal' | 'regal' | 'na-hacku'
   colors: 'lahvova' | 'burgund' | 'inkoust' | 'smalt' | 'police' | 'orech' | 'zelena' | 'kobalt' | 'dub'
+  ownColor: string | null
   tagline: string | null
   address: string | null
   postalCode: string | null

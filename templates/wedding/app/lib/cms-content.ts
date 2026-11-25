@@ -128,6 +128,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'oznameni' | 'vecer' | 'magazin'
   colors: 'salvej' | 'ruze' | 'holubi' | 'les' | 'pulnoc' | 'svestka' | 'pisek' | 'oliva' | 'bridlice'
+  ownColor: string | null
   date: string | null
   rsvpDeadline: string | null
   venueName: string | null

@@ -346,6 +346,7 @@ export const siteSettings = pgTable('site_settings', {
   tagline: text('tagline'),
   look: siteSettingsLook('look').$type<'lhuty' | 'sanony'>().notNull().default("lhuty"),
   colors: siteSettingsColors('colors').$type<'inkoust' | 'les' | 'grafit' | 'rumelka' | 'smaragd' | 'kobalt'>().notNull().default("inkoust"),
+  ownColor: text('own_color'),
   ctaLabel: text('cta_label'),
   ctaLongLabel: text('cta_long_label'),
   ctaUrl: text('cta_url'),

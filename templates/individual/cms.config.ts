@@ -1,6 +1,7 @@
 import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
+import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
 
 // The content model of the Freelancer and consultant template: what a one-person business can
 // write and change. One model for all three looks (looks.ts): a look decides how a block is
@@ -26,7 +27,7 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // The home page beside the form: a change of look or colours shows before it is saved.
     preview: '/',
     sections: [
-      { label: { en: 'Name and look', cs: 'Jméno a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'role', 'shortDescription'] },
+      { label: { en: 'Name and look', cs: 'Jméno a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'ownColor', 'role', 'shortDescription'] },
       { label: { en: 'Contacts', cs: 'Kontakty' }, fields: ['phone', 'phoneHours', 'email', 'address', 'addressNote', 'nextFree'] },
       { label: { en: 'Header and footer', cs: 'Záhlaví a zápatí' }, fields: ['ctaLabel', 'ctaUrl', 'linkedinUrl', 'instagramUrl', 'newsletterUrl'] },
       { label: { en: 'Business details', cs: 'Údaje o podnikání' }, fields: ['legalName', 'companyId', 'legalNote'] },
@@ -42,6 +43,8 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // Only the chosen look's palettes are offered; a change of look moves the colours to its first one.
     colors: f.select(looks.fields.colors).label({ en: 'Colours', cs: 'Barvy' })
       .help({ en: 'Each look has three colour palettes.', cs: 'Každý vzhled má tři barevné palety.' }),
+    // The owner's own main colour: the palette of the chosen colours follows it (templates/kit/palette.ts).
+    ownColor: f.color().optional().label(OWN_COLOR_FIELD.label).help(OWN_COLOR_FIELD.help),
     role: f.text().optional().label({ en: 'What you do', cs: 'Čím se živíte' })
       .help({ en: 'One word, for example “copywriter”. Business Card writes it beside your name in the header.', cs: 'Jedno slovo, například „copywriterka“. Vzhled Vizitka ho napíše vedle jména v záhlaví.' }),
     shortDescription: f.text({ multiline: true }).optional().label({ en: 'Short description', cs: 'Krátký popis' })

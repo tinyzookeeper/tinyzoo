@@ -138,6 +138,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'modrotisk' | 'patra' | 'po-slunci'
   colors: 'modrotisk' | 'borovice' | 'grafit' | 'bronz' | 'sosna' | 'bridlice' | 'more' | 'sad' | 'vecer'
+  ownColor: string | null
   tagline: string | null
   address: string | null
   completion: string | null

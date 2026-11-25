@@ -307,6 +307,7 @@ export const siteSettings = pgTable('site_settings', {
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   look: siteSettingsLook('look').$type<'zpravodaj' | 'dres' | 'hriste'>().notNull().default("zpravodaj"),
   colors: siteSettingsColors('colors').$type<'cervenobili' | 'zelenobili' | 'modrozluti' | 'rudi' | 'zlutocerni' | 'modrobili' | 'cervena' | 'modra' | 'zelena'>().notNull().default("cervenobili"),
+  ownColor: text('own_color'),
   fullName: text('full_name'),
   sport: text('sport'),
   founded: integer('founded'),

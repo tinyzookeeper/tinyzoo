@@ -1,6 +1,7 @@
 import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
+import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
 
 // The content model of the Development template: what a developer of a building can write and
 // change. One model for all three looks (looks.ts): a look decides how a block is drawn, never
@@ -25,7 +26,7 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // The home page beside the form: a change of look or colours shows before it is saved.
     preview: '/',
     sections: [
-      { label: { en: 'Project and look', cs: 'Projekt a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'tagline'] },
+      { label: { en: 'Project and look', cs: 'Projekt a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'ownColor', 'tagline'] },
       { label: { en: 'The building', cs: 'Dům' }, fields: ['address', 'completion', 'approval', 'asOf', 'elevationCaption'] },
       { label: { en: 'Sales', cs: 'Prodej' }, fields: ['sellerName', 'sellerRole', 'sellerPhoto', 'phone', 'email', 'officeHours', 'ctaLabel', 'ctaUrl'] },
       { label: { en: 'Developer and footer', cs: 'Developer a patička' }, fields: ['developerName', 'developerAddress', 'companyId', 'vatId', 'registry', 'footerText', 'legalText', 'pricelistFile', 'standardsFile'] },
@@ -41,6 +42,8 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // Only the chosen look's palettes are offered; a change of look moves the colours to its first one.
     colors: f.select(looks.fields.colors).label({ en: 'Colours', cs: 'Barvy' })
       .help({ en: 'Each look has three colour palettes.', cs: 'Každý vzhled má tři barevné palety.' }),
+    // The owner's own main colour: the palette of the chosen colours follows it (templates/kit/palette.ts).
+    ownColor: f.color().optional().label(OWN_COLOR_FIELD.label).help(OWN_COLOR_FIELD.help),
     tagline: f.text().optional().label({ en: 'Line beside the name', cs: 'Řádek vedle názvu' })
       .help({ en: 'For example “Apartment building · Olomouc”. Only Blueprint writes it, in the header on a tablet.', cs: 'Například „Bytový dům · Olomouc“. Píše ho jen Modrotisk, v záhlaví na tabletu.' }),
     address: f.text({ multiline: true }).optional().label({ en: 'Address of the building', cs: 'Adresa stavby' })

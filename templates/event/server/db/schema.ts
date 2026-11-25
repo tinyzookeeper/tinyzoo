@@ -326,6 +326,7 @@ export const siteSettings = pgTable('site_settings', {
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   look: siteSettingsLook('look').$type<'casomira' | 'soutisk'>().notNull().default("casomira"),
   colors: siteSettingsColors('colors').$type<'cervena' | 'zelena' | 'led' | 'cinober' | 'louka' | 'boruvka'>().notNull().default("cervena"),
+  ownColor: text('own_color'),
   edition: integer('edition'),
   tagline: text('tagline'),
   date: timestamp('date', { withTimezone: true, mode: 'date', precision: 3 }),

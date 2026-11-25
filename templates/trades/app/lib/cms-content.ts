@@ -125,6 +125,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'mistr' | 'reflex'
   colors: 'modra' | 'zelena' | 'cihla' | 'zluta' | 'oranzova' | 'monterkova'
+  ownColor: string | null
   phone: string | null
   hoursLine: string | null
   hours: Array<{ id: string; type: 'item'; days: string; time: string }>

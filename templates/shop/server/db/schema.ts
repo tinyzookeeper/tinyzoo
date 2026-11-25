@@ -316,6 +316,7 @@ export const siteSettings = pgTable('site_settings', {
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   look: siteSettingsLook('look').$type<'portal' | 'regal' | 'na-hacku'>().notNull().default("portal"),
   colors: siteSettingsColors('colors').$type<'lahvova' | 'burgund' | 'inkoust' | 'smalt' | 'police' | 'orech' | 'zelena' | 'kobalt' | 'dub'>().notNull().default("lahvova"),
+  ownColor: text('own_color'),
   tagline: text('tagline'),
   address: text('address'),
   postalCode: text('postal_code'),

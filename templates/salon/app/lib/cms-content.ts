@@ -165,6 +165,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'zrcadlo' | 'sachovnice' | 'vyloha'
   colors: 'mlha' | 'pudr' | 'salvej' | 'malina' | 'pistacie' | 'mandarinka' | 'lahvova' | 'bordo' | 'inkoust'
+  ownColor: string | null
   tagline: string | null
   phone: string | null
   email: string | null

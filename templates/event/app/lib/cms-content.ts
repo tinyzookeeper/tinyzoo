@@ -193,6 +193,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'casomira' | 'soutisk'
   colors: 'cervena' | 'zelena' | 'led' | 'cinober' | 'louka' | 'boruvka'
+  ownColor: string | null
   edition: number | null
   tagline: string | null
   date: string | null

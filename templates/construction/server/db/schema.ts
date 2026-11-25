@@ -319,6 +319,7 @@ export const siteSettings = pgTable('site_settings', {
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   look: siteSettingsLook('look').$type<'vykres' | 'harmonogram' | 'zdivo'>().notNull().default("vykres"),
   colors: siteSettingsColors('colors').$type<'tuzka' | 'modrak' | 'zelen' | 'laser' | 'cervena' | 'snura' | 'cihla' | 'bridlice' | 'smrk'>().notNull().default("tuzka"),
+  ownColor: text('own_color'),
   phone: text('phone'),
   email: text('email'),
   street: text('street'),

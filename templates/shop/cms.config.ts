@@ -1,6 +1,7 @@
 import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
+import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
 
 // The content model of the Shop template: what the shopkeeper can write and change. One model
 // for all three looks (looks.ts): a look decides how a block is drawn, never what it holds.
@@ -33,7 +34,7 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // The home page beside the form: a change of look or colours shows before it is saved.
     preview: '/',
     sections: [
-      { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'tagline'] },
+      { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'ownColor', 'tagline'] },
       { label: { en: 'Where and when', cs: 'Kde a kdy' }, fields: ['address', 'postalCode', 'town', 'locationNote', 'hours', 'hoursNote'] },
       { label: { en: 'Contacts', cs: 'Kontakty' }, fields: ['phone', 'mobile', 'email', 'ctaLabel', 'ctaUrl'] },
       { label: { en: 'Business details', cs: 'Provozovatel' }, fields: ['operator', 'companyId', 'vatId', 'register'] },
@@ -49,6 +50,8 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // Only the chosen look's palettes are offered; a change of look moves the colours to its first one.
     colors: f.select(looks.fields.colors).label({ en: 'Colours', cs: 'Barvy' })
       .help({ en: 'Each look has three colour palettes.', cs: 'Každý vzhled má tři barevné palety.' }),
+    // The owner's own main colour: the palette of the chosen colours follows it (templates/kit/palette.ts).
+    ownColor: f.color().optional().label(OWN_COLOR_FIELD.label).help(OWN_COLOR_FIELD.help),
     tagline: f.text().optional().label({ en: 'What the shop is', cs: 'Druh obchodu' })
       .help({ en: 'Two or three words with a slash between them, for example “Household goods / Hardware”. Shopfront sets the parts left and right of its name board, Shelf writes them beside the name.', cs: 'Dvě tři slova oddělená lomítkem, například „Domácí potřeby / Železářství“. Portál je napíše po stranách štítu se jménem, Regál vedle názvu.' }),
     address: f.text().optional().label({ en: 'Street and number', cs: 'Ulice a číslo' })

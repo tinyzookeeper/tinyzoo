@@ -300,6 +300,7 @@ export const siteSettings = pgTable('site_settings', {
   tagline: text('tagline'),
   look: siteSettingsLook('look').$type<'salon' | 'talir' | 'paragon'>().notNull().default("salon"),
   colors: siteSettingsColors('colors').$type<'lahvova' | 'burgundska' | 'pulnocni' | 'horcice' | 'rajce' | 'kobalt' | 'inkoust' | 'vycep' | 'tuha'>().notNull().default("lahvova"),
+  ownColor: text('own_color'),
   street: text('street'),
   postalCode: text('postal_code'),
   city: text('city'),

@@ -165,6 +165,7 @@ export interface SiteSettings {
   tagline: string | null
   look: 'lhuty' | 'sanony'
   colors: 'inkoust' | 'les' | 'grafit' | 'rumelka' | 'smaragd' | 'kobalt'
+  ownColor: string | null
   ctaLabel: string | null
   ctaLongLabel: string | null
   ctaUrl: string | null

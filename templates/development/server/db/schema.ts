@@ -316,6 +316,7 @@ export const siteSettings = pgTable('site_settings', {
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   look: siteSettingsLook('look').$type<'modrotisk' | 'patra' | 'po-slunci'>().notNull().default("modrotisk"),
   colors: siteSettingsColors('colors').$type<'modrotisk' | 'borovice' | 'grafit' | 'bronz' | 'sosna' | 'bridlice' | 'more' | 'sad' | 'vecer'>().notNull().default("modrotisk"),
+  ownColor: text('own_color'),
   tagline: text('tagline'),
   address: text('address'),
   completion: timestamp('completion', { withTimezone: true, mode: 'date', precision: 3 }),

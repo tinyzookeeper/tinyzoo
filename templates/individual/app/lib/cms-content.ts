@@ -130,6 +130,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'vizitka' | 'zvyraznovac' | 'rozhovor'
   colors: 'petrol' | 'bordo' | 'mech' | 'zluta' | 'ruzova' | 'zelena' | 'rajce' | 'svestka' | 'oliva'
+  ownColor: string | null
   role: string | null
   shortDescription: string | null
   phone: string | null

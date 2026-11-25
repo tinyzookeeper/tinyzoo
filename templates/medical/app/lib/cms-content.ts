@@ -130,6 +130,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'cekarna' | 'cifernik'
   colors: 'inkoust' | 'jedle' | 'svestka' | 'tyrkys' | 'chrpa' | 'lipa'
+  ownColor: string | null
   field: string | null
   street: string | null
   town: string | null

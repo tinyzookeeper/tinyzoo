@@ -138,6 +138,7 @@ export interface SiteSettings {
   tagline: string | null
   look: 'salon' | 'talir' | 'paragon'
   colors: 'lahvova' | 'burgundska' | 'pulnocni' | 'horcice' | 'rajce' | 'kobalt' | 'inkoust' | 'vycep' | 'tuha'
+  ownColor: string | null
   street: string | null
   postalCode: string | null
   city: string | null
