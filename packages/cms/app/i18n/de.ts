@@ -1072,7 +1072,7 @@ export default {
     problemSentence: 'Dieser Teil kann im Admin gerade nicht angezeigt werden.',
     forDevelopers: 'Für Entwickler',
     hidden: 'Entfernt',
-    deletedOnAt: 'Wird am {date} um {time} endgültig gelöscht',
+    deletedOnAt: 'Enthält nichts und wird am {date} um {time} endgültig gelöscht.',
     removedOn: 'Entfernt am {date}. Der Inhalt bleibt gespeichert.',
     restore: 'Wiederherstellen',
     restoreNamed: '{name} wiederherstellen',

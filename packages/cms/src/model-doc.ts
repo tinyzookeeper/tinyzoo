@@ -1155,7 +1155,10 @@ function purge(r: Run, op: Extract<ModelOp, { op: 'purge' }>): void {
     if (!isHidden(item)) fail(r, 'not-removed', `${what} is not removed`)
     if (!sweep) {
       const left = wait - hiddenFor(item, ctx.now)
-      if (!(left <= 0)) fail(r, 'too-soon', `${what} was removed less than a minute ago. It can be deleted for good a minute after it was removed`, { msLeft: Number.isNaN(left) ? wait : Math.ceil(left) })
+      if (!(left <= 0)) {
+        const msLeft = Number.isNaN(left) ? wait : Math.ceil(left)
+        fail(r, 'too-soon', `${what} was removed a moment ago. It can be deleted for good in ${Math.ceil(msLeft / 1000)} s`, { msLeft })
+      }
       return true
     }
     if (!isDue(item, ctx.now, ctx)) fail(r, 'not-due', `${what} is not due to be deleted`)

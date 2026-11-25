@@ -1074,7 +1074,7 @@ export default {
     problemSentence: 'This part cannot be shown in the admin right now.',
     forDevelopers: 'For developers',
     hidden: 'Removed',
-    deletedOnAt: 'Deleted for good on {date} at {time}',
+    deletedOnAt: 'Holds nothing, so it is deleted for good on {date} at {time}.',
     removedOn: 'Removed on {date}. Its content is kept.',
     restore: 'Restore',
     restoreNamed: 'Restore {name}',

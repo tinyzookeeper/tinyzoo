@@ -1077,7 +1077,7 @@ export default {
     problemSentence: 'Tuhle část teď nejde v administraci zobrazit.',
     forDevelopers: 'Pro vývojáře',
     hidden: 'Odebrané',
-    deletedOnAt: 'Smaže se natrvalo {date} v {time}',
+    deletedOnAt: 'Nic neobsahuje, proto se {date} v {time} smaže natrvalo.',
     removedOn: 'Odebráno {date}. Obsah zůstává uložený.',
     restore: 'Obnovit',
     restoreNamed: 'Obnovit {name}',

@@ -119,10 +119,11 @@ Postgres never reuses a dropped column's number, and a table can have had 1 600 
 
 - **A custom type's name is `custom_` and a key:** `custom_course`. The key is made from the first label (lower case, no accents, `a-z0-9_`, a letter first). The table is `custom_course`, the API is `/api/content/custom_course` and `/api/cms/custom_course`, the generated type is `CustomCourse`. Editors see labels only.
 - **Why a prefix:** a design may add a type `course` in a later release. Without a prefix that release would fail on every site that made its own `course`.
+- **Why `custom_`:** the owner's choice. The first build used `x_`, which says nothing in a database or in an address. `tz_custom_` was weighed too: it makes a clash with a site's own name close to impossible, but tinyzoo's own tables start with `cms_`, so `tz_` would be a second marker used only here, and it would stand in public addresses. `custom_` is free in every template, the playground, the starter and the ten site folders that were checked.
 - **How the prefix is kept free.** `defineEntity` does not refuse `custom_` names today, and the public surface only grows (`docs/api-surface.md`), so it stays that way. Instead: the one app's build refuses a design whose model has a `custom_` type (`templates/kit/module.ts` already checks look ids and addresses before a build); a server with custom types switched on refuses to load them for a site whose code-first model has one, and says so. No template, the playground or the starter has such a name today (checked).
 - **A field key** is made from the first label in lower camel case (`startsAt`). It cannot be a name tinyzoo uses (`RESERVED_FIELD_NAMES` and `LIST_PARAMS` in `src/entity.ts`), nor `slug`, `status` or `position`, which the mapper makes.
 - **A page prefix** is one address part (`kurzy`). It cannot be the first part of another type's address (`content.path` of any type of the site), nor `admin`, `api`, `home`, or a name starting with `_`.
-- **Lengths.** Postgres cuts names at 63 bytes. A type's table name is at most 32 characters and a field's column at most 30, so every table, column and choice type fits uncut. Constraint and index names may be cut; the planner cuts them the way Postgres does and refuses two that would become equal.
+- **Lengths.** Postgres cuts names at 63 bytes. A type's name is at most 32 characters and a field's column at most 30, so every table, column and choice type fits uncut: the longest is a choice field's type, `<type>_<column>`, 32 + 1 + 30 = 63. The key after the prefix has 25 characters. Constraint and index names may be cut; the planner cuts them the way Postgres does and refuses two that would become equal.
 - **Generic block types** are `custom_entries` and `custom_chosen`: the same prefix, so a design's own block can never have the name (114 block names exist; none starts with `custom_`).
 
 ## 4. Loading the model, and how a change spreads
@@ -592,7 +593,8 @@ The owner decided that no timer ever deletes content. It replaces Part 2's delet
 
 ### Open after this step
 
-- The decisions listed for the owner at the head of the work: the plan's limits. The wait before a deletion is decided: nothing with content is deleted by a timer (section 6).
+- Decided by the owner on 2026-11-25: the prefix `custom_` (section 3), and removal without a timer (section 6). Still the owner's: what each plan's limits are.
+- A deleted field's values can stay in the shared-editing working copies of its type's entries until those copies are cleaned (section 6, the table of what is left). The saved entries and their revisions no longer hold them.
 - A new block's "layout" starts empty in the admin, and the kit draws an empty one as cards: the admin does not carry a block field's default (so for every block of every site).
 - A block of the two kinds stored on a site that has no type of its own shows in the admin as a block that "no longer exists". It is kept on save; only the words are wrong.
 - The search index of a large site after a change of structure was not measured.
