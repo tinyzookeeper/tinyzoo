@@ -7,7 +7,7 @@
 //   node templates/kit/scripts/look-pairs.mjs --check    exit 1 if a looks.ts would change (CI)
 //   node templates/kit/scripts/look-pairs.mjs --write    write the found colours into looks.ts
 //
-// `--write` keeps the hand-written `main`, `calm` and `follows` of a look's `own:` and replaces
+// `--write` keeps the hand-written `main`, `calm`, `follows` and `also` of a look's `own:` and replaces
 // `against` and `fixed`. A new look needs a first `own:` line from `--write`; after that, run
 // it whenever a look's stylesheet or components change.
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -29,7 +29,7 @@ for (const template of lookTemplates(templatesDir)) {
 
 // The own line a look should have: its hand-written keys, and what was found.
 const lineOf = ({ look, found }) =>
-  ownLine({ main: look.own?.main, calm: look.own?.calm, follows: look.own?.follows, against: found.against, fixed: found.fixed })
+  ownLine({ main: look.own?.main, calm: look.own?.calm, follows: look.own?.follows, also: look.own?.also, against: found.against, fixed: found.fixed })
 
 // Each template's looks.ts with every look's line put in place.
 const rewritten = (template) => {

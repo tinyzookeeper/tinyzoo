@@ -23,7 +23,7 @@ export const looks = defineLooks([
     // The evening of the wedding: a dark page under strings of lights, champagne hairlines, one ivory reply card.
     id: 'vecer',
     name: { cs: 'Večer', en: 'Evening' },
-    own: { against: ['--brand-ink', '--card-ink', '--night', '--panel'] },
+    own: { against: ['--body', '--brand-ink', '--card-ink', '--night', '--panel'] },
     presets: [
       { id: 'les', name: { cs: 'Les', en: 'Forest' }, swatch: ['#111b17', '#d3b784', '#f3ecdd'], vars: { '--night': '#111b17', '--panel': '#18251f', '--line': '#32423a', '--ink': '#f4eddd', '--body': '#d5cebc', '--quiet': '#a7a08e', '--brand': '#d3b784', '--brand-ink': '#141d18', '--card': '#f3ecdd', '--card-ink': '#17211c', '--card-body': '#454a40', '--card-line': '#cdc3ac' } },
       { id: 'pulnoc', name: { cs: 'Půlnoc', en: 'Midnight' }, swatch: ['#10151e', '#d9c5a2', '#f2eee5'], vars: { '--night': '#10151e', '--panel': '#171e2a', '--line': '#313a4a', '--ink': '#f2ede3', '--body': '#d1cdc4', '--quiet': '#a2a3a6', '--brand': '#d9c5a2', '--brand-ink': '#121722', '--card': '#f2eee5', '--card-ink': '#141a25', '--card-body': '#444852', '--card-line': '#c9c6bd' } },

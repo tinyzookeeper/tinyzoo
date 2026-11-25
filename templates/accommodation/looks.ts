@@ -13,7 +13,7 @@ export const looks = defineLooks([
     // A quiet dark lodge page: one full-bleed photograph, and the year as a ribbon of twelve months coloured by season.
     id: 'cely-rok',
     name: { cs: 'Celý rok', en: 'All Year' },
-    own: { against: ['--bg', '--brand-ink', '--raised', '--surface'] },
+    own: { against: ['--bg', '--brand-ink', '--raised', '--surface', '--text'] },
     presets: [
       { id: 'vres', name: { cs: 'Vřes', en: 'Heather' }, swatch: ['#e8afca', '#121e19', '#f1eadc'], vars: { '--bg': '#121e19', '--surface': '#1a2923', '--raised': '#23362e', '--text': '#f1eadc', '--brand': '#e8afca', '--brand-ink': '#2b1421' } },
       { id: 'jerabina', name: { cs: 'Jeřabina', en: 'Rowan' }, swatch: ['#f29268', '#1c1614', '#f3eadb'], vars: { '--bg': '#1c1614', '--surface': '#28201d', '--raised': '#342a26', '--text': '#f3eadb', '--brand': '#f29268', '--brand-ink': '#2a1107' } },

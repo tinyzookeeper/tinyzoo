@@ -34,7 +34,7 @@ export const looks = defineLooks([
     // The page as a conversation: each section opens with the visitor's question in a speech bubble; soft, rounded, warm.
     id: 'rozhovor',
     name: { cs: 'Rozhovor', en: 'Conversation' },
-    own: { against: ['--brand-ink', '--card', '--paper', '--tint'] },
+    own: { against: ['--body', '--brand-ink', '--card', '--paper', '--tint'] },
     presets: [
       { id: 'rajce', name: { cs: 'Rajče', en: 'Tomato' }, vars: { '--brand': '#b83a22', '--brand-ink': '#fff6ee', '--paper': '#f6e9df', '--tint': '#eed7c9', '--card': '#fffaf4', '--ink': '#22312a', '--body': '#3a4840', '--quiet': '#566058' } },
       { id: 'svestka', name: { cs: 'Švestka', en: 'Plum' }, vars: { '--brand': '#6d2f5e', '--brand-ink': '#fdf3f8', '--paper': '#f3e8ec', '--tint': '#e6d4dd', '--card': '#fffafb', '--ink': '#2a1f2d', '--body': '#463b49', '--quiet': '#625668' } },

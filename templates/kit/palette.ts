@@ -36,6 +36,12 @@ export interface OwnColours {
   against?: readonly `--${string}`[]
   /** The same for colours of the look's stylesheet that are in no preset (a white page): `#rrggbb`. */
   fixed?: readonly string[]
+  /**
+   * More of the same, written by hand: pairs the script cannot see in the code (a text inside a
+   * section whose background is set on an element around it), found on the real pages by
+   * templates/app/scripts/own-contrast.mjs. Preset variables or `#rrggbb`.
+   */
+  also?: readonly string[]
   /** The main colour is the whole page: it takes no more saturation than the look's presets have. */
   calm?: boolean
 }
@@ -207,8 +213,8 @@ export function learnPalette(presets: readonly { vars: Vars }[], own: OwnColours
   const rule: PaletteRule = {
     main,
     follows: own.follows ? own.follows.filter((name) => names.includes(name)) : names.filter((name) => followsMain(presets, main, name)),
-    against: (own.against ?? []).filter((name) => names.includes(name)),
-    fixed: (own.fixed ?? []).map(plainHex).filter((c): c is string => !!c),
+    against: [...new Set([...(own.against ?? []), ...(own.also ?? []).filter((x): x is `--${string}` => x.startsWith('--'))])].filter((name) => names.includes(name)),
+    fixed: [...new Set([...(own.fixed ?? []), ...(own.also ?? []).filter((x) => x.startsWith('#'))].map(plainHex).filter((c): c is string => !!c))],
   }
   if (own.calm) {
     rule.maxChroma = Math.max(...presets.map((p) => plainHex(p.vars[main])).filter((c): c is string => !!c).map((c) => hexToOklch(c)[1]))

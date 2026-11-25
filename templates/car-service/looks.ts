@@ -12,7 +12,7 @@ export const looks = defineLooks([
     // A bright page with one deep colour: large calm type, big photographs, the repair as four stops on a road.
     id: 'cesta',
     name: { cs: 'Cesta', en: 'Road' },
-    own: { against: ['--brand-ink', '--paper', '--tint'], fixed: ['#ffffff'] },
+    own: { against: ['--brand-ink', '--paper', '--tint'], fixed: ['#14181b', '#ffffff'] },
     presets: [
       { id: 'modra', name: { cs: 'Modrá', en: 'Blue' }, vars: { '--brand': '#1d4fb8', '--brand-ink': '#ffffff', '--tint': '#e8eefa', '--paper': '#f4f5f7', '--line': '#e1e4ea' } },
       { id: 'zelena', name: { cs: 'Zelená', en: 'Green' }, vars: { '--brand': '#17594a', '--brand-ink': '#ffffff', '--tint': '#e7f0ec', '--paper': '#f4f5f2', '--line': '#e2e5e3' } },
@@ -23,7 +23,7 @@ export const looks = defineLooks([
     // The dashboard at dusk: six warning lights lead into the price guide, a gear pattern shows the repair.
     id: 'kontrolky',
     name: { cs: 'Kontrolky', en: 'Warning Lights' },
-    own: { against: ['--bg', '--brand-ink', '--panel'], fixed: ['#0a0c0e'] },
+    own: { against: ['--bg', '--brand-ink', '--panel'], fixed: ['#0a0c0e', '#eceff1'] },
     presets: [
       { id: 'podsviceni', name: { cs: 'Zelené podsvícení', en: 'Green backlight' }, vars: { '--brand': '#93e67c', '--brand-ink': '#0a1408', '--bg': '#0f1215', '--panel': '#181c20', '--line': '#2a3036' } },
       { id: 'jantar', name: { cs: 'Jantarové', en: 'Amber' }, vars: { '--brand': '#ffa94d', '--brand-ink': '#170c00', '--bg': '#121110', '--panel': '#1c1a18', '--line': '#322e2a' } },
@@ -34,7 +34,7 @@ export const looks = defineLooks([
     // The red tool chest of the workshop: a drawer for every group of the price guide, the page speaks of three mechanics.
     id: 'supliky',
     name: { cs: 'Šuplíky', en: 'Drawers' },
-    own: { against: ['--brand-ink', '--card', '--paper', '--tint'], fixed: ['#ffffff'] },
+    own: { against: ['--brand-ink', '--card', '--paper', '--tint'], fixed: ['#1f1b19', '#ffffff'] },
     presets: [
       { id: 'cervena', name: { cs: 'Červená', en: 'Red' }, vars: { '--brand': '#c5281c', '--brand-deep': '#96190f', '--brand-ink': '#ffffff', '--paper': '#f4ecde', '--tint': '#e9dcc6', '--card': '#fffaf0', '--edge': '#dccdb3' } },
       { id: 'safir', name: { cs: 'Modrá', en: 'Blue' }, vars: { '--brand': '#1d4f91', '--brand-deep': '#143a6d', '--brand-ink': '#ffffff', '--paper': '#eef0ea', '--tint': '#dde2d8', '--card': '#fbfcf7', '--edge': '#cdd4c6' } },

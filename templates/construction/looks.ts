@@ -23,7 +23,7 @@ export const looks = defineLooks([
     // The build schedule as the website: a graphite page levelled to one laser line, durations as bars on a week grid.
     id: 'harmonogram',
     name: { cs: 'Harmonogram', en: 'Schedule' },
-    own: { against: ['--bg', '--brand-ink', '--raised', '--surface'] },
+    own: { against: ['--bg', '--brand-ink', '--raised', '--surface'], fixed: ['#eef0ea'] },
     presets: [
       { id: 'laser', name: { cs: 'Zelený laser', en: 'Green laser' }, swatch: ['#5bf36d', '#151719', '#eceee8'], vars: { '--brand': '#5bf36d', '--brand-ink': '#06140a', '--bg': '#151719', '--surface': '#1e2124', '--raised': '#2a2e32', '--line': '#3b4146', '--paper': '#eceee8' } },
       { id: 'cervena', name: { cs: 'Červený laser', en: 'Red laser' }, swatch: ['#ff5f4f', '#18161a', '#f0ece9'], vars: { '--brand': '#ff5f4f', '--brand-ink': '#1a0503', '--bg': '#18161a', '--surface': '#221f25', '--raised': '#2e2a32', '--line': '#423d46', '--paper': '#f0ece9' } },
@@ -34,7 +34,7 @@ export const looks = defineLooks([
     // A wall of terracotta blocks in a running bond on plaster, and the build as a house that grows from the footing up.
     id: 'zdivo',
     name: { cs: 'Zdivo', en: 'Brickwork' },
-    own: { against: ['--card', '--plaster', '--timber'], fixed: ['#fff8ec', '#ffffff'] },
+    own: { against: ['--card', '--plaster', '--timber'], fixed: ['#47372d', '#fff8ec', '#ffffff'] },
     presets: [
       { id: 'cihla', name: { cs: 'Cihla', en: 'Clay' }, swatch: ['#a9401f', '#efe7d8', '#24160f'], vars: { '--brand': '#a9401f', '--brand-d': '#8f351a', '--brand-2': '#d06c41', '--brand-3': '#e6a47f', '--plaster': '#efe7d8', '--card': '#faf5ea', '--ink': '#24160f', '--timber': '#e4c690' } },
       { id: 'bridlice', name: { cs: 'Břidlice', en: 'Slate' }, swatch: ['#3d586c', '#e8e8e2', '#17202a'], vars: { '--brand': '#3d586c', '--brand-d': '#314859', '--brand-2': '#86a1b5', '--brand-3': '#b9c9d5', '--plaster': '#e8e8e2', '--card': '#f6f6f1', '--ink': '#17202a', '--timber': '#e3cf9f' } },

@@ -34,7 +34,7 @@ export const looks = defineLooks([
     // A street in the evening with the lights on: a warm dark page, lamp-coloured accents, window-shaped photographs.
     id: 'rozsviceno',
     name: { cs: 'Rozsvíceno', en: 'Lights On' },
-    own: { main: '--accent', against: ['--accent-ink', '--bg', '--surface', '--surface-2'] },
+    own: { main: '--accent', against: ['--accent-ink', '--bg', '--surface', '--surface-2'], fixed: ['#f3ebdd'] },
     presets: [
       { id: 'soumrak', name: { cs: 'Soumrak', en: 'Dusk' }, swatch: ['#f4c463', '#1f1b24', '#2b2632'], vars: { '--bg': '#1f1b24', '--surface': '#2b2632', '--surface-2': '#393240', '--muted': '#bfb5b3', '--accent': '#f4c463', '--accent-ink': '#26190a' } },
       { id: 'mech', name: { cs: 'Mech', en: 'Moss' }, swatch: ['#f0a37a', '#1a211c', '#252e27'], vars: { '--bg': '#1a211c', '--surface': '#252e27', '--surface-2': '#323c34', '--muted': '#b4bbb0', '--accent': '#f0a37a', '--accent-ink': '#2a140a' } },

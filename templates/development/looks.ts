@@ -24,7 +24,7 @@ export const looks = defineLooks([
     // The building read floor by floor: a calm white page, a narrow serif, the price list under four floor numerals.
     id: 'patra',
     name: { cs: 'Patra', en: 'Floors' },
-    own: { against: ['--brand-ink', '--soft'], fixed: ['#ffffff'] },
+    own: { against: ['--brand-ink', '--ink', '--soft'], fixed: ['#ffffff'] },
     presets: [
       { id: 'bronz', name: { cs: 'Bronz', en: 'Bronze' }, swatch: ['#7d5a3a', '#f6f4f0', '#262320'], vars: { '--brand': '#7d5a3a', '--brand-ink': '#ffffff', '--soft': '#f6f4f0', '--ink': '#262320', '--quiet': '#665f58' } },
       { id: 'sosna', name: { cs: 'Borovice', en: 'Pine' }, swatch: ['#2f5b4c', '#f4f5f1', '#20262a'], vars: { '--brand': '#2f5b4c', '--brand-ink': '#ffffff', '--soft': '#f4f5f1', '--ink': '#20262a', '--quiet': '#596266' } },
@@ -35,7 +35,7 @@ export const looks = defineLooks([
     // The house follows the sun: a friendly white page of circles and rounded panels, every flat described by its light.
     id: 'po-slunci',
     name: { cs: 'Po slunci', en: 'By the Sun' },
-    own: { against: ['--brand-ink', '--soft'], fixed: ['#ffffff'] },
+    own: { also: ['--sun'], against: ['--brand-ink', '--ink', '--soft'], fixed: ['#ffffff'] },
     presets: [
       { id: 'more', name: { cs: 'Moře', en: 'Sea' }, swatch: ['#1f5a61', '#eef3f3', '#f6cf6b'], vars: { '--brand': '#1f5a61', '--brand-ink': '#ffffff', '--soft': '#eef3f3', '--sun': '#f6cf6b', '--ink': '#1b2a2d', '--quiet': '#53656a' } },
       { id: 'sad', name: { cs: 'Sad', en: 'Orchard' }, swatch: ['#2f5d46', '#f0f4ee', '#f4d06e'], vars: { '--brand': '#2f5d46', '--brand-ink': '#ffffff', '--soft': '#f0f4ee', '--sun': '#f4d06e', '--ink': '#1d2a22', '--quiet': '#56655b' } },

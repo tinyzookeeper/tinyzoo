@@ -297,7 +297,12 @@ describe('the look-pairs scan on a made-up template', () => {
     expect(asText.against).toEqual(['--paper'])
     const notAsText = scan(css, { A: vue('<span class="bg-brand">x</span>') })
     expect(notAsText.mainAsText).toBe(false)
-    expect(notAsText.against).toEqual([])
+    // Not the page's background. But a fill in the main colour that sets no text colour of its
+    // own shows the text it inherits: the page's own text colour.
+    expect(notAsText.against).toEqual(['--ink'])
+    expect(notAsText.sources['--ink']?.[0]).toMatch(/the page's text on --brand/)
+    // A fill that names its text does not get the page's.
+    expect(scan(css, { A: vue('<span class="bg-brand text-brand-ink">x</span>') }).against).toEqual(['--brand-ink'])
   })
 
   it('counts a background nearly as light as the page as one of its surfaces, and a dark one not', () => {

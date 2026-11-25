@@ -12,7 +12,7 @@ export const looks = defineLooks([
     // The room in daylight: a pale green-grey page, a bookish serif, soft rounded photographs and white cards.
     id: 'sal',
     name: { cs: 'Sál', en: 'Hall' },
-    own: { against: ['--brand-ink', '--card', '--paper', '--tint'] },
+    own: { against: ['--body', '--brand-ink', '--card', '--paper', '--tint'] },
     presets: [
       { id: 'borovice', name: { cs: 'Borovice', en: 'Pine' }, vars: { '--brand': '#2f5d50', '--brand-ink': '#ffffff', '--paper': '#f5f4ee', '--card': '#ffffff', '--tint': '#e6ebe1', '--line': '#d6dacd', '--ink': '#1b2a25', '--body': '#3d4843', '--quiet': '#5d6862', '--warm': '#a8481f' } },
       { id: 'jil', name: { cs: 'Jíl', en: 'Clay' }, vars: { '--brand': '#99472a', '--brand-ink': '#ffffff', '--paper': '#f8f4ed', '--card': '#ffffff', '--tint': '#f0e5d8', '--line': '#e0d5c6', '--ink': '#2a1f1a', '--body': '#3d4843', '--quiet': '#5d6862', '--warm': '#2f6a58' } },
@@ -23,7 +23,7 @@ export const looks = defineLooks([
     // A departures board: the whole page in the studio's colour, wide capitals, mono numerals, square edges, today's classes in the opening.
     id: 'tabule',
     name: { cs: 'Tabule', en: 'Board' },
-    own: { against: ['--accent', '--brand-ink', '--paper'], fixed: ['#ffffff'] },
+    own: { against: ['--accent', '--brand-ink', '--ink', '--paper'], fixed: ['#ffffff'] },
     presets: [
       { id: 'kobalt', name: { cs: 'Kobalt', en: 'Cobalt' }, vars: { '--brand': '#1d32d8', '--brand-ink': '#ffffff', '--accent': '#ffd84a', '--accent-ink': '#0c0f24', '--ink': '#0c0f24', '--paper': '#f1efe9' } },
       { id: 'rumelka', name: { cs: 'Rumělka', en: 'Vermilion' }, vars: { '--brand': '#c22d14', '--brand-ink': '#ffffff', '--accent': '#fbe9a4', '--accent-ink': '#1d100c', '--ink': '#1d100c', '--paper': '#f5f1ea' } },

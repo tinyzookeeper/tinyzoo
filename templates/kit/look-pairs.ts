@@ -19,7 +19,8 @@
 // section, a card). Where the main colour is the page's background, every text that has no
 // background of its own counts.
 //
-// What it cannot see:
+// What it cannot see (templates/app/scripts/own-contrast.mjs finds these on the real pages, and a
+// look lists them by hand as `own.also`):
 //   - text inside an element whose background is set on an ancestor (a section with `bg-brand`
 //     and a heading in it with `text-paper`, or one CSS rule for a card and another for its heading);
 //   - colours set through `:style` bindings, or worked out in script and applied elsewhere;
@@ -38,6 +39,7 @@ export interface LookInput {
     main?: string
     calm?: boolean
     follows?: readonly string[]
+    also?: readonly string[]
     against?: readonly string[]
     fixed?: readonly string[]
   }
@@ -495,6 +497,16 @@ export function scanLook(templatesDir: string, templateId: string, look: LookInp
     const refs = body.decls.filter((d) => BG_PROPS.has(d.prop)).map((d) => colourRefs(d.value)).filter((r) => r.length).pop()
     page = refs?.[0] ?? null
   }
+  // The page's own text colour: what `body` gets as `color`. A place filled with the main colour
+  // that sets no text colour of its own shows the text it inherits, which is most often this one.
+  const pageText = body?.decls.filter((d) => d.prop === 'color').map((d) => colourRefs(d.value)).filter((r) => r.length).pop()?.[0] ?? null
+  if (pageText) {
+    for (const group of groups) {
+      for (const { bgs, texts } of pairsOf(group.items)) {
+        if (bgs.includes(main) && !texts.length) candidate(pageText, `${group.where}: the page's text on ${main}`)
+      }
+    }
+  }
   if (mainAsText && page) candidate(page, `${cssName} ${body?.prelude}: page under text in ${main}`)
   // The page's other surfaces: a background nearly as light (or as dark) as the page, such as a
   // tinted section or a card. A text in the main colour stands on those too, often set on an
@@ -542,11 +554,12 @@ export function scanLook(templatesDir: string, templateId: string, look: LookInp
 const list = (values: readonly string[]) => `[${values.map((v) => `'${v}'`).join(', ')}]`
 
 /** The `own:` line of a look, as looks.ts writes it. */
-export function ownLine(own: { main?: string; calm?: boolean; follows?: readonly string[]; against: readonly string[]; fixed?: readonly string[] }): string {
+export function ownLine(own: { main?: string; calm?: boolean; follows?: readonly string[]; also?: readonly string[]; against: readonly string[]; fixed?: readonly string[] }): string {
   const keys: string[] = []
   if (own.main) keys.push(`main: '${own.main}'`)
   if (own.calm) keys.push('calm: true')
   if (own.follows) keys.push(`follows: ${list(own.follows)}`)
+  if (own.also?.length) keys.push(`also: ${list(own.also)}`)
   keys.push(`against: ${list(own.against)}`)
   if (own.fixed?.length) keys.push(`fixed: ${list(own.fixed)}`)
   return `own: { ${keys.join(', ')} },`

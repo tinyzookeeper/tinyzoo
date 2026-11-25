@@ -21,7 +21,7 @@
 import { createRequire } from 'node:module'
 import { writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { arg, chooseLook, dropSites, freePortFrom, log, makeSites, repoRoot, seedSite, signIn, sitesFor, startServer, writeDirectory } from './sites.mjs'
+import { arg, chooseLook, dropSites, freePortFrom, log, looksOf, makeSites, repoRoot, seedSite, signIn, sitesFor, startServer, writeDirectory } from './sites.mjs'
 
 const entry = arg('entry')
 const pgUrl = arg('pg')
@@ -80,7 +80,7 @@ function measure() {
     const fg = parse(s.color)
     if (!fg || !bg || opacity < 0.05) { out.push(null); continue }
     const shown = over({ ...fg, a: fg.a * opacity }, bg)
-    out.push({ text: text.slice(0, 60), tag: el.tagName.toLowerCase(), cls: String(el.className?.baseVal ?? el.className ?? '').slice(0, 80), fg: [shown.r, shown.g, shown.b], bg: [bg.r, bg.g, bg.b] })
+    out.push({ text: text.slice(0, 60), tag: el.tagName.toLowerCase(), cls: String(el.className?.baseVal ?? el.className ?? '').slice(0, 80), fg: [shown.r, shown.g, shown.b], bg: [bg.r, bg.g, bg.b], raw: [fg.r, fg.g, fg.b], faded: fg.a * opacity < 0.995 })
   }
   return out
 }
@@ -117,9 +117,13 @@ try {
   for (const row of rows) {
     const s = row._site
     const cookie = await signIn(s.url)
+    const looks = await looksOf(templatesDir, s.template)
     for (const preset of allPresets ? s.presets : s.presets.slice(0, 1)) {
       await chooseLook(s.url, cookie, s.look, preset, null)
       const before = await read(s.url)
+      // A colour of the page as the look names it: the preset's variable with that value, else the colour.
+      const vars = looks.resolve(s.look, preset).preset.vars
+      const named = (c) => Object.keys(vars).find((name) => String(vars[name]).toLowerCase() === hex(c)) ?? hex(c)
       for (const colour of colours) {
         await chooseLook(s.url, cookie, s.look, preset, colour)
         const after = await read(s.url)
@@ -131,7 +135,7 @@ try {
             const had = contrast(was.fg, was.bg)
             const has = contrast(now.fg, now.bg)
             const mark = had >= 4.5 ? 4.5 : had >= 3 ? 3 : 0
-            if (mark && has < mark - 0.05) crossed.push({ text: now.text, tag: now.tag, cls: now.cls, was: `${hex(was.fg)} on ${hex(was.bg)} (${had.toFixed(2)})`, now: `${hex(now.fg)} on ${hex(now.bg)} (${has.toFixed(2)})`, mark })
+            if (mark && has < mark - 0.05) crossed.push({ text: now.text, tag: now.tag, cls: now.cls, pair: `${named(was.raw)} on ${named(was.bg)}${was.faded ? ' (faded)' : ''}`, has, was: `${hex(was.fg)} on ${hex(was.bg)} (${had.toFixed(2)})`, now: `${hex(now.fg)} on ${hex(now.bg)} (${has.toFixed(2)})`, mark })
           })
         }
         report.looks.push({ site: s.slug, look: s.look, preset, colour, shown: after.own, texts: after.texts.filter(Boolean).length, sameShape: after.texts.length === before.texts.length, crossed })
@@ -153,6 +157,18 @@ const bad = report.looks.filter((l) => l.crossed.length)
 console.log(`\n${runs} pages measured (${new Set(report.looks.map((l) => l.site)).size} looks × ${colours.length} colours${allPresets ? ' × their presets' : ''}); ${runs - bad.length} with no text across a mark, ${bad.length} with some`)
 for (const l of bad) {
   console.log(`\n${l.site} ${l.preset} ${l.colour} → ${l.shown}: ${l.crossed.length} of ${l.texts} texts`)
-  for (const c of l.crossed.slice(0, 4)) console.log(`  “${c.text}” <${c.tag} class="${c.cls}"> was ${c.was}, now ${c.now}`)
+  for (const c of l.crossed.slice(0, 4)) console.log(`  “${c.text}” <${c.tag} class="${c.cls}"> ${c.pair}: was ${c.was}, now ${c.now}`)
 }
+// The pairs behind them, look by look: what a look's `own.also` should name (templates/kit/palette.ts).
+const pairs = new Map()
+for (const l of bad) for (const c of l.crossed) {
+  const key = `${l.site}: ${c.pair}`
+  const e = pairs.get(key) ?? pairs.set(key, { texts: 0, lowest: Infinity }).get(key)
+  e.texts++
+  e.lowest = Math.min(e.lowest, c.has)
+}
+if (pairs.size) console.log('\nthe pairs, as the preset names them:')
+for (const [key, e] of [...pairs].sort()) console.log(`  ${key}: ${e.texts} texts, lowest ${e.lowest.toFixed(2)}`)
+const all = report.looks.flatMap((l) => l.crossed.map((c) => c.has))
+console.log(`\n${all.length} texts across a mark, ${all.filter((x) => x < 3).length} of them under 3, of ${report.looks.reduce((n, l) => n + l.texts, 0)} texts measured`)
 process.exit(0)
