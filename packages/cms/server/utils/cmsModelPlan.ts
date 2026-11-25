@@ -55,14 +55,26 @@ export function designTypesForModel(reg: CmsRegistry): ModelContext['design'] {
   return out
 }
 
-/** The type and field names each operation touches (`purge` and `type.add` touch nothing that exists yet). */
+/**
+ * The type and field names each operation touches (`type.add` touches nothing that exists yet; a
+ * `purge` names its types and its fields, which are counted before they go).
+ */
 function touched(ops: ModelOp[]): { types: Set<string>; fields: Map<string, Set<string>> } {
   const types = new Set<string>()
   const fields = new Map<string, Set<string>>()
+  const addField = (type: string, key: string) => fields.set(type, new Set([...(fields.get(type) ?? []), key]))
   for (const op of ops as any[]) {
-    if (!op || typeof op !== 'object' || typeof op.type !== 'string') continue
+    if (!op || typeof op !== 'object') continue
+    if (op.op === 'purge') {
+      for (const name of Array.isArray(op.types) ? op.types : []) if (typeof name === 'string') types.add(name)
+      for (const ref of Array.isArray(op.fields) ? op.fields : []) {
+        if (ref && typeof ref.type === 'string' && typeof ref.key === 'string') { types.add(ref.type); addField(ref.type, ref.key) }
+      }
+      continue
+    }
+    if (typeof op.type !== 'string') continue
     types.add(op.type)
-    if (typeof op.key === 'string') fields.set(op.type, new Set([...(fields.get(op.type) ?? []), op.key]))
+    if (typeof op.key === 'string') addField(op.type, op.key)
   }
   return { types, fields }
 }

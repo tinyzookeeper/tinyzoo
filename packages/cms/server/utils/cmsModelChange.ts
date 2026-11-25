@@ -253,6 +253,44 @@ async function placesInUse(db: any, reg: CmsRegistry, ops: ModelOp[]): Promise<{
   return out
 }
 
+/**
+ * What a deletion for good leaves behind in tinyzoo's own tables, removed in the same transaction
+ * as the structure (ordinary parameterised statements: the allowed list of the planner is only for
+ * the site's own tables). Worked out from the two documents, so any way a thing leaves the
+ * document is covered: a type that was there and is not, a field of a type that stays.
+ *
+ * - a deleted type: its revisions, its rows of the search index and its shared-editing documents
+ *   (named `<type>/<id>[/<language>]`, with `~unsaved` and `~by` side rows; the prefix is compared
+ *   with `left`, as `_` in a LIKE would be a wildcard);
+ * - a deleted field: its key (and `<key>__media`) in every stored revision of the type, and the
+ *   search index's signature: the field's text sits inside the index's concatenated columns, so the
+ *   next instance (this one is retired after the commit) rebuilds the index from the current model.
+ *
+ * The audit log (`model.change` records the deletion; entries' lines carry ids only) and the media
+ * rows are not touched.
+ */
+async function forgetDeleted(before: ModelDoc, after: ModelDoc, exec: (text: string, params?: unknown[]) => Promise<unknown>): Promise<void> {
+  let fields = false
+  for (const t of before.types) {
+    const now = after.types.find((x) => x.name === t.name)
+    if (!now) {
+      await exec('delete from "cms_revisions" where entity = $1', [t.name])
+      await exec('delete from "cms_search" where entity = $1', [t.name])
+      await exec('delete from "cms_collab" where left(name, length($1::text)) = $1::text', [t.name + '/'])
+      continue
+    }
+    for (const f of t.fields) {
+      if (now.fields.some((x) => x.key === f.key)) continue
+      fields = true
+      await exec(
+        'update "cms_revisions" set data = data - $2::text - $3::text, changed = changed - $2::text where entity = $1 and (jsonb_exists(data, $2::text) or jsonb_exists(data, $3::text) or jsonb_exists(changed, $2::text))',
+        [t.name, f.key, f.key + '__media'],
+      )
+    }
+  }
+  if (fields) await exec('delete from "cms_state" where key = $1', [CMS_SEARCH_STATE_KEY])
+}
+
 // ── the function ───────────────────────────────────────────────────────────────
 
 /**
@@ -323,6 +361,7 @@ async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: b
       const plan = planModelChange(before, applied.doc, design.config, input.ops)
       if (plan.refused.length) throw refusal(422, 'not-allowed', 'This change cannot be made to the database', { reasons: plan.refused })
       await runModelStatements((text) => exec(text), plan.statements)
+      await forgetDeleted(before, applied.doc, exec)
 
       const version = current + 1
       await exec('insert into "cms_model" (version, doc, ops, user_id) values ($1, $2::jsonb, $3::jsonb, $4)', [version, JSON.stringify(applied.doc), JSON.stringify(input.ops), userId])
@@ -364,13 +403,23 @@ async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: b
   return result
 }
 
-/** A short line per operation for the audit log: what it was and what it named. */
-function summary(ops: ModelOp[]): { op: string; type?: string; key?: string }[] {
-  return (ops as any[]).slice(0, 50).map((o) => ({
-    op: String(o?.op ?? '').slice(0, 20),
-    ...(typeof o?.type === 'string' ? { type: o.type.slice(0, 40) } : typeof o?.name === 'string' ? { type: o.name.slice(0, 40) } : {}),
-    ...(typeof o?.key === 'string' ? { key: o.key.slice(0, 40) } : typeof o?.field?.key === 'string' ? { key: o.field.key.slice(0, 40) } : {}),
-  }))
+/** A short line per operation for the audit log: what it was and what it named (a purge: the types and fields it deleted). */
+function summary(ops: ModelOp[]): { op: string; type?: string; key?: string; types?: string[]; fields?: string[] }[] {
+  const text = (v: unknown, n: number) => String(v ?? '').slice(0, n)
+  return (ops as any[]).slice(0, 50).map((o) => {
+    if (o?.op === 'purge') {
+      return {
+        op: 'purge',
+        ...(Array.isArray(o.types) ? { types: o.types.slice(0, 20).map((n: unknown) => text(n, 40)) } : {}),
+        ...(Array.isArray(o.fields) ? { fields: o.fields.slice(0, 20).map((r: any) => text(r?.type, 40) + '.' + text(r?.key, 40)) } : {}),
+      }
+    }
+    return {
+      op: text(o?.op, 20),
+      ...(typeof o?.type === 'string' ? { type: o.type.slice(0, 40) } : typeof o?.name === 'string' ? { type: o.name.slice(0, 40) } : {}),
+      ...(typeof o?.key === 'string' ? { key: o.key.slice(0, 40) } : typeof o?.field?.key === 'string' ? { key: o.field.key.slice(0, 40) } : {}),
+    }
+  })
 }
 
 // ── other instances ────────────────────────────────────────────────────────────
@@ -428,18 +477,29 @@ const USAGE_PLACES = 50
 
 /**
  * Where a custom type, or one of its fields, is shown or linked to now (what removing it would
- * meet). With a field: the blocks that show it or order by it. Without: the blocks that show the
- * type and the content that links to it (up to 50 of each), and, for each field some block
- * of the type uses, how many different entries have such a block.
+ * meet), and how much content it holds (what deleting it for good would take). Hidden types and
+ * fields are found too. With a field: `{ places, values }` (the blocks that show it or order by
+ * it; the entries that hold a value of it, null when that cannot be counted, as for a translated
+ * field). Without: `{ places, fields, entries }` (the blocks that show the type and the content
+ * that links to it, up to 50 of each; for each field some block of the type uses, the number of
+ * different entries with such a block; the rows of the type's table).
  */
-export async function cmsModelUsage(type: string, field: string | null): Promise<{ places: CmsModelPlace[]; fields?: Record<string, number> }> {
+export async function cmsModelUsage(type: string, field: string | null): Promise<{ places: CmsModelPlace[]; fields?: Record<string, number>; entries?: number; values?: number | null }> {
   const part = cmsLoadedCustomPart()
   const t = part?.doc?.types.find((x) => x.name === type)
   if (!t) throw createError({ statusCode: 404, statusMessage: 'No such content type' })
   if (field !== null && !t.fields.some((f) => f.key === field)) throw createError({ statusCode: 404, statusMessage: 'No such field' })
   const { db } = useCms()
-  const { reg } = modelPlanningBuild(part!.doc!, cmsDesignModel().config)
-  if (field !== null) return { places: await blocksShowing(db, reg, type, field, USAGE_PLACES, USAGE_PLACES) }
+  const planned = modelPlanningBuild(part!.doc!, cmsDesignModel().config)
+  const { reg } = planned
+  const count = async (kind: 'entries' | 'values', key: string): Promise<number | null> => {
+    const ops = field === null ? [{ op: 'purge', types: [type] }] : [{ op: 'purge', fields: [{ type, key: field }] }]
+    const q = modelCountQueries(planned.entities, ops as ModelOp[]).find((x) => x.kind === kind && x.key === key)
+    if (!q) return null
+    const [row] = rowsOf(await db.execute(sql.raw(q.text)))
+    return Number(row?.n ?? 0)
+  }
+  if (field !== null) return { places: await blocksShowing(db, reg, type, field, USAGE_PLACES, USAGE_PLACES), values: await count('values', `${type}.${field}`) }
   const hits = await findBindings(db, reg, (b) => b.type === type)
   const entries = new Map<string, Set<string>>()
   for (const h of hits) {
@@ -450,7 +510,7 @@ export async function cmsModelUsage(type: string, field: string | null): Promise
   }
   const fields: Record<string, number> = {}
   for (const [key, set] of entries) fields[key] = set.size
-  return { places: [...placesOf(hits, USAGE_PLACES, USAGE_PLACES), ...await linksToType(db, reg, type, USAGE_PLACES)], fields }
+  return { places: [...placesOf(hits, USAGE_PLACES, USAGE_PLACES), ...await linksToType(db, reg, type, USAGE_PLACES)], fields, entries: (await count('entries', type)) ?? 0 }
 }
 
 /** The newest versions of the site's model: who changed it, when, and how (the documents themselves are left out). */

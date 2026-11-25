@@ -91,12 +91,12 @@ export interface CmsCustomPart {
 
 const custom = cmsSiteScoped<{ loaded: CmsCustomPart | null; loading: Promise<void> | null }>(() => ({ loaded: null, loading: null }))
 
-/** The later deletion of hidden things while the site stays loaded: one timer per site, stopped when its memory goes. */
+/** The deletion of things hidden empty while the site stays loaded: one timer per site, stopped when its memory goes. */
 const sweep = cmsSiteScoped<{ timer: ReturnType<typeof setInterval> | null }>(() => ({ timer: null }), {
   dispose: (s) => { if (s.timer) clearInterval(s.timer) },
 })
 
-/** How often a loaded site looks for hidden things that are due. Production: every 6 hours. */
+/** How often a loaded site looks for hidden empty things that are due. Production: every 6 hours. */
 const SWEEP_MS = 6 * 60 * 60 * 1000
 
 const LOAD_FAILED = Symbol('cmsModelLoadFailed')
@@ -113,13 +113,17 @@ export function cmsDesignUsesCustomPrefix(): boolean {
   return cmsDesignModel().reg.entities.some((e) => e.name.startsWith(CUSTOM_PREFIX))
 }
 
-/** The test build shortens the waits before the later deletion (at least 50 ms each); production uses the document's own rules. */
-export function cmsModelPurgeTimes(): { purgeAfterMs?: number; purgeEmptyAfterMs?: number } {
-  const out: { purgeAfterMs?: number; purgeEmptyAfterMs?: number } = {}
-  const after = cmsTimerMs('CMS_TEST_MODEL_PURGE_MS', 0)
+/**
+ * The test build shortens the waits (at least 50 ms each): how long after hiding the server deletes
+ * what was hidden empty, and how long after hiding a person may delete a thing for good.
+ * Production uses the document's own rules.
+ */
+export function cmsModelPurgeTimes(): { purgeEmptyAfterMs?: number; deleteWaitMs?: number } {
+  const out: { purgeEmptyAfterMs?: number; deleteWaitMs?: number } = {}
   const empty = cmsTimerMs('CMS_TEST_MODEL_PURGE_EMPTY_MS', 0)
-  if (after) out.purgeAfterMs = after
+  const wait = cmsTimerMs('CMS_TEST_MODEL_DELETE_WAIT_MS', 0)
   if (empty) out.purgeEmptyAfterMs = empty
+  if (wait) out.deleteWaitMs = wait
   return out
 }
 
@@ -131,7 +135,8 @@ async function readStored(db: any): Promise<{ version: number; doc: unknown } | 
   return row ? { version: Number(row.version), doc: row.doc } : null
 }
 
-const hasHidden = (doc: ModelDoc): boolean => doc.types.some((t) => !!t.removedAt || t.fields.some((f) => !!f.removedAt))
+/** Does the document hold something the sweep could ever delete: a type or a field hidden while it held nothing? Nothing else is deleted by a timer. */
+const hasSweepable = (doc: ModelDoc): boolean => doc.types.some((t) => (!!t.removedAt && t.removedEmpty === true) || t.fields.some((f) => !!f.removedAt && f.removedEmpty === true))
 
 /** Read the site's own types from its database and build them over the design's model. */
 async function readCustomPart(): Promise<CmsCustomPart> {
@@ -158,7 +163,7 @@ async function readCustomPart(): Promise<CmsCustomPart> {
     return { ...none, version, problems: [{ type: '', message }] }
   }
 
-  // Hidden things that are due go for good now, before the entities are built: the instance has not served yet.
+  // Things hidden empty that are due go for good now (if still empty), before the entities are built: the instance has not served yet.
   const due = modelPurgeDue(doc, new Date(), cmsModelPurgeTimes())
   if (due.types.length || due.fields.length) {
     try {
@@ -179,7 +184,7 @@ async function readCustomPart(): Promise<CmsCustomPart> {
 
   const built = modelEntities(doc, design.config)
   for (const p of built.problems) console.warn(`[cms] site ${site.id}: ${p.message}`)
-  if (hasHidden(doc)) startSweep()
+  if (hasSweepable(doc)) startSweep()
   const names = Object.keys(built.entities)
   if (!names.length) return { version, doc, model: null, problems: built.problems }
   // The site's own config: the design's exports and its own types, under keys no export of the design can have.
@@ -188,7 +193,7 @@ async function readCustomPart(): Promise<CmsCustomPart> {
   return { version, doc, model: { name: design.name, config, reg: buildRegistry(config) }, problems: built.problems }
 }
 
-/** While a site with hidden things stays loaded, look for what is due now and then, through the structure function. */
+/** While a site with things hidden empty stays loaded, look for what is due now and then, through the structure function. */
 function startSweep(): void {
   const mine = sweep()
   if (mine.timer) return

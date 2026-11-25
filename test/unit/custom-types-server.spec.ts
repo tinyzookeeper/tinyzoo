@@ -145,9 +145,21 @@ describe('the chain from a document to the statements', () => {
       }
     })
 
-    it('makes none for a new type or a purge', () => {
+    it('makes none for a new type', () => {
       expect(modelCountQueries(entities1, [{ op: 'type.add', name: 'custom_other', label: { cs: 'Jiné' } }])).toEqual([])
+    })
+
+    it('counts the entries of a type a purge names, and the values of a field it names', () => {
+      const out = modelCountQueries(entities1, [{ op: 'purge', types: ['custom_course'] }, { op: 'purge', fields: [{ type: 'custom_course', key: 'teacher' }] }])
+      expect(out.filter((q) => q.kind === 'entries').map((q) => q.key)).toEqual(['custom_course'])
+      const values = out.find((q) => q.kind === 'values')!
+      expect(values.key).toBe('custom_course.teacher')
+      expect(values.text).toContain('is not null')
+    })
+
+    it('counts nothing for a purge that names a type or a field that is not there, or odd names', () => {
       expect(modelCountQueries({}, [{ op: 'purge', types: ['custom_course'] }, { op: 'purge', fields: [{ type: 'custom_course', key: 'teacher' }] }])).toEqual([])
+      expect(modelCountQueries(entities1, [{ op: 'purge', types: ['__proto__', 'constructor'], fields: [{ type: 'custom_course', key: '__proto__' }, { type: 'custom_course" --', key: 'x' }] } as unknown as ModelOp]).map((q) => q.kind)).toEqual(['entries'])
     })
   })
 
@@ -179,7 +191,7 @@ describe('the chain from a document to the statements', () => {
     it('allows the drops of a purged type: its tables and its choice types', () => {
       const { doc: hidden } = apply(doc1, [{ op: 'type.remove', type: 'custom_course' }])
       const purge: ModelOp[] = [{ op: 'purge', types: ['custom_course'] }]
-      const { doc: purged } = apply(hidden, purge, { now: later(31), internal: true })
+      const { doc: purged } = apply(hidden, purge, { now: later(31) })
       const b = planningReg(hidden)
       const allow = modelDdlAllow(hidden, purged, purge, b.entities, b.reg)
       expect(allow.drop?.tables).toContain('custom_course')
@@ -190,7 +202,7 @@ describe('the chain from a document to the statements', () => {
     it('allows the drop of a purged select field: its column and its choice type', () => {
       const { doc: hidden } = apply(doc1, [{ op: 'field.remove', type: 'custom_course', key: 'level' }])
       const purge: ModelOp[] = [{ op: 'purge', fields: [{ type: 'custom_course', key: 'level' }] }]
-      const { doc: purged } = apply(hidden, purge, { now: later(31), internal: true })
+      const { doc: purged } = apply(hidden, purge, { now: later(31) })
       const b = planningReg(hidden)
       const allow = modelDdlAllow(hidden, purged, purge, b.entities, b.reg)
       expect(allow.drop?.columns).toEqual(['custom_course.level'])

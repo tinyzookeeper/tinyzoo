@@ -16,8 +16,8 @@ import { expectNoSiteErrors, siteClient, siteQuery, startTenants, type Tenants, 
 // a type of one site does not exist on the other (every route answers 404, and nothing the
 // other site says names it); a change on one site leaves the other site's instance as it was; a
 // request under way during a change ends well; the function refuses what the plan refuses and
-// nothing else reaches the database; hidden fields come back with their values and are deleted
-// for good only after their time; and the model survives an idle unload, a restart and a second
+// nothing else reaches the database; removed fields come back with their values; a timer deletes only
+// what was removed empty, a person deletes the rest for good; and the model survives an idle unload, a restart and a second
 // instance.
 let t: Tenants
 let adminA: Client
@@ -28,9 +28,12 @@ const OPERATOR = 'operator-token-of-the-custom-suite'
 const WORD = { a: 'kometovnik', b: 'zeppelinova' }
 const UUID_NOWHERE = '00000000-0000-4000-8000-000000000000'
 
-/** Short waits before the later deletion (the test knobs): an empty hidden thing goes after 3 s, any after 10 s. */
+/**
+ * Short waits (the test knobs): the server deletes a thing removed empty after 3 s, if it still
+ * holds nothing; a person may delete a removed thing for good 1.5 s after it was removed.
+ */
 const PURGE_EMPTY_MS = 3000
-const PURGE_MS = 10_000
+const DELETE_WAIT_MS = 1500
 
 let bHadModelTable: boolean | null = null
 let authorA: string
@@ -91,7 +94,7 @@ beforeAll(async () => {
     NUXT_CMS_CUSTOM_TYPES: 'on',
     NUXT_CMS_TENANCY_OPERATOR_TOKEN: OPERATOR,
     CMS_TEST_MODEL_PURGE_EMPTY_MS: String(PURGE_EMPTY_MS),
-    CMS_TEST_MODEL_PURGE_MS: String(PURGE_MS),
+    CMS_TEST_MODEL_DELETE_WAIT_MS: String(DELETE_WAIT_MS),
     CMS_TEST_MODEL_SWEEP_MS: '500',
   })
   adminA = siteClient(t.a, 'admin')
@@ -722,7 +725,8 @@ describe('what the function refuses', () => {
       ['a name of a table of tinyzoo', [{ op: 'type.add', name: 'cms_users', label: text('Users') }], 'invalid-name'],
       ['a name taken', [{ op: 'type.add', name: 'custom_course', label: text('Again') }], 'name-taken'],
       ['an address taken', [{ op: 'type.add', name: 'custom_other', label: text('Other'), page: { prefix: 'kurzy' } }], 'prefix-taken'],
-      ['an operation of the server only', [{ op: 'purge', types: ['custom_course'] }], 'internal-only'],
+      ['deleting for good a type that is not removed', [{ op: 'purge', types: ['custom_course'] }], 'not-removed'],
+      ['deleting for good a field that is not removed', [{ op: 'purge', fields: [{ type: 'custom_course', key: 'teacher' }] }], 'not-removed'],
       ['an unknown operation', [{ op: 'drop.table', type: 'post' }], 'invalid-op'],
       ['a type of the design', [{ op: 'field.add', type: 'post', field: textField('extra') }]],
       ['a type of the design removed', [{ op: 'type.remove', type: 'post' }]],
@@ -928,7 +932,8 @@ describe('blocks that show a type of the site', () => {
     for (const key of ['cover', 'perex', 'startsAt']) {
       const res = await adminA.get(`/api/cms/_model/usage?type=custom_course&field=${key}`)
       expect(res.status, key).toBe(200)
-      expect(Object.keys(res.body)).toEqual(['places'])
+      expect(Object.keys(res.body)).toEqual(['places', 'values'])
+      expect(res.body.values === null || Number.isInteger(res.body.values), key).toBe(true)
       expect(res.body.places.map(placeOf), key).toEqual([{ entity: 'page', id: page.id, title: `Stránka ${page.slug}`, field: 'sections', admin: `/admin/page/${page.id}`, block: { id: 'blk-list', type: 'custom_entries', heading: 'Our courses' } }])
       expect(res.body.places[0].locale).toBeNull()
       expect(res.body.places[0].block.label).toEqual(expect.objectContaining({ en: 'Entries' }))
@@ -945,6 +950,10 @@ describe('blocks that show a type of the site', () => {
       { entity: 'page', id: page.id, title: `Stránka ${page.slug}`, field: 'sections', admin: `/admin/page/${page.id}`, block: { id: 'blk-chosen', type: 'custom_chosen', heading: null } },
     ])
     expect(all.body.fields).toEqual({ cover: 1, perex: 1, startsAt: 1 })
+    // The number of entries of the type, and of the entries holding a value of a field.
+    expect(all.body.entries).toBe((await siteQuery(t.a, 'select count(*)::int n from custom_course'))[0].n)
+    expect((await field('teacher')).values).toBe((await siteQuery(t.a, 'select count(*)::int n from custom_course where teacher is not null'))[0].n)
+    expect((await field('teacher')).values).toBeGreaterThan(0)
 
     // A translation is read too: its block is listed with its language, and the entry is counted once.
     await siteQuery(t.a, `insert into page_locales (parent_id, locale, sections) values ($1, 'en', $2::jsonb)`, [page.id, JSON.stringify([{ id: 'blk-en', type: 'custom_chosen', heading: 'Chosen', layout: 'rows', source: { type: 'custom_course', show: { label: 'level', more: ['perex'] }, entries: [course.id] } }])])
@@ -1166,55 +1175,203 @@ describe('blocks that show a type of the site', () => {
   })
 })
 
-describe('the later deletion', () => {
-  it('deletes an empty hidden field after the short time and one with content after the longer one, then frees the name', async () => {
-    await mustChange(adminA, [{ op: 'field.add', type: 'custom_course', field: textField('tmpEmpty') }, { op: 'field.add', type: 'custom_course', field: textField('tmpFull') }])
-    expect((await adminA.patch(`/api/cms/custom_course/${course.id}`, { tmpFull: 'keep me' })).status).toBe(200)
-    expect(await columnsOf(t.a, 'custom_course')).toEqual(expect.arrayContaining(['tmp_empty', 'tmp_full']))
+/** A purge of what the ops name, by hand (an administrator's request), against the version it reads. */
+const purgeBy = async (c: Client, what: { types?: string[]; fields?: { type: string; key: string }[] }) => change(c, [{ op: 'purge', ...what }])
 
-    const hid = await change(adminA, [{ op: 'field.remove', type: 'custom_course', key: 'tmpEmpty' }, { op: 'field.remove', type: 'custom_course', key: 'tmpFull' }])
+/** Wait until the thing may be deleted by hand (the wait after its removal has passed). */
+const waitDeleteWait = (hiddenAt: number) => sleep(Math.max(0, DELETE_WAIT_MS + 300 - (performance.now() - hiddenAt)))
+
+describe('deleting what was removed', () => {
+  it('has the server delete what was removed empty, keep what held content, and keep what got content after it was hidden', async () => {
+    await mustChange(adminA, [
+      { op: 'field.add', type: 'custom_course', field: textField('tmpEmpty') },
+      { op: 'field.add', type: 'custom_course', field: textField('tmpFull') },
+      { op: 'field.add', type: 'custom_course', field: textField('tmpRace') },
+      { op: 'type.add', name: 'custom_tmp', label: text('Temporary') },
+      { op: 'type.add', name: 'custom_keep', label: text('Kept') },
+    ])
+    expect((await adminA.patch(`/api/cms/custom_course/${course.id}`, { tmpFull: 'keep me' })).status).toBe(200)
+    const kept = await adminA.post('/api/cms/custom_keep', { title: 'Zůstane' })
+    expect(kept.status, JSON.stringify(kept.body)).toBe(201)
+    expect(await columnsOf(t.a, 'custom_course')).toEqual(expect.arrayContaining(['tmp_empty', 'tmp_full', 'tmp_race']))
+
+    const hid = await change(adminA, [
+      { op: 'field.remove', type: 'custom_course', key: 'tmpEmpty' },
+      { op: 'field.remove', type: 'custom_course', key: 'tmpFull' },
+      { op: 'field.remove', type: 'custom_course', key: 'tmpRace' },
+      { op: 'type.remove', type: 'custom_tmp' },
+      { op: 'type.remove', type: 'custom_keep' },
+    ])
     expect(hid.status, JSON.stringify(hid.body)).toBe(200)
     const hiddenAt = performance.now()
-    expect(await columnsOf(t.a, 'custom_course')).toEqual(expect.arrayContaining(['tmp_empty', 'tmp_full']))
-
-    // The empty one goes after the short time; requests meanwhile keep a loaded instance there to look.
-    let emptyGoneAfter = 0
-    await until('the empty hidden column to be deleted', async () => { await adminA.get('/api/cms/_model'); return columnsOf(t.a, 'custom_course') }, (cols) => !cols.includes('tmp_empty'), PURGE_MS)
-    emptyGoneAfter = performance.now() - hiddenAt
-    expect(emptyGoneAfter).toBeGreaterThanOrEqual(PURGE_EMPTY_MS - 500)
-    // The one with content is still there, with its value.
-    expect(await columnsOf(t.a, 'custom_course')).toContain('tmp_full')
-    expect((await siteQuery(t.a, 'select tmp_full from custom_course where id = $1', [course.id]))[0].tmp_full).toBe('keep me')
+    const fieldsOf = (m: any, type: string) => Object.fromEntries(m.doc.types.find((x: any) => x.name === type).fields.map((f: any) => [f.key, f]))
     let m = await model(adminA)
-    expect(m.doc.types.find((x: any) => x.name === 'custom_course').fields.map((f: any) => f.key)).not.toContain('tmpEmpty')
-    expect(m.doc.types.find((x: any) => x.name === 'custom_course').fields.map((f: any) => f.key)).toContain('tmpFull')
+    expect(fieldsOf(m, 'custom_course').tmpEmpty.removedEmpty).toBe(true)
+    expect(fieldsOf(m, 'custom_course').tmpRace.removedEmpty).toBe(true)
+    expect(fieldsOf(m, 'custom_course').tmpFull.removedEmpty).toBe(false)
+    expect(m.doc.types.find((x: any) => x.name === 'custom_keep').removedEmpty).toBe(false)
+    // A request of the old model writes to the column after it was hidden (the API cannot: the field is hidden).
+    await siteQuery(t.a, 'update custom_course set tmp_race = $1 where id = $2', ['late', course.id])
 
-    // It goes after the longer one.
-    await until('the hidden column with content to be deleted', async () => { await adminA.get('/api/cms/_model'); return columnsOf(t.a, 'custom_course') }, (cols) => !cols.includes('tmp_full'), PURGE_MS + 8000)
-    const fullGoneAfter = performance.now() - hiddenAt
-    expect(fullGoneAfter).toBeGreaterThanOrEqual(PURGE_MS - 500)
-    console.info(`[timing] later deletion (test knobs ${PURGE_EMPTY_MS} ms / ${PURGE_MS} ms): the empty field went after ${emptyGoneAfter.toFixed(0)} ms, the one with content after ${fullGoneAfter.toFixed(0)} ms`)
+    // (a) What was removed empty goes after the short hour, the table and the column with it.
+    await until('the empty removed column and type to be deleted', async () => { await adminA.get('/api/cms/_model'); return [await columnsOf(t.a, 'custom_course'), await tablesOf(t.a)] as const }, ([cols, tables]) => !cols.includes('tmp_empty') && !tables.includes('custom_tmp'), PURGE_EMPTY_MS + 8000)
+    const emptyGoneAfter = performance.now() - hiddenAt
+    expect(emptyGoneAfter).toBeGreaterThanOrEqual(PURGE_EMPTY_MS - 500)
+
+    // (b) and (e) What held content, and what got content after the hiding, stays: well after the hour.
+    const stayUntil = hiddenAt + 2 * PURGE_EMPTY_MS + 1500
+    while (performance.now() < stayUntil) { await adminA.get('/api/cms/_model'); await sleep(250) }
+    expect(await columnsOf(t.a, 'custom_course')).toEqual(expect.arrayContaining(['tmp_full', 'tmp_race']))
+    expect(await tablesOf(t.a)).toContain('custom_keep')
     m = await model(adminA)
-    expect(m.doc.types.find((x: any) => x.name === 'custom_course').fields.map((f: any) => f.key)).not.toContain('tmpFull')
-    expect(await columnsOf(t.a, 'custom_course')).toEqual(expect.arrayContaining(['id', 'title', 'slug', 'status', 'level', 'teacher']))
+    expect(fieldsOf(m, 'custom_course').tmpFull.removedAt).toBeTruthy()
+    expect(fieldsOf(m, 'custom_course').tmpRace.removedAt).toBeTruthy()
+    expect(fieldsOf(m, 'custom_course').tmpRace.removedEmpty).toBe(false)
+    expect(fieldsOf(m, 'custom_course')).not.toHaveProperty('tmpEmpty')
+    expect(m.doc.types.map((x: any) => x.name)).not.toContain('custom_tmp')
+    expect(m.doc.types.find((x: any) => x.name === 'custom_keep').removedAt).toBeTruthy()
+    console.info(`[timing] the server's deletion (test knob ${PURGE_EMPTY_MS} ms): the empty field and type went after ${emptyGoneAfter.toFixed(0)} ms; what held content was still there after ${(performance.now() - hiddenAt).toFixed(0)} ms`)
 
-    // The name is free again.
-    expect((await change(adminA, [{ op: 'field.add', type: 'custom_course', field: textField('tmpEmpty') }, { op: 'field.add', type: 'custom_course', field: textField('tmpFull') }])).status).toBe(200)
-    expect(await columnsOf(t.a, 'custom_course')).toEqual(expect.arrayContaining(['tmp_empty', 'tmp_full']))
-    expect((await siteQuery(t.a, 'select tmp_full from custom_course where id = $1', [course.id]))[0].tmp_full).toBeNull()
+    // It is not deleted later either: another look after the sweep ran again, then restore with the content.
+    await sleep(1500)
+    await adminA.get('/api/cms/_model')
+    expect(await columnsOf(t.a, 'custom_course')).toEqual(expect.arrayContaining(['tmp_full', 'tmp_race']))
+    const back = await change(adminA, [{ op: 'field.restore', type: 'custom_course', key: 'tmpFull' }, { op: 'field.restore', type: 'custom_course', key: 'tmpRace' }, { op: 'type.restore', type: 'custom_keep' }])
+    expect(back.status, JSON.stringify(back.body)).toBe(200)
+    const row = (await adminA.get(`/api/cms/custom_course/${course.id}`)).body.row
+    expect(row.tmpFull).toBe('keep me')
+    expect(row.tmpRace).toBe('late')
+    expect((await adminA.get('/api/cms/custom_keep')).body.rows.map((r: any) => r.title)).toEqual(['Zůstane'])
+    // Clean up: hide them again (they are deleted by hand in the next test's way, or stay hidden).
+    const again = await change(adminA, [{ op: 'field.remove', type: 'custom_course', key: 'tmpFull' }, { op: 'field.remove', type: 'custom_course', key: 'tmpRace' }, { op: 'type.remove', type: 'custom_keep' }])
+    expect(again.status, JSON.stringify(again.body)).toBe(200)
+    const goAt = performance.now()
+    await waitDeleteWait(goAt)
+    const gone = await purgeBy(adminA, { types: ['custom_keep'], fields: [{ type: 'custom_course', key: 'tmpFull' }, { type: 'custom_course', key: 'tmpRace' }] })
+    expect(gone.status, JSON.stringify(gone.body)).toBe(200)
     // The sweep is the server's own: B was not touched by it.
     expect((await model(adminB)).doc.types[0].fields.every((f: any) => !f.removedAt)).toBe(true)
-  }, 60_000)
+  }, 90_000)
 
-  it('deletes a hidden type with its table once it is due, and only when nothing points at it', async () => {
-    await mustChange(adminA, [{ op: 'type.add', name: 'custom_tmp', label: text('Temporary') }])
-    expect(await tablesOf(t.a)).toContain('custom_tmp')
-    const hid = await change(adminA, [{ op: 'type.remove', type: 'custom_tmp' }])
+  it('has an administrator delete a removed type and a removed field for good, with what the system kept of them, and frees the names', async () => {
+    const WORD_FIELD = 'zebrofantnik'
+    const WORD_TYPE = 'quasarvortek'
+    await mustChange(adminA, [
+      { op: 'type.add', name: 'custom_doomed', label: text('Doomed') },
+      { op: 'field.add', type: 'custom_doomed', field: textField('note') },
+      { op: 'field.add', type: 'custom_course', field: textField('doomedText') },
+    ])
+    // Entries through the API, so revisions are written.
+    const one = await adminA.post('/api/cms/custom_doomed', { title: `Jeden ${WORD_TYPE}`, note: 'první poznámka' })
+    const two = await adminA.post('/api/cms/custom_doomed', { title: 'Dva', note: `druhá ${WORD_TYPE}` })
+    expect(one.status, JSON.stringify(one.body)).toBe(201)
+    expect(two.status, JSON.stringify(two.body)).toBe(201)
+    expect((await adminA.patch(`/api/cms/custom_doomed/${one.body.row.id}`, { note: 'změněná poznámka' })).status).toBe(200)
+    expect((await adminA.patch(`/api/cms/custom_course/${course.id}`, { doomedText: 'prvni verze' })).status).toBe(200)
+    expect((await adminA.patch(`/api/cms/custom_course/${course.id}`, { doomedText: `druha verze ${WORD_FIELD}` })).status).toBe(200)
+    // Collab documents of the type's entries (as a browser's editing session leaves them), and a neighbour that is not the type's.
+    const epoch = '11111111-1111-4111-8111-111111111111'
+    for (const name of [`custom_doomed/${one.body.row.id}`, `custom_doomed/${one.body.row.id}/en`, `custom_doomed/${one.body.row.id}~unsaved`, `custom_doomed/${two.body.row.id}~by`, `custom_doomedx/${one.body.row.id}`, `customXdoomed/${one.body.row.id}`]) {
+      await siteQuery(t.a, `insert into cms_collab (name, epoch, state) values ($1, $2, '')`, [name, epoch])
+    }
+
+    const count = async (text: string, params: unknown[] = []) => Number((await siteQuery(t.a, text, params))[0].n)
+    const revisionsOf = (type: string) => count('select count(*)::int n from cms_revisions where entity = $1', [type])
+    const withKey = () => count(`select count(*)::int n from cms_revisions where entity = 'custom_course' and (jsonb_exists(data, 'doomedText') or jsonb_exists(changed, 'doomedText'))`)
+    const searchRows = (type: string) => count('select count(*)::int n from cms_search where entity = $1', [type])
+    const courseHasWord = () => count(`select count(*)::int n from cms_search where entity = 'custom_course' and (body || ' ' || extra) ilike $1`, [`%${WORD_FIELD}%`])
+    // Before: there is something to delete.
+    expect(await revisionsOf('custom_doomed')).toBeGreaterThanOrEqual(3)
+    expect(await withKey()).toBeGreaterThanOrEqual(2)
+    const courseRevisions = await revisionsOf('custom_course')
+    await until('the entries to be searchable', async () => [await searchRows('custom_doomed'), await courseHasWord()], ([a, b]) => a! >= 2 && b! >= 1)
+    expect(await count(`select count(*)::int n from cms_collab where name like 'custom%doomed%'`)).toBe(6)
+
+    // The number before deleting.
+    const typeUsage = await adminA.get('/api/cms/_model/usage?type=custom_doomed')
+    expect(typeUsage.status, JSON.stringify(typeUsage.body)).toBe(200)
+    expect(typeUsage.body).toMatchObject({ places: [], entries: 2 })
+    const fieldUsage = await adminA.get('/api/cms/_model/usage?type=custom_course&field=doomedText')
+    expect(fieldUsage.body).toEqual({ places: [], values: 1 })
+
+    const before = { b: await model(adminB), bTables: await tablesOf(t.b), bSeen: await seen(t.ipUrl, 'site-b') }
+    const hid = await change(adminA, [{ op: 'type.remove', type: 'custom_doomed' }, { op: 'field.remove', type: 'custom_course', key: 'doomedText' }])
     expect(hid.status, JSON.stringify(hid.body)).toBe(200)
-    await until('the hidden type to be deleted', async () => { await adminA.get('/api/cms/_model'); return tablesOf(t.a) }, (tables) => !tables.includes('custom_tmp'), PURGE_MS)
-    expect((await model(adminA)).doc.types.map((x: any) => x.name)).not.toContain('custom_tmp')
-    expect((await change(adminA, [{ op: 'type.add', name: 'custom_tmp', label: text('Temporary') }, { op: 'type.remove', type: 'custom_tmp' }])).status).toBe(200)
-    await until('the second hidden type to be deleted', async () => { await adminA.get('/api/cms/_model'); return tablesOf(t.a) }, (tables) => !tables.includes('custom_tmp'), PURGE_MS)
+    const hiddenAt = performance.now()
+    // The number is there for what is removed, too.
+    expect((await adminA.get('/api/cms/_model/usage?type=custom_doomed')).body.entries).toBe(2)
+    expect((await adminA.get('/api/cms/_model/usage?type=custom_course&field=doomedText')).body.values).toBe(1)
+
+    // (d) Too soon: nothing is deleted.
+    const soon = await purgeBy(adminA, { types: ['custom_doomed'], fields: [{ type: 'custom_course', key: 'doomedText' }] })
+    expect(soon.status, JSON.stringify(soon.body)).toBe(422)
+    expect(soon.body.data.code).toBe('too-soon')
+    expect(soon.body.data.details.msLeft).toBeGreaterThan(0)
+    expect(soon.body.data.details.msLeft).toBeLessThanOrEqual(DELETE_WAIT_MS)
+    expect(await tablesOf(t.a)).toContain('custom_doomed')
+    expect(await columnsOf(t.a, 'custom_course')).toContain('doomed_text')
+
+    // (f) An editor may not (nothing is deleted either).
+    await waitDeleteWait(hiddenAt)
+    const mine = await model(adminA)
+    const refused = await siteClient(t.a, 'editor').post('/api/cms/_model', { baseVersion: mine.version, ops: [{ op: 'purge', types: ['custom_doomed'] }] })
+    expect(refused.status, JSON.stringify(refused.body)).toBe(403)
+    expect(await tablesOf(t.a)).toContain('custom_doomed')
+
+    // (c) An administrator deletes both for good.
+    const deleted = await purgeBy(adminA, { types: ['custom_doomed'], fields: [{ type: 'custom_course', key: 'doomedText' }] })
+    expect(deleted.status, JSON.stringify(deleted.body)).toBe(200)
+    expect(await tablesOf(t.a)).not.toContain('custom_doomed')
+    expect(await columnsOf(t.a, 'custom_course')).not.toContain('doomed_text')
+    const after = await model(adminA)
+    expect(after.doc.types.map((x: any) => x.name)).not.toContain('custom_doomed')
+    expect(after.doc.types.find((x: any) => x.name === 'custom_course').fields.map((f: any) => f.key)).not.toContain('doomedText')
+    // What the system kept of them is gone: revisions, collab documents, search rows.
+    expect(await revisionsOf('custom_doomed')).toBe(0)
+    expect(await withKey()).toBe(0)
+    expect(await revisionsOf('custom_course')).toBe(courseRevisions)
+    expect(await count(`select count(*)::int n from cms_revisions where entity = 'custom_course' and jsonb_exists(data, 'teacher')`)).toBeGreaterThan(0)
+    expect(await count(`select count(*)::int n from cms_collab where name like 'custom%doomed%'`)).toBe(2)
+    expect((await siteQuery(t.a, `select name from cms_collab where name like 'custom%doomed%'`)).map((r) => r.name as string).sort()).toEqual([`custom_doomedx/${one.body.row.id}`, `customXdoomed/${one.body.row.id}`].sort())
+    expect(await searchRows('custom_doomed')).toBe(0)
+    // The search index of the site is rebuilt by its next instance, without the deleted field's text.
+    await until('the search index to be rebuilt without the field', async () => { await adminA.get('/api/cms/_model'); return [await courseHasWord(), await count(`select count(*)::int n from cms_state where key = 'search.index'`)] }, ([word, state]) => word === 0 && state === 1, 10_000)
+    expect(await searchRows('custom_course')).toBeGreaterThan(0)
+
+    // B was not touched.
+    expect((await model(adminB)).version).toBe(before.b.version)
+    expect(await tablesOf(t.b)).toEqual(before.bTables)
+    expect((await seen(t.ipUrl, 'site-b')).loads).toBe(before.bSeen.loads)
+    expect((await seen(t.ipUrl, 'site-b')).model).toEqual(before.bSeen.model)
+
+    // The names are free: a type and a field of the same names are made, empty.
+    expect((await change(adminA, [{ op: 'type.add', name: 'custom_doomed', label: text('Doomed') }, { op: 'field.add', type: 'custom_course', field: textField('doomedText') }])).status).toBe(200)
+    expect(await tablesOf(t.a)).toContain('custom_doomed')
+    expect((await siteQuery(t.a, 'select count(*)::int n from custom_doomed'))[0].n).toBe(0)
+    expect((await siteQuery(t.a, 'select count(*)::int n from custom_course where doomed_text is not null'))[0].n).toBe(0)
+    expect((await adminA.get(`/api/cms/custom_course/${course.id}`)).body.row.doomedText ?? null).toBeNull()
+    // The usage route is for administrators.
+    expect((await siteClient(t.a, 'editor').get('/api/cms/_model/usage?type=custom_doomed')).status).toBe(403)
+    expect((await siteClient(t.a).get('/api/cms/_model/usage?type=custom_doomed')).status).toBe(401)
+    console.info(`[timing] deletion by hand: allowed ${DELETE_WAIT_MS} ms after the removal (test knob); the purge itself took ${changeMs.at(-1)!.toFixed(0)} ms`)
+  }, 90_000)
+
+  it('refuses to delete a type while a field of another type points at it, and says which', async () => {
+    await mustChange(adminA, [
+      { op: 'type.add', name: 'custom_target', label: text('Target') },
+      { op: 'type.add', name: 'custom_pointer', label: text('Pointer') },
+      { op: 'field.add', type: 'custom_pointer', field: { key: 'target', type: 'relation', to: 'custom_target', label: text('Target') } },
+    ])
+    await mustChange(adminA, [{ op: 'field.remove', type: 'custom_pointer', key: 'target' }, { op: 'type.remove', type: 'custom_target' }])
+    await sleep(DELETE_WAIT_MS + 300)
+    const blocked = await purgeBy(adminA, { types: ['custom_target'] })
+    expect(blocked.status, JSON.stringify(blocked.body)).toBe(422)
+    expect(blocked.body.data.code).toBe('points-at-type')
+    expect((await purgeBy(adminA, { types: ['custom_target'], fields: [{ type: 'custom_pointer', key: 'target' }] })).status).toBe(200)
+    expect(await tablesOf(t.a)).not.toContain('custom_target')
+    await mustChange(adminA, [{ op: 'type.remove', type: 'custom_pointer' }])
+    await sleep(DELETE_WAIT_MS + 300)
+    expect((await purgeBy(adminA, { types: ['custom_pointer'] })).status).toBe(200)
   }, 60_000)
 })
 
@@ -1327,6 +1484,35 @@ describe.skipIf(!process.env.TEST_REDIS_URL)('two instances of one app', () => {
       expect((await seen(ip, 'site-b')).loads).toBe(before.b.loads)
       expect((await seen(t.ipUrl, 'site-b')).model).toEqual(before.b.model)
       expect(await fieldKeys(adminB, 'custom_recipe')).not.toContain('fromTwo')
+    }
+    finally {
+      await two.server.stop()
+    }
+    expectNoSiteErrors(two)
+  }, 60_000)
+
+  it('serves a deletion by hand made on one instance as gone on the other within about a second', async () => {
+    const two = await t.startInstance()
+    await two.server.waitForLog(/\[cms\] shared store: redis/, 15_000)
+    const siteOn = (site: TenantSite): TenantSite => ({ ...site, url: `http://${site.host}:${two.port}` })
+    const a2 = siteClient(siteOn(t.a), 'admin')
+    try {
+      await mustChange(adminA, [{ op: 'type.add', name: 'custom_twice', label: text('Twice') }, { op: 'field.add', type: 'custom_event', field: textField('twiceGone') }])
+      expect((await a2.get('/api/cms/custom_twice')).status).toBe(200)
+      expect(await fieldKeys(a2, 'custom_event')).toContain('twiceGone')
+      const hid = await change(adminA, [{ op: 'type.remove', type: 'custom_twice' }, { op: 'field.remove', type: 'custom_event', key: 'twiceGone' }])
+      expect(hid.status, JSON.stringify(hid.body)).toBe(200)
+      const hiddenAt = performance.now()
+      const names = async () => { const m = (await a2.get('/api/cms/_model')).body; return { types: m.doc.types.map((x: any) => x.name) as string[], fields: m.doc.types.find((x: any) => x.name === 'custom_event').fields.map((f: any) => f.key) as string[] } }
+      expect((await names()).types).toContain('custom_twice')
+      await waitDeleteWait(hiddenAt)
+      const gone = await purgeBy(adminA, { types: ['custom_twice'], fields: [{ type: 'custom_event', key: 'twiceGone' }] })
+      expect(gone.status, JSON.stringify(gone.body)).toBe(200)
+      const doneAt = performance.now()
+      await until('instance two to see the deletion', names, (n) => !n.types.includes('custom_twice') && !n.fields.includes('twiceGone'), 1500)
+      console.info(`[timing] a deletion by hand made on instance one is seen on instance two after ${(performance.now() - doneAt).toFixed(0)} ms`)
+      expect((await a2.get('/api/cms/custom_twice')).status).toBe(404)
+      expect(await fieldKeys(a2, 'custom_event')).not.toContain('twiceGone')
     }
     finally {
       await two.server.stop()
