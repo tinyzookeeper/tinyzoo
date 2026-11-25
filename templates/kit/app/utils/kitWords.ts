@@ -14,6 +14,8 @@ export interface KitWords {
   email: string
   sending: string
   draftPreview: string
+  /** The preview's line when an owner's colour is shown lighter or darker than given; for the editor only. */
+  ownColorShown: (given: string, shown: string) => string
   welcomeTitle: string
   welcomeBefore: string
   welcomeAdmin: string
@@ -33,6 +35,7 @@ export const KIT_WORDS: Record<'cs' | 'en', KitWords> = {
     phone: 'Telefon', email: 'E-mail',
     sending: 'Odesílám…',
     draftPreview: 'Náhled nezveřejněné stránky',
+    ownColorShown: (given, shown) => `Vaše barva ${given} je na tomto vzhledu zobrazena jako ${shown}, aby texty zůstaly čitelné.`,
     welcomeTitle: 'Založte úvodní stránku',
     welcomeBefore: 'Otevřete ', welcomeAdmin: 'administraci', welcomeAfter: ' a založte stránku s adresou „home“. Její obsah sestavíte z bloků.',
     notFoundTitle: 'Stránku jsme nenašli', notFoundText: 'Zkontrolujte adresu nebo se vraťte na úvodní stránku.',
@@ -44,6 +47,7 @@ export const KIT_WORDS: Record<'cs' | 'en', KitWords> = {
     phone: 'Phone', email: 'E-mail',
     sending: 'Sending…',
     draftPreview: 'Preview of an unpublished page',
+    ownColorShown: (given, shown) => `Your colour ${given} is shown as ${shown} on this look, so that texts stay readable.`,
     welcomeTitle: 'Create the home page',
     welcomeBefore: 'Open the ', welcomeAdmin: 'admin', welcomeAfter: ' and create a page with the address “home”. You build its content from blocks.',
     notFoundTitle: 'We could not find this page', notFoundText: 'Check the address or go back to the home page.',

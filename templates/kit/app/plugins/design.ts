@@ -5,9 +5,11 @@
 // same name in the page's payload, so both draw with the same design. It never comes from the
 // request itself (no query, cookie or header).
 //
-// The page prefixes of the site's own types (server/middleware/design.ts) come the same way.
+// The page prefixes of the site's own types (server/middleware/design.ts) come the same way,
+// and so does the setting TZ_OWN_LOOK (the browser never reads the environment itself).
 import { designs, oneApp } from '#tz-designs'
 import { rememberDesign } from '../composables/useDesign'
+import { ownLookOn } from '../../looks'
 import type { Design } from '../utils/design'
 
 export default defineNuxtPlugin({
@@ -21,6 +23,7 @@ export default defineNuxtPlugin({
       const pages = import.meta.server ? useRequestEvent()?.context.siteCustomPages : null
       return Array.isArray(pages) ? pages : []
     })
+    useState<boolean>('tz:own-look', () => import.meta.server && ownLookOn())
     // No site (an address of the process itself): nothing to draw, and useDesign() says so if asked.
     if (!id) return { provide: { design: null as Design | null } }
     const load = designs[id]
