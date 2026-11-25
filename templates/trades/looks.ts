@@ -25,7 +25,7 @@ export const looks = defineLooks([
     // A hi-vis vest as a website: a field of signal colour, black slabs, heavy type, the phone number the largest thing on the page.
     id: 'reflex',
     name: { cs: 'Reflex', en: 'Hi-Vis' },
-    own: { against: ['--brand-ink', '--paper'], fixed: ['#ffffff'] },
+    own: { calm: true, against: ['--brand-ink', '--paper'], fixed: ['#ffffff'] },
     presets: [
       { id: 'zluta', name: { cs: 'Reflexní žlutá', en: 'Hi-vis yellow' }, vars: { '--brand': '#e2f133', '--brand-ink': '#101211', '--brand-lit': '#e2f133', '--paper': '#f2f2ec', '--ink': '#101211', '--coal': '#1c1f1d' } },
       { id: 'oranzova', name: { cs: 'Signální oranžová', en: 'Signal orange' }, vars: { '--brand': '#ff6b1a', '--brand-ink': '#140d08', '--brand-lit': '#ff7a30', '--paper': '#f4f1ec', '--ink': '#14110f', '--coal': '#211d1a' } },

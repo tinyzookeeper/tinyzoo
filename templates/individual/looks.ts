@@ -12,7 +12,7 @@ export const looks = defineLooks([
     // A well-printed business card grown into a page: one solid panel of colour beside a portrait, a price list.
     id: 'vizitka',
     name: { cs: 'Vizitka', en: 'Business Card' },
-    own: { against: ['--brand-ink', '--paper', '--tint'] },
+    own: { calm: true, against: ['--brand-ink', '--paper', '--tint'] },
     presets: [
       { id: 'petrol', name: { cs: 'Petrol', en: 'Petrol' }, vars: { '--brand': '#1f4f58', '--brand-ink': '#f7f4ec', '--paper': '#fbfaf7', '--tint': '#f0efe9', '--line': '#d9d7ce', '--ink': '#172022' } },
       { id: 'bordo', name: { cs: 'Bordó', en: 'Burgundy' }, vars: { '--brand': '#6c2433', '--brand-ink': '#f9f1ea', '--paper': '#fcfaf7', '--tint': '#f3ede7', '--line': '#e0d7cd', '--ink': '#231a1b' } },
@@ -23,7 +23,7 @@ export const looks = defineLooks([
     // A headline writer's poster: a field of marker colour, enormous type, black on white with the marker on the words that matter.
     id: 'zvyraznovac',
     name: { cs: 'Zvýrazňovač', en: 'Highlighter' },
-    own: { against: ['--brand-ink', '--paper'], fixed: ['#121211'] },
+    own: { calm: true, against: ['--brand-ink', '--paper'], fixed: ['#121211'] },
     presets: [
       { id: 'zluta', name: { cs: 'Žlutá', en: 'Yellow' }, vars: { '--brand': '#ffdd1f', '--brand-ink': '#121211', '--paper': '#faf8f1' } },
       { id: 'ruzova', name: { cs: 'Růžová', en: 'Pink' }, vars: { '--brand': '#ff9fc0', '--brand-ink': '#121211', '--paper': '#faf6f4' } },

@@ -23,7 +23,7 @@ export const looks = defineLooks([
     // The black-and-white tiled salon floor: one loud colour, very wide lowercase type, square tiles.
     id: 'sachovnice',
     name: { cs: 'Šachovnice', en: 'Chessboard' },
-    own: { against: ['--brand-ink', '--ink', '--paper'], fixed: ['#ffffff'] },
+    own: { calm: true, against: ['--brand-ink', '--ink', '--paper'], fixed: ['#ffffff'] },
     presets: [
       { id: 'malina', name: { cs: 'Malina', en: 'Raspberry' }, vars: { '--brand': '#ff6a98', '--brand-ink': '#141214', '--paper': '#fff5ea', '--ink': '#141214', '--soft': '#5a5357' } },
       { id: 'pistacie', name: { cs: 'Pistácie', en: 'Pistachio' }, vars: { '--brand': '#b9e27a', '--brand-ink': '#132016', '--paper': '#fbf8ea', '--ink': '#132016', '--soft': '#4d5a4f' } },

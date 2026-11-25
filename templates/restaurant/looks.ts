@@ -23,7 +23,7 @@ export const looks = defineLooks([
     // A poster: one loud colour, a headline as wide as the page, 2 px tables, food from above cut into plates.
     id: 'talir',
     name: { cs: 'Talíř', en: 'Plate' },
-    own: { against: ['--brand-ink', '--paper'] },
+    own: { calm: true, against: ['--brand-ink', '--paper'] },
     presets: [
       { id: 'horcice', name: { cs: 'Hořčice', en: 'Mustard' }, vars: { '--brand': '#f6c519', '--brand-ink': '#151412', '--pop': '#f6c519', '--paper': '#f5f2e9', '--ink': '#151412' } },
       { id: 'rajce', name: { cs: 'Rajče', en: 'Tomato' }, vars: { '--brand': '#cc3219', '--brand-ink': '#fff5ea', '--pop': '#ff7253', '--paper': '#f6f1e8', '--ink': '#1b1210' } },

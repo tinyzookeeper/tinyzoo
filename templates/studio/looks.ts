@@ -23,7 +23,7 @@ export const looks = defineLooks([
     // A departures board: the whole page in the studio's colour, wide capitals, mono numerals, square edges, today's classes in the opening.
     id: 'tabule',
     name: { cs: 'Tabule', en: 'Board' },
-    own: { against: ['--accent', '--brand-ink', '--ink', '--paper'], fixed: ['#ffffff'] },
+    own: { calm: true, against: ['--accent', '--brand-ink', '--ink', '--paper'], fixed: ['#ffffff'] },
     presets: [
       { id: 'kobalt', name: { cs: 'Kobalt', en: 'Cobalt' }, vars: { '--brand': '#1d32d8', '--brand-ink': '#ffffff', '--accent': '#ffd84a', '--accent-ink': '#0c0f24', '--ink': '#0c0f24', '--paper': '#f1efe9' } },
       { id: 'rumelka', name: { cs: 'Rumělka', en: 'Vermilion' }, vars: { '--brand': '#c22d14', '--brand-ink': '#ffffff', '--accent': '#fbe9a4', '--accent-ink': '#1d100c', '--ink': '#1d100c', '--paper': '#f5f1ea' } },

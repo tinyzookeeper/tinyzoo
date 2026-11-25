@@ -23,7 +23,7 @@ export const looks = defineLooks([
     // The banner an agent hangs on a balcony: one loud colour, very heavy type, 2 px black rules, listings as one ruled sheet.
     id: 'cedule',
     name: { cs: 'Cedule', en: 'Banner' },
-    own: { against: ['--brand-ink'] },
+    own: { calm: true, against: ['--brand-ink'] },
     presets: [
       { id: 'zluta', name: { cs: 'Žlutá', en: 'Yellow' }, swatch: ['#ffd60a', '#ffffff', '#111110'], vars: { '--brand': '#ffd60a', '--brand-ink': '#111110', '--brand-on-dark': '#ffd60a', '--tint': '#f1f0ea' } },
       { id: 'mentol', name: { cs: 'Mentol', en: 'Mint' }, swatch: ['#3fe0a4', '#ffffff', '#111110'], vars: { '--brand': '#3fe0a4', '--brand-ink': '#111110', '--brand-on-dark': '#3fe0a4', '--tint': '#eef1ee' } },

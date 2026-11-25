@@ -23,7 +23,7 @@ export const looks = defineLooks([
     // The shelf and its price rail: things stand on a board, the rail under them carries the labels.
     id: 'regal',
     name: { cs: 'Regál', en: 'Shelf' },
-    own: { main: '--rail', against: ['--paper', '--rail-ink', '--tint'], fixed: ['#ffffff'] },
+    own: { main: '--rail', calm: true, against: ['--paper', '--rail-ink', '--tint'], fixed: ['#ffffff'] },
     presets: [
       { id: 'smalt', name: { cs: 'Smalt', en: 'Enamel blue' }, swatch: ['#2b3557', '#dcae52', '#f6f5f2'], vars: { '--rail': '#2b3557', '--rail-ink': '#ffffff', '--signal': '#dcae52', '--signal-ink': '#1a1e2a', '--paper': '#f6f5f2', '--tint': '#e9e8e3', '--ink': '#1a1e2a' } },
       { id: 'police', name: { cs: 'Regál', en: 'Shelf green' }, swatch: ['#2f4638', '#d9ab4d', '#f7f5f0'], vars: { '--rail': '#2f4638', '--rail-ink': '#ffffff', '--signal': '#d9ab4d', '--signal-ink': '#1b221d', '--paper': '#f7f5f0', '--tint': '#eceae2', '--ink': '#1b221d' } },

@@ -25,7 +25,7 @@ export const looks = defineLooks([
     // The page wears the kit: blocks of the club colour with shirt stripes, very wide capitals, huge numbers.
     id: 'dres',
     name: { cs: 'Dres', en: 'Jersey' },
-    own: { against: ['--brand-ink', '--ink'] },
+    own: { calm: true, against: ['--brand-ink', '--ink'] },
     presets: [
       { id: 'rudi', name: { cs: 'Rudí', en: 'Reds' }, vars: { '--brand': '#d6201c', '--brand-ink': '#ffffff', '--brand-lite': '#ff6a5c', '--paper': '#f3f1ec', '--stone': '#e4e1d9', '--ink': '#121214' } },
       { id: 'zlutocerni', name: { cs: 'Žlutočerní', en: 'Yellow and black' }, vars: { '--brand': '#f6c500', '--brand-ink': '#121214', '--brand-lite': '#f6c500', '--paper': '#f4f2ea', '--stone': '#e5e2d6', '--ink': '#121214' } },

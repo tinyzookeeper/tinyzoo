@@ -23,7 +23,7 @@ export const looks = defineLooks([
     // The rota board from the back room: the product's afternoon orange, headlines set as shift bars on a week grid.
     id: 'magnety',
     name: { cs: 'Magnety', en: 'Magnets' },
-    own: { against: ['--ink'] },
+    own: { calm: true, against: ['--ink'] },
     presets: [
       { id: 'odpoledne', name: { cs: 'Odpoledne', en: 'Afternoon' }, swatch: ['#f4691e', '#fff1dc', '#bcdff6'], vars: { '--brand': '#f4691e', '--ink': '#1b130d', '--cream': '#fff1dc', '--sky': '#bcdff6', '--board': '#fffaf2' } },
       { id: 'rano', name: { cs: 'Ráno', en: 'Morning' }, swatch: ['#5fcb9b', '#f5f6e8', '#ffcfd9'], vars: { '--brand': '#5fcb9b', '--ink': '#0e2018', '--cream': '#f5f6e8', '--sky': '#ffcfd9', '--board': '#fcfdf5' } },
