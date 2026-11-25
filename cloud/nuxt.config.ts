@@ -32,11 +32,16 @@ export default defineNuxtConfig({
     databaseUrl: '',
     // NUXT_CLOUD_SECRET: encrypts what is kept about each site (its secrets, the invitation link). 32+ characters.
     cloudSecret: '',
-    // NUXT_PUBLIC_URL: the cloud's own address, for links in e-mails.
+    // NUXT_PUBLIC_URL: the cloud's own address: for links in e-mails, and the issuer address of
+    // sign-in through the account.
     publicUrl: '',
     // NUXT_REDIRECT_HOSTS: host names the app used to be reached at, separated by commas. Pages
-    // asked for there are redirected to NUXT_PUBLIC_URL (server/middleware/hosts.ts).
+    // asked for there, and a sign-in on its way (/oauth/authorize), are redirected to
+    // NUXT_PUBLIC_URL (server/middleware/hosts.ts).
     redirectHosts: '',
+    // NUXT_RESERVED_SLUGS: names no new website may take, separated by commas, on top of the
+    // built-in ones (shared/slug.ts): the names under the sites' domain that lead somewhere else.
+    reservedSlugs: '',
     // NUXT_MIGRATIONS_DIR: a folder of SQL migrations to use instead of the bundled ones.
     migrationsDir: '',
     // NUXT_MAX_SITES_PER_USER

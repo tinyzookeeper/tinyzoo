@@ -3,7 +3,7 @@
 Notes for a coding assistant working in this website. It is a Nuxt 4 app with
 [tinyzoo](https://github.com/tinyzookeeper/tinyzoo) inside: a code-first CMS. Editors work at `/admin`; the
 pages read content from the content API at `/api/content`. Read `README.md` for how to start it.
-The guides linked below are also on the website at https://tinyzoo.site/en/docs, with an editors' guide
+The guides linked below are also on the website at https://tinyzoo.dev/en/docs, with an editors' guide
 (Czech, English, German) to hand to the people who will write the content.
 
 ## The rule that shapes everything

@@ -43,6 +43,11 @@ const appDir = join(dataDir, 'templates')
 const preview = join(cloudDir, '.preview')
 const logFile = join(preview, 'e2e-account-cloud.log')
 const CODE_TTL = 3
+// A name the issuer "used to be reached at" (NUXT_REDIRECT_HOSTS). Nothing answers there: a
+// request says it came to that name in X-Forwarded-Host, as a proxy in front would.
+const OLD_HOST = 'stary-ucet.example.cz'
+// Names the deployment keeps for websites that are not made here (NUXT_RESERVED_SLUGS).
+const RESERVED = ['kvetinarstvi-lada', '2-kavarny']
 const CALLBACK = '/api/cms/_auth/account/callback'
 const stamp = Date.now().toString(36).slice(-5)
 const startedAt = Date.now()
@@ -117,12 +122,12 @@ async function server(path, { json, headers = {} } = {}) {
 }
 
 /** The website sends the person's browser to the issuer. `over` changes or removes (undefined) parameters. */
-async function authorize(browser, client, over = {}) {
+async function authorize(browser, client, over = {}, headers = {}) {
   const proof = pkce()
   const state = randomBytes(12).toString('base64url')
   const params = { response_type: 'code', client_id: client.clientId, redirect_uri: callbackOf(client.url), state, code_challenge: proof.challenge, code_challenge_method: 'S256', ...over }
   const query = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined)).toString()
-  const res = await browser.page(`/oauth/authorize?${query}`)
+  const res = await browser.page(`/oauth/authorize?${query}`, { headers })
   const back = res.location && res.location.startsWith('http') ? new URL(res.location) : null
   const code = back?.searchParams.get('code') ?? null
   if (code) codes.add(code)
@@ -256,6 +261,9 @@ async function main() {
       NUXT_MAIL_TRANSPORT: 'log',
       // A code works for a minute; here for three seconds, so "too old" need not be waited for.
       NUXT_ACCOUNT_CODE_TTL_SECONDS: String(CODE_TTL),
+      // The issuer moved here from another name (section 10).
+      NUXT_REDIRECT_HOSTS: OLD_HOST,
+      NUXT_RESERVED_SLUGS: RESERVED.join(', '),
       CLOUD_BUILD_DIR: '.nuxt-scripts-account',
     },
   })
@@ -513,8 +521,40 @@ async function main() {
   check('a revoked client: sites and membership → 401', (await sitesOf(renewedClient, alena.id)).status === 401 && (await membership(renewedClient, { sub: alena.id, role: 'admin', active: true })).status === 401)
   check('it left the owner\'s lists, and its sister websites\' switcher', !(await alena.browser.get('/api/clients')).text.includes(local.clientId) && !(await alena.browser.get('/api/sites')).text.includes(local.clientId) && !(await sitesOf(a1, alena.id)).text.includes(local.clientId))
 
-  // ── 10 · limits ──
-  log('10 · the limits of the server-to-server routes')
+  // ── 10 · the issuer moved ──
+  // The website still holds the issuer's old address: it sends browsers there and its server
+  // calls there. Pages and people go to the new address; what the server calls stays.
+  log('10 · the issuer at a new address, a website that still holds the old one')
+  const oldName = { 'x-forwarded-host': OLD_HOST }
+  const oldPage = await nobody.page('/login?next=%2Fsites', { headers: oldName })
+  check('a page asked for on the old name goes to the new address for good, with its path and query', oldPage.status === 301 && oldPage.location === `${cloud.url}/login?next=%2Fsites`, about(oldPage))
+  const oldFound = await nobody.get('/.well-known/tinyzoo-account', { headers: oldName })
+  check('the discovery document still answers on the old name, and names the new address', oldFound.status === 200 && oldFound.body?.issuer === cloud.url && oldFound.body.token_endpoint === `${cloud.url}/oauth/token`, about(oldFound))
+  const viaOld = await authorize(marta.browser, a1, {}, oldName)
+  check('a sign-in sent to the old name is passed on to the new one (302) with everything the website asked for, and gets no code there', viaOld.status === 302 && viaOld.location === `${cloud.url}${viaOld.path}` && !viaOld.code, about(viaOld))
+  const onNew = await marta.browser.page(viaOld.path)
+  const movedCode = onNew.location ? new URL(onNew.location).searchParams.get('code') : null
+  if (movedCode) codes.add(movedCode)
+  check('on the new address the signed-in person is sent back to the website with a code and the state', onNew.status === 302 && new URL(onNew.location).origin === a1.url && !!movedCode && new URL(onNew.location).searchParams.get('state') === viaOld.state, about(onNew))
+  const oldExchange = await token(a1, { code: movedCode, verifier: viaOld.verifier }, {}, oldName)
+  check('the website\'s server exchanges that code on the old name, as it always did', oldExchange.status === 200 && oldExchange.body?.user?.sub === marta.id, oldExchange.text.slice(0, 200))
+  const silentOld = await authorize(nobody, a1, { prompt: 'none' }, oldName)
+  check('a silent sign-in (prompt=none) is passed on too: the new address decides whether the person is signed in', silentOld.status === 302 && silentOld.location === `${cloud.url}${silentOld.path}` && silentOld.path.includes('prompt=none') && !silentOld.error, about(silentOld))
+  const oldSites = await server('/oauth/sites', { json: { sub: alena.id }, headers: { ...oldName, authorization: basic(a1.clientId, a1.clientSecret) } })
+  // About somebody who never signed in to it the issuer says "not found": an answer of the route itself, and nothing is changed.
+  const oldMember = await server('/oauth/membership', { json: { sub: randomUUID(), role: 'editor' }, headers: { ...oldName, authorization: basic(a1.clientId, a1.clientSecret) } })
+  check('the website\'s other calls answer on the old name too: its switcher\'s list, and the role it reports', oldSites.status === 200 && Array.isArray(oldSites.body?.sites) && oldSites.body.account === `${cloud.url}/sites` && oldMember.status === 404 && oldMember.body?.error === 'not_found', `${oldSites.status} ${oldMember.status} ${oldMember.text.slice(0, 120)}`)
+  const oldApi = await nobody.get('/api/slug?slug=pekarna', { headers: oldName })
+  check('and so does the API', oldApi.status === 200 && oldApi.body?.slug === 'pekarna', about(oldApi))
+
+  // The deployment's own reserved names: under the sites' domain they lead somewhere else.
+  const asTyped = await Promise.all(RESERVED.map((slug) => nobody.get(`/api/slug?slug=${slug}`)))
+  check('a name the deployment reserves cannot be had: the check says "reserved", as for a built-in name', asTyped.every((r) => r.status === 200 && r.body?.ok === false && r.body.problem === 'reserved' && r.body.suggestion === null) && (await nobody.get('/api/slug?slug=kvetinarstvi-lada-2')).body?.ok === true, asTyped.map((r) => r.text.slice(0, 80)).join(' '))
+  const refusedName = await bohdan.browser.post('/api/sites', { name: 'Květinářství Lada', slug: RESERVED[0], template: 'photographer' })
+  check('and no website is made with it (422 slug.reserved)', refusedName.status === 422 && refusedName.body?.data?.code === 'slug.reserved' && (await query('select 1 from sites where slug = any($1)', [RESERVED])).length === 0, about(refusedName))
+
+  // ── 11 · limits ──
+  log('11 · the limits of the server-to-server routes')
   const flood = { 'x-forwarded-for': '203.0.113.77' }
   let limited = 0
   for (let i = 0; i < 50; i++) limited += (await token(a1, { code: 'x', verifier: 'x' }, { client_secret: 'wrong' }, flood)).status === 429 ? 1 : 0
@@ -531,7 +571,7 @@ async function main() {
   if (!protocolOnly) await realSite({ alena, marta, ota, a1 })
 
   // ── nothing leaked ──
-  log(`${protocolOnly ? 11 : 13} · secrets and codes`)
+  log(`${protocolOnly ? 12 : 14} · secrets and codes`)
   const holds = (a, x) => a.text.includes(x) || !!a.location?.includes(x)
   const withSecret = browserAnswers.find((a) => [...secrets].some((x) => holds(a, x)))
   check(`no client secret is in any of the ${browserAnswers.length} answers to a browser (only in the one answer that shows it, once)`, secrets.size >= 5 && !withSecret, withSecret ? `a secret is in ${withSecret.at}` : `${secrets.size} secrets`)
@@ -547,7 +587,7 @@ async function main() {
 // ── the second part: one real site of the shared driver ──
 
 async function realSite({ alena, marta, ota, a1 }) {
-  log('11 · a real Photographer site (the shared driver, a design of the one app) is handed its client')
+  log('12 · a real Photographer site (the shared driver, a design of the one app) is handed its client')
   const directory = () => JSON.parse(readFileSync(join(appDir, 'sites.json'), 'utf8')).sites
   const siteOf = async (browser, id) => (await browser.get(`/api/sites/${id}`)).body?.site
   const untilReady = (browser, id) => waitFor(async () => {
@@ -583,7 +623,7 @@ async function realSite({ alena, marta, ota, a1 }) {
   const again = await alena.browser.post(`/api/sites/${site.id}/invite`)
   check('seeing to the site again hands over the same client, not a new one', again.status === 200 && JSON.stringify(directory().find((r) => r.id === site.id).config.auth.account) === JSON.stringify(account), `${again.status}`)
 
-  log('12 · into the admin through the account')
+  log('13 · into the admin through the account')
   const view = await siteOf(alena.browser, site.id)
   check('"Open the admin" leads to the site\'s own start of a sign-in through the account', view.adminUrl === `${site.publicUrl}/api/cms/_auth/account/start?next=/admin`, view.adminUrl)
   check('the owner is still invited to the site as before (the site needs a row for them); the link stays as the second way', typeof view.inviteUrl === 'string' && view.inviteUrl.startsWith(`${site.publicUrl}/admin/invite/`) && view.inviteExpired === false && view.ownerAccepted === false)

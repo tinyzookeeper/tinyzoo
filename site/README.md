@@ -8,11 +8,13 @@ public demo admin (a second deployment with its own database, reset every night)
 
 | Address | What | Pushbase project |
 |---|---|---|
-| https://tinyzoo.site | this website with the documentation | `tinyzoo` |
+| https://tinyzoo.dev | this website with the documentation | `tinyzoo` |
 | https://demo.tinyzoo.site | the public demo (the same image with other settings) | `tinyzoo-demo` |
-| https://account.tinyzoo.site | the account service (`cloud/`, see its README) | `tinyzoo-account` |
+| https://account.tinyzoo.dev | the account service (`cloud/`, see its README) | `tinyzoo-account` |
 
-The projects' first addresses (`tinyzoo.pushbase.app`, `tinyzoo-demo.pushbase.app`, `tinyzoo-account.pushbase.app`) still answer. Canonical links, the sitemap and links in e-mails use the addresses above (`NUXT_SITE_URL`, `NUXT_CMS_PUBLIC_URL`).
+tinyzoo's own things live under `tinyzoo.dev`: this website, the account service and Keeper (`keeper.tinyzoo.dev`). `tinyzoo.site` is for websites: a site's starter address is `<name>.tinyzoo.site`, and the demo stays there. The account service and customers' websites are never on the same domain.
+
+Canonical links, the sitemap and links in e-mails use the addresses above (`NUXT_SITE_URL`, `NUXT_CMS_PUBLIC_URL`). The website's earlier addresses redirect to it: `NUXT_CMS_REDIRECT_HOSTS=tinyzoo.pushbase.app,tinyzoo.site` names the bare `tinyzoo.site` only, never a name under it (a host name is matched whole). The projects' first addresses (`tinyzoo-demo.pushbase.app`, `tinyzoo-account.pushbase.app`) still answer.
 
 ## Start
 
@@ -56,7 +58,7 @@ they changed, counts as missing and comes back, so use it to fill a new site, no
 |---|---|
 | `NUXT_PUBLIC_DEMO_URL`, `NUXT_PUBLIC_DEMO_EMAIL`, `NUXT_PUBLIC_DEMO_PASSWORD` | where the demo admin is and its sign-in, shown on the demo page |
 | `NUXT_PUBLIC_CMS_DEMO_EMAIL`, `NUXT_PUBLIC_CMS_DEMO_PASSWORD` | on the demo deployment: the shared demo account (an editor that cannot change its name or password) |
-| `NUXT_SITE_URL` | the site's address for canonical links, og:url, schema.org and the sharing images (default `https://tinyzoo.site`); the demo sets its own |
+| `NUXT_SITE_URL` | the site's address for canonical links, og:url, schema.org and the sharing images (default `https://tinyzoo.dev`); the demo sets its own |
 | `NUXT_SITE_INDEXABLE` | `false` on the demo (the same content as the website): every page gets `noindex`, every response `X-Robots-Tag: noindex`, and `/robots.txt` says `Disallow: /` |
 
 ## Search engines and sharing

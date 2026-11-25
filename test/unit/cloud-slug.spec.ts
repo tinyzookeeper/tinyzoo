@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  assertSlug, databaseNameFor, firstFreeSlug, isValidSlug, quoteIdent, RESERVED_SLUGS, SLUG_MAX, slugProblem, suggestSlug, tidySlugInput,
+  assertSlug, databaseNameFor, firstFreeSlug, isValidSlug, parseReservedSlugs, quoteIdent, RESERVED_SLUGS, SLUG_MAX, slugProblem, suggestSlug, tidySlugInput,
 } from '../../cloud/shared/slug'
 
 // A website's address in the hosted product: it becomes a host name, a database name and a
@@ -31,6 +31,23 @@ describe('the rules of an address', () => {
     }
     // Only the whole name is reserved.
     expect(isValidSlug('admin-pekarna')).toBe(true)
+  })
+
+  it('refuses the deployment\'s own reserved names too (NUXT_RESERVED_SLUGS)', () => {
+    const own = parseReservedSlugs('Kavarna, pekarna-na-ruzku  2-weby,,\nkvetiny')
+    expect([...own]).toEqual(['kavarna', 'pekarna-na-ruzku', '2-weby', 'kvetiny'])
+    for (const name of own) {
+      expect(slugProblem(name), name).toBeNull()
+      expect(slugProblem(name, own), name).toBe('reserved')
+    }
+    // Only the whole name, and the built-in names stay reserved.
+    expect(slugProblem('kavarna-2', own)).toBeNull()
+    expect(slugProblem('www', own)).toBe('reserved')
+    // What is wrong with the shape is said first.
+    expect(slugProblem('Kavarna', own)).toBe('chars')
+    expect([...parseReservedSlugs('')]).toEqual([])
+    expect([...parseReservedSlugs(undefined)]).toEqual([])
+    expect([...parseReservedSlugs(['Kavarna', ' kvetiny '])]).toEqual(['kavarna', 'kvetiny'])
   })
 
   it('refuses anything that could reach SQL or a path', () => {
