@@ -251,7 +251,7 @@ The guard runs inside the structure function, in the transaction, before any sta
 | Reorder fields | The document only |
 | Remove a field | Refused when it is the title, or made by the mapper (`slug`, `status`, `position`). Refused while a block shows it or orders by it, with the places: "Home › Courses". Otherwise hidden (removed), and counted against the removed-fields bound; where the type itself used it (list columns, the default order, the page's picture or summary), that use is cleared in the same change and the answer says so |
 | Remove a type | Refused while a block shows it, while another type's field points at it, or while content links to one of its entries (`linksTo` in `server/utils/cmsLinks.ts`), each with its places. Otherwise hidden (removed), and counted against the removed-types bound |
-| Restore | Runs at once. Refused when the visible ones are at the limit (`limit-types`, `limit-fields`) |
+| Restore | Runs at once. Refused when the visible ones are at the limit (`limit-types`, `limit-fields`). A restored rich-text field gets its saved text in the working copies made while it was removed |
 | Delete for good (`purge`) | Only for a removed thing, a minute after it was removed (`too-soon` before), by an administrator. The table or the column goes, with the type's revisions, search rows and working copies, or the field's key out of the type's revisions (section 6) |
 | Change a type's page prefix, switch pages or publishing on or off later | Not in the first version (section 13) |
 | Anything on a type of the design | Refused. The editor shows these types as part of the design, with no control to change them |
@@ -560,7 +560,7 @@ The owner decided that no timer ever deletes content. It replaces Part 2's delet
 - The admin: *Delete for good* on every removed row, in a dialog that shows how many entries the thing holds and asks for its name when it holds content.
 - Test knobs: `CMS_TEST_MODEL_PURGE_EMPTY_MS` and `CMS_TEST_MODEL_DELETE_WAIT_MS`.
 
-**Tested** (`test/api/tenants-custom.spec.ts`, two sites in one process, 46 tests; 120 unit tests on the model document's rules and 33 on the server's pure parts):
+**Tested** (`test/api/tenants-custom.spec.ts`, two sites in one process, 47 tests; 120 unit tests on the model document's rules and 33 on the server's pure parts):
 
 - A thing removed empty is gone after the shortened hour. A thing with content is still there well after that and comes back with its content.
 - An administrator deletes a removed type and a removed field for good: the table and the column are gone, the type's revisions are gone, no stored revision of the type still names the field, the type's search rows are gone and the field's text is gone from the rebuilt index, the type's working copies are gone (two look-alike names are untouched). The names are free again, with empty columns.
@@ -597,7 +597,7 @@ The owner decided that no timer ever deletes content. It replaces Part 2's delet
 
 - Decided by the owner on 2026-11-25: the prefix `custom_` (section 3), and removal without a timer (section 6). Still the owner's: what each plan's limits are.
 - Closed on 2026-11-25: a deleted rich-text field's text is taken out of the shared-editing working copies (section 6). Tested with a real editing session: the text typed into the deleted field is gone from every row, the text typed into the other field is offered to the next person, a browser with the old history is refused. With the call taken out, the test fails.
-- Found on the way, not checked and not changed: a rich-text field that is removed and then restored while a working copy made in between stays open. That copy has no text for the field, and nothing fills it from the saved entry. A person who then opens the entry would see the field empty and could save it empty (the revisions keep the text). The same is true today when the API writes into an empty rich-text field of an entry someone has open. A fix belongs to shared editing as a whole: a working copy that never held a field which now has saved text starts over, with the typed text set aside.
+- Closed on 2026-11-25: a rich-text field that is removed and then restored. A working copy made while the field was removed has no text for it, so the field showed empty there and could be saved empty (the test showed it). A restore now gives such a copy the saved text, under a new epoch, in the same transaction (`restoreCollabFields` in `cmsCollab.ts`); a copy that held the field before the removal is not touched. Tested with a real editing session: the field shows its saved text, the old history is refused, the text typed into the other field is offered. Not changed: the API writing into an empty rich-text field of an entry someone has open. There the admin offers the newest saved version, as before.
 - A new block's "layout" starts empty in the admin, and the kit draws an empty one as cards: the admin does not carry a block field's default (so for every block of every site).
 - A block of the two kinds stored on a site that has no type of its own shows in the admin as a block that "no longer exists". It is kept on save; only the words are wrong.
 - The search index of a large site after a change of structure was not measured.

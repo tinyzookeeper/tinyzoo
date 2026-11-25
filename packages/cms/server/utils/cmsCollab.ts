@@ -193,6 +193,66 @@ export async function forgetCollabFields(type: string, gone: ReadonlySet<string>
 }
 
 /**
+ * Rich-text fields of a type were restored after a removal: give them their saved text in the
+ * working copies made while they were removed. Such a document has no text for the field, and
+ * nothing fills it from the saved entry: the field would show empty and could be saved empty.
+ * Called inside the transaction of the structure change (`exec` and `db` run in it).
+ *
+ * A document that never held the field (Yjs lists no such text in it) while the saved entry has
+ * text for it gets that text, and a new epoch: browsers and instances that hold the old history
+ * are refused when they store or reconnect, start over, and get this one, with the other fields
+ * as they were last stored. A document that held the field before the removal is whole and is not
+ * touched. One that cannot be read or filled is deleted (it starts afresh from the saved entry).
+ */
+export async function restoreCollabFields(entity: CmsEntity, back: readonly string[], exec: (text: string, params?: unknown[]) => Promise<any[]>, db: any): Promise<void> {
+  const prefix = entity.name + '/'
+  const schema = editorSchema()
+  let after = ''
+  for (;;) {
+    const rows = await exec(`select name, state from "cms_collab" where left(name, length($1::text)) = $1::text and name > $2 and position('~' in name) = 0 order by name limit 100 for update`, [prefix, after])
+    if (!rows.length) return
+    for (const row of rows) {
+      const name = String(row.name)
+      const [id, locale = null] = name.slice(prefix.length).split('/') as [string, string?]
+      if (!UUID.test(id)) continue
+      const keys = back.filter((k) => !locale || entity.localized.includes(k))
+      // Only reading and filling the document may fail here: an error of the database is the change's own.
+      const drop = () => exec('delete from "cms_collab" where name = $1', [name])
+      const doc = new Y.Doc()
+      try {
+        let missing: string[]
+        try {
+          Y.applyUpdate(doc, decodeState(row.state))
+          missing = keys.filter((k) => !doc.share.has(k))
+        }
+        catch {
+          await drop()
+          continue
+        }
+        if (!missing.length) continue
+        const saved = await savedContent({ entity, id, locale, name }, db)
+        const fill = missing.filter((k) => comparableText(saved?.values[k]) !== '')
+        if (!fill.length) continue
+        let state: string
+        try {
+          for (const k of fill) prosemirrorJSONToYXmlFragment(schema, saved!.values[k], doc.getXmlFragment(k))
+          state = encodeState(doc)
+        }
+        catch {
+          await drop()
+          continue
+        }
+        await exec('update "cms_collab" set state = $2, epoch = $3::uuid where name = $1', [name, state, crypto.randomUUID()])
+      }
+      finally {
+        doc.destroy()
+      }
+    }
+    after = String(rows[rows.length - 1].name)
+  }
+}
+
+/**
  * What this person may do with the document: 'write' (may edit the entry, or this
  * translation), 'read' (may read it: sees the others typing), or null.
  */

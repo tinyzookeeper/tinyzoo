@@ -1434,6 +1434,58 @@ describe('deleting what was removed', () => {
     await mustChange(adminA, [{ op: 'type.remove', type: 'custom_memo' }])
   }, 90_000)
 
+  it('gives a restored rich-text field its saved text in a working copy made while it was removed', async () => {
+    const BACK = 'mravenecnik'
+    const TYPED = 'ptakopyskovec'
+    await mustChange(adminA, [
+      { op: 'type.add', name: 'custom_revive', label: text('Revive') },
+      { op: 'field.add', type: 'custom_revive', field: { key: 'keepText', type: 'richtext', label: text('Keep') } },
+      { op: 'field.add', type: 'custom_revive', field: { key: 'backText', type: 'richtext', label: text('Back') } },
+    ])
+    const entry = await adminA.post('/api/cms/custom_revive', { title: 'Both', keepText: doc('kept'), backText: doc(`saved ${BACK}`) })
+    const other = await adminA.post('/api/cms/custom_revive', { title: 'Whole', keepText: doc('kept'), backText: doc(`also ${BACK}`) })
+    expect(entry.status, JSON.stringify(entry.body)).toBe(201)
+    expect(other.status, JSON.stringify(other.body)).toBe(201)
+    const session = (id: string) => adminA.get<any>(`/api/cms/_collab/session?entity=custom_revive&id=${id}`)
+    const stored = async (name: string) => (await siteQuery(t.a, 'select epoch, state from cms_collab where name = $1', [name]))[0] as { epoch: string; state: string } | undefined
+    // A working copy from before the removal holds the field: it is whole, and stays as it is.
+    const whole = await session(other.body.row.id)
+    expect(whole.status, JSON.stringify(whole.body)).toBe(200)
+    const wholeBefore = await stored(whole.body.name)
+
+    await mustChange(adminA, [{ op: 'field.remove', type: 'custom_revive', key: 'backText' }])
+    // Someone opens the entry while the field is removed, and types: this working copy has no text for the field.
+    const during = await session(entry.body.row.id)
+    expect(during.status, JSON.stringify(during.body)).toBe(200)
+    expect(during.body.fields).toEqual(['keepText'])
+    const tab = new Collaborator(adminA, during.body)
+    await tab.synced()
+    tab.type(`typed ${TYPED}`, 'keepText')
+    await until('the typing to be stored', async () => Buffer.from((await stored(during.body.name))!.state, 'base64'), (b) => b.includes(TYPED), 20_000)
+    tab.close()
+
+    await mustChange(adminA, [{ op: 'field.restore', type: 'custom_revive', key: 'backText' }])
+    // The browser that had it open comes back with the history it holds, then someone opens the entry.
+    const back = new Collaborator(adminA, during.body)
+    const refused = await back.synced().then(() => false, () => true)
+    const again = await session(entry.body.row.id)
+    expect(again.status, JSON.stringify(again.body)).toBe(200)
+    expect([...again.body.fields].sort()).toEqual(['backText', 'keepText'])
+    const fresh = new Collaborator(adminA, again.body)
+    await fresh.synced()
+    // The field shows its saved text (an empty editor here would be saved over it).
+    expect(fresh.text('backText')).toContain(BACK)
+    // The old history is refused; what was typed in the other field is offered, and nothing is offered for the restored one.
+    expect(refused).toBe(true)
+    expect(JSON.stringify(again.body.unsaved?.values?.keepText ?? null)).toContain(TYPED)
+    expect(Object.keys(again.body.unsaved.values)).toEqual(['keepText'])
+    back.close()
+    fresh.close()
+    // The working copy that was whole was not touched.
+    expect(await stored(whole.body.name)).toEqual(wholeBefore)
+    await mustChange(adminA, [{ op: 'type.remove', type: 'custom_revive' }])
+  }, 90_000)
+
   it('refuses to delete a type while a field of another type points at it, and says which', async () => {
     await mustChange(adminA, [
       { op: 'type.add', name: 'custom_target', label: text('Target') },
