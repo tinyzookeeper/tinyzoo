@@ -393,6 +393,13 @@ async function main() {
             const blocks = page.locator('section.x-block')
             const count = await blocks.count()
             if (count !== 3) fail(key('home'), `${count} blocks of section.x-block, expected 3`)
+            // A header that stays on screen would lie over a block's picture: hidden, without moving anything.
+            await page.evaluate(() => {
+              for (const el of document.querySelectorAll('body *')) {
+                const { position } = getComputedStyle(el)
+                if (position === 'sticky' || position === 'fixed') el.style.visibility = 'hidden'
+              }
+            })
             for (let i = 0; i < Math.min(count, SHOTS.length); i++) {
               await blocks.nth(i).screenshot({ path: shot(SHOTS[i]), animations: 'disabled', caret: 'hide' })
             }
