@@ -297,6 +297,24 @@ async function forgetDeleted(before: ModelDoc, after: ModelDoc, exec: (text: str
   if (fields) await exec('delete from "cms_state" where key = $1', [CMS_SEARCH_STATE_KEY])
 }
 
+/**
+ * A rich-text field that was removed and is restored by this change: the working copies made in
+ * between have no text for it (`restoreCollabFields` in cmsCollab.ts fills them from the saved
+ * entries). A restored type needs nothing: no working copy is made of a removed type's entries.
+ */
+async function fillRestored(before: ModelDoc, after: ModelDoc, design: Record<string, any>, exec: (text: string, params?: unknown[]) => Promise<any[]>, tx: any): Promise<void> {
+  let reg: CmsRegistry | null = null
+  for (const t of after.types) {
+    const was = before.types.find((x) => x.name === t.name)
+    if (!was) continue
+    const back = t.fields.filter((f) => f.type === 'richtext' && !f.removedAt && !!was.fields.find((x) => x.key === f.key)?.removedAt).map((f) => f.key)
+    if (!back.length) continue
+    reg ??= modelPlanningBuild(after, design).reg
+    const entity = reg.byName.get(t.name)
+    if (entity) await restoreCollabFields(entity, back, exec, tx)
+  }
+}
+
 // ── the function ───────────────────────────────────────────────────────────────
 
 /**
@@ -368,6 +386,7 @@ async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: b
       if (plan.refused.length) throw refusal(422, 'not-allowed', 'This change cannot be made to the database', { reasons: plan.refused })
       await runModelStatements((text) => exec(text), plan.statements)
       await forgetDeleted(before, applied.doc, exec)
+      await fillRestored(before, applied.doc, design.config, exec, tx)
 
       const version = current + 1
       await exec('insert into "cms_model" (version, doc, ops, user_id) values ($1, $2::jsonb, $3::jsonb, $4)', [version, JSON.stringify(applied.doc), JSON.stringify(input.ops), userId])
