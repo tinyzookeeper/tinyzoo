@@ -35,7 +35,7 @@ export interface CmsGalleryItem extends CmsMedia {
 
 /** Which custom type a block shows, and which field goes to which place. */
 export interface CmsBinding {
-  /** The custom type, for example `x_course`. */
+  /** The name of the custom type. */
   type: string
   /** The fields that go to the places of a card. */
   show?: { image?: string | null; text?: string | null; date?: string | null; label?: string | null; more?: string[] }
