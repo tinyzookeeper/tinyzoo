@@ -182,6 +182,8 @@ html[data-look="tabule"] {
     .prose-look { max-width: 44rem; }
     .prose-look > * + * { margin-top: 1rem; }
     .prose-look h2 { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.035em; text-transform: uppercase; font-size: 2rem; line-height: 1; margin-top: 2.6rem; }
+    /* the title of an entry's page (the kit's KitCustomEntry) in the type of these headings */
+    .x-entry .x-entry-title { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.035em; }
     .prose-look h3 { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; text-transform: uppercase; font-size: 1.4rem; line-height: 1.1; margin-top: 2rem; }
     .prose-look a { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
     .prose-look a:hover { color: var(--brand); }
@@ -190,3 +192,7 @@ html[data-look="tabule"] {
     .prose-look strong { font-weight: 700; }
   }
 }
+
+/* A wide typeface: the title of an entry's page (the kit's KitCustomEntry) a step smaller than the kit's.
+   Outside the layers, so it stands over the kit's own size. */
+html[data-look="tabule"] .x-entry .x-entry-title { font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.5rem); }

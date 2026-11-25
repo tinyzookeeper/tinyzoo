@@ -81,6 +81,8 @@ html[data-look="paragon"] {
     .prose-look { max-width: 44rem; }
     .prose-look > * + * { margin-top: 1rem; }
     .prose-look h2 { font-family: var(--font-display); font-weight: 900; color: var(--ink); font-size: 1.7rem; line-height: 1.1; margin-top: 2.4rem; }
+    /* the title of an entry's page (the kit's KitCustomEntry) in the type of these headings */
+    .x-entry .x-entry-title { font-family: var(--font-display); font-weight: 900; color: var(--ink); }
     .prose-look h3 { font-weight: 700; font-size: 1.15rem; margin-top: 1.8rem; }
     .prose-look a { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 4px; }
     .prose-look a:hover { color: var(--brand); }

@@ -13,7 +13,7 @@ const words = computed(() => kitEntryWords(custom.lang))
 </script>
 
 <template>
-  <article class="x-block x-entry">
+  <article class="x-entry">
     <div class="x-wrap">
       <header class="x-entry-head prose-look">
         <h1 class="x-entry-title">{{ view.title }}</h1>
@@ -56,7 +56,10 @@ const words = computed(() => kitEntryWords(custom.lang))
 /* Every rule starts with .x-entry and names two more classes, as in KitEntries. */
 .x-entry { padding-block: clamp(2.5rem, 6vw, 5rem) clamp(3rem, 7vw, 6rem); }
 .x-entry .x-wrap { box-sizing: border-box; max-width: 80rem; margin-inline: auto; padding-inline: clamp(1.25rem, 4vw, 2.5rem); }
-.x-entry .x-entry-head .x-entry-title { margin: 0; overflow-wrap: break-word; hyphens: auto; }
+/* No look styles an h1 in .prose-look (they style h2 and h3): the title takes the look's typeface
+   and colour and the kit's size. A look may refine it in its own stylesheet (.x-entry-title). */
+.x-entry .x-wrap .x-entry-head { max-width: 56rem; }
+.x-entry .x-entry-head .x-entry-title { margin: 0; font-size: clamp(1.625rem, 1.15rem + 2.3vw, 3.25rem); line-height: 1.1; text-wrap: balance; overflow-wrap: break-word; }
 .x-entry .x-wrap .x-entry-pic { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--x-radius, 0); margin: clamp(1.75rem, 4vw, 3rem) 0 0; }
 .x-entry .x-wrap .x-entry-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: clamp(2rem, 4vw, 3rem); margin-top: clamp(2rem, 4.5vw, 3.5rem); }
 @media (min-width: 56rem) {

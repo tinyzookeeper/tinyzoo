@@ -74,6 +74,8 @@ html[data-look="casomira"] {
     .prose-look { max-width: 44rem; }
     .prose-look > * + * { margin-top: 1rem; }
     .prose-look h2 { font-weight: 800; font-size: 2rem; letter-spacing: -0.03em; line-height: 1.1; margin-top: 2.6rem; color: var(--text); }
+    /* the title of an entry's page (the kit's KitCustomEntry) in the type of these headings */
+    .x-entry .x-entry-title { font-weight: 800; letter-spacing: -0.03em; color: var(--text); }
     .prose-look h3 { font-weight: 800; font-size: 1.4rem; letter-spacing: -0.02em; line-height: 1.2; margin-top: 2rem; color: var(--text); }
     .prose-look a { text-decoration: underline; text-decoration-color: var(--led); text-underline-offset: 4px; }
     .prose-look a:hover { color: var(--led); }
@@ -109,3 +111,7 @@ html[data-look="casomira"] {
     .pl-txt { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; fill: var(--quiet); }
   }
 }
+
+/* The header lies over the top of the page (4.75rem): the page of an entry (the kit's KitCustomEntry) starts below it.
+   Outside the layers, so it stands over the kit's own spacing. */
+html[data-look="casomira"] .x-entry { padding-top: calc(4.75rem + clamp(2rem, 4vw, 3.5rem)); }

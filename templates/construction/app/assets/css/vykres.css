@@ -101,6 +101,8 @@ html[data-look="vykres"] {
     .prose-look { max-width: 42rem; font-size: 17px; line-height: 1.65; }
     .prose-look > * + * { margin-top: 1rem; }
     .prose-look h2 { font-family: var(--font-display); font-weight: 300; font-size: 1.7rem; line-height: 1.15; letter-spacing: -.02em; color: var(--ink); margin-top: 2.4rem; padding-top: 1rem; border-top: 1px solid var(--ink); }
+    /* the title of an entry's page (the kit's KitCustomEntry) in the type of these headings */
+    .x-entry .x-entry-title { font-family: var(--font-display); font-weight: 300; letter-spacing: -.02em; color: var(--ink); }
     .prose-look h3 { font-family: var(--font-display); font-weight: 400; font-size: 1.3rem; line-height: 1.2; color: var(--ink); margin-top: 1.8rem; }
     .prose-look a { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
     .prose-look a:hover { color: var(--brand); }

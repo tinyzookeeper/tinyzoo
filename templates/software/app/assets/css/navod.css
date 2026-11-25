@@ -50,6 +50,8 @@ html[data-look="navod"] {
     .prose-look { max-width: 44rem; }
     .prose-look > * + * { margin-top: 1rem; }
     .prose-look h2 { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; color: var(--ink); margin-top: 2.4rem; }
+    /* the title of an entry's page (the kit's KitCustomEntry) in the type of these headings */
+    .x-entry .x-entry-title { font-weight: 600; letter-spacing: -0.02em; color: var(--ink); }
     .prose-look h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--ink); margin-top: 2rem; }
     .prose-look a { color: var(--ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--ink) 35%, transparent); text-underline-offset: 4px; }
     .prose-look a:hover { color: var(--brand); }
