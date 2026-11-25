@@ -245,12 +245,77 @@ The look is the admin's own: `.cms-card`, `CmsConfirmDialog`, no colour bar on a
 - **Two instances of one app** with a shared store: the `model` channel carries the change, as in multi-tenant mode.
 - **The limits** are the defaults (12 types, 30 fields, 30 choices). A single site has no directory row to set its own.
 
-**Every branch on the mode is looked at once,** and put into one of two groups. The build's first task for this part is that list, in this document.
+**Every branch on the mode is looked at once,** and put into one of two groups. The list below is every line of `packages/cms/server` that asks for the mode (`cmsIsMultiTenant()` or `cmsTenancyMode()`, 72 branches: 48 in 30 files and 24 in `cmsSite.ts`, besides the two lines there that define the mode). Each was decided by reading the code. *Follows* means it now asks `cmsSiteCounted()` (or runs only for a counted site): a counted single site behaves there as a multi-tenant site does. *Stays* means single mode keeps its own answer whatever the switch. Line numbers are those of the commit before this part.
 
-| Group | Follows the switch | Examples (from `grep cmsIsMultiTenant`: 55 places in 30 files) |
+**In `cmsSite.ts`** (the shortcuts of single mode):
+
+| Line | What it does | Group |
 |---|---|---|
-| How an instance lives | Yes | the request wrapper, the sockets, loading the model, the live hub's stop, the shared-editing engine's stop, start-up work, the tasks |
-| What makes many sites safe from each other | No, stays as single mode has it | host names, the session's proof, keys in the shared store, the storage folder rule, the demo account, the sign-in origin rule, the operator's route |
+| 104, 108 | `cmsTenancyMode`, `cmsIsMultiTenant`: the mode, read once | (the definitions) |
+| 129 `useCmsSite` | single: the one site, from the environment | Stays: it is the one site whatever its instance |
+| 137 `currentCmsSite` | single: the one site, never null | Stays. So the request wrapper cannot use it to see a request made from inside a request: a new question, `cmsInSiteWork()`, says whether the caller runs inside an instance |
+| 146 `cmsHoldSiteUntil` | single: does nothing | Follows |
+| 158 `cmsSiteHasLeft` | multi only: the site left the directory | Stays: the one site never leaves (its instance is retired with `left: false`) |
+| 162 `cmsSiteLeftCheck` | single: never left | Stays, for the same reason |
+| 170 `cmsSiteQuietCheck` | single: never quiet | Stays: only the connection cap of many sites asks it |
+| 211 `runInCmsSite` | single: calls the function | Follows |
+| 216 `outsideCmsSite` | single: calls the function | Follows: process-wide work started in a request does not keep the instance alive |
+| 227 `bindToCmsSite` | single: the callback as it is | Follows. Bound outside any instance, it binds the site's current one |
+| 259 `cmsSiteScoped` | single: the one `SINGLE_INSTANCE` | Follows. Work outside any instance reads the site's current instance (`currentInstance` makes it) |
+| 323 `cmsRetireCurrentSite` | single: does nothing | Follows |
+| 330 `cmsRetireSite` | single: false | Follows |
+| 339 `cmsSiteRetiredCheck` | single: never retired | Follows |
+| 361 `cmsUnloadIdleSites` | single: unloads nothing | Stays: unloading gives memory back to other sites; the one site has none to give it to, and would only run its start-up work again |
+| 446 `cmsSettings` | single: `runtimeConfig.cms` | Stays: the settings come from the environment |
+| 709, 721, 748 | reading the directory, waiting for it, "is it loaded" | Stays: there is no directory |
+| 758 `cmsSiteById`, 764 `cmsAllSites` | single: the one site | Stays |
+| 782 `forEachCmsSite` | single: calls the function | Follows: background work runs in the instance and holds it until it has finished |
+| 786 `forEachCmsSite` | single: a failure is thrown, not logged | Stays: the one site's task reports its own failure, as before |
+| 806 `onCmsSiteStart` | single: runs the work now | Both. Counted: it still runs now, in the first instance, so a failed migration stops a production start as always; it is also kept, and runs again in each fresh instance |
+| 812 `ensureCmsSiteStarted` | single: nothing to do | Follows |
+
+`cmsPeekInSite` has no branch: it looks at the loaded instances, which a counted single site now has. `unloadAllCmsSites` has none either; the request wrapper of a counted single site calls it when the server closes.
+
+**Elsewhere:**
+
+| File:line | What it does | Group |
+|---|---|---|
+| `plugins/cms-0-site.ts:25` | the request wrapper of multi mode | Both. Counted single: a wrapper of its own (`countSingleSite`) runs each request inside the current instance, holds it with its `waitUntil` work, keeps a request made from inside a request in its caller's instance, runs the start-up work of a fresh instance, and makes pages wait for `cmsSiteReady()`. Hosts, states and the directory stay multi's |
+| `utils/cmsSocketSite.ts:27` | a socket finds its site at the upgrade, every hook runs in it | Both. Counted single: every hook in the current instance, the first ones after the site's types are read. The host lookup stays multi's |
+| `plugins/cms-changes.ts:17` | single: the shared-editing engine starts with the server | Both. Not counted: as before. Counted single: a start hook, so each fresh instance starts one (the old engine stops with its instance) |
+| `utils/cmsCollabServer.ts:514` | an engine unloaded while starting is stopped once up | Follows: a counted single site can be unloaded too |
+| `utils/cmsLive.ts:138` | a fresh hub asks the other instances who is here | Follows: a change of structure gives a counted single site a fresh hub |
+| `utils/cmsLive.ts:363` | a hub with no socket stops itself | Stays: memory economy for many sites; the one hub runs on |
+| `plugins/cms-model.ts:9` | single: an info line, the `model` channel not listened to | Follows: with the switch on the plugin listens in single mode too. The info line is gone; multi mode has a new one for a build's own model file |
+| `utils/cmsModel.ts:51` | which design model: `default`, or the row's | Stays: where the model comes from |
+| `utils/cmsModel.ts:71, 232, 250, 260, 269, 275` | the site's own types: laid over the design, loaded once per instance, waited for, read | Follow. `cmsSiteReady` of a counted single site also waits for the app's model file, once per process |
+| `utils/cmsCustomTypes.ts:24` | the feature is on | Follows: on for a counted site with the switch; the one site has no row, so its limits are the defaults |
+| `tasks/cms/scheduled.ts:14`, `tasks/cms/media-sizes.ts:15` | single: every site through `forEachCmsSite`; multi: only the due sites | Both. The branch stays single's (no memory of what is due); the work inside now waits for the site's types (`cmsAfterSiteReady`, at once when not counted), so a fresh instance does not announce over the design's types alone and move the last run past a custom type's entry |
+| `tasks/cms/scheduled.ts:22`, `media-sizes.ts:23`, `retention.ts:18` | the shape of the task's result | Stays |
+| `utils/cmsScheduler.ts:18` | multi: forget what is due after a change | Stays: single mode keeps no such memory |
+| `utils/cmsMigrate.ts:55` | a failed migration: one site of many answers 503; single: exit in production | Stays. A fresh instance runs the migrations again (they find nothing to do); a failure there exits too, which is how a single site has always said it cannot serve |
+| `utils/cmsMigrate.ts:96` | the log line of migrations | Stays |
+| `utils/cmsDb.ts:13` | the database address: the row's, with the cap, or the environment's | Stays: where the database address comes from. The pool is per instance already, so a fresh instance has a fresh pool |
+| `utils/cmsStore.ts:81` | keys in the shared store named by site | Stays |
+| `utils/cmsChanges.ts:34, 39` | a channel message names its site; a received one is for that site | Stays. A single-mode message names no site and is the one site's: the `model` channel works with it |
+| `utils/cmsSession.ts:97` | a session is bound to its site by a proof | Stays |
+| `utils/cmsSession.ts:157` | the origin of a socket must be the site's host | Stays |
+| `utils/cmsAuth.ts:132` | the session names its site | Stays |
+| `utils/cmsAuth.ts:148`, `utils/cmsAccount.ts:72` | links in e-mails may use the request's origin outside production | Stays: the sign-in origin rule |
+| `utils/cmsAccount.ts:140` | the account sign-in is bound to the site's secret | Stays |
+| `utils/cmsOAuth.ts:26` | the MCP's address from the request when none is set | Stays |
+| `utils/cmsDemo.ts:12` | the demo account | Stays |
+| `utils/cmsStorage.ts:540, 545` | the storage folder rule; the warning about a local disk | Stays |
+| `utils/cmsStorage.ts:581` | writes refused once the site left | Stays: the one site never leaves |
+| `utils/cmsSetupCode.ts:70` | the setup code's log line names the site | Stays |
+| `plugins/cms-0-config-check.ts:59, 68` | the database address is required; request origins refused | Stays |
+| `plugins/cms-plugins.ts:13` | a build with no model of its own needs multi mode | Stays |
+| `plugins/cms-logo-check.ts:10`, `plugins/cms-theme-notes.ts:7` | development checks of the one site at start | Stays |
+| `plugins/cms-errors.ts:29` | an error report names its site | Stays |
+| `middleware/cms-0-hosts.ts:8`, `middleware/cms-sitemap-address.ts:24` | old host names redirect; the sitemap needs an address | Stays |
+| `api/health/sites.get.ts:18` | the operator's route | Stays |
+
+In numbers: 26 branches follow the switch (11 in `cmsSite.ts`, 15 elsewhere, of which 6 are *both*: the part about an instance follows, the part about hosts or a task's shape stays), and 46 stay (13 in `cmsSite.ts`, 33 elsewhere). Without the switch every one of them takes the path it took before: each new question is `cmsSiteCounted()`, which is false exactly when the old one said "single".
 
 **The build carries the model file.** `module.ts` looks for `cms.model.json` in the app's root and, when it is there, puts it into the server build. No module option is added. At start, a counted single site:
 
@@ -258,6 +323,14 @@ The look is the admin's own: `.cms-card`, `CmsConfirmDialog`, no colour bar on a
 2. registers the file as the registration `app` (the name can be set with `NUXT_CMS_MODEL_CODE`). When the file does not fit, it registers anyway and logs what the code expects and the site lacks.
 
 `NUXT_CMS_MODEL_FILE=off` ignores the file. In multi-tenant mode a build's own model file is ignored: one build serves many sites.
+
+**What the build changed in this section** (part 5; section 13 says what exists):
+
+- *Start-up work* runs at boot as before (a failed migration still stops a production start) and again in each fresh instance, the first time it is used; not "once per instance instead of once per process". The shared-editing engine, which single mode starts with the server, became start-up work of a counted single site.
+- *The app's model file* is taken in once per process, inside `cmsSiteReady()`: after the migrations and before the site's types are read, so no request is served before it. `follow` runs through `cmsChangeModelBeforeLoad` (the instance has not served yet, so it is not retired) and tells the other instances, which may have served the older model.
+- *The scheduled tasks* of a single site also wait for the site's types (`cmsAfterSiteReady`). Running through `forEachCmsSite` holds the instance, but a fresh instance would otherwise announce over the design's types alone and move the last run past an entry of a custom type.
+- *The request wrapper* needs its own question: `currentCmsSite()` always answers the one site in single mode, so it cannot tell a request made from inside a request. `cmsInSiteWork()` does.
+- A file that is the one registered already (same text, source `app`) is not registered again at a restart: nothing is written, so the audit log gets no line per restart. What the site lacks of it is logged again.
 
 **Two things a single-site app must know.**
 
@@ -382,3 +455,37 @@ What I saw in a browser (a dev server in multi-tenant mode on a database of its 
 - The link from the refusal landed on the list without scrolling to the section on a short screen: fixed as above.
 - The token dialog of the account page never offered "Create and edit" and its three rights, since the sign-in with OAuth came (1cebd8ab, 19 November): `writeAllowed` is a boolean prop, and Vue makes a boolean prop that is left out `false`. It now defaults to `true`; the connect page still sets it.
 - English dates are the admin's own ("November 25"), as everywhere else in the admin.
+
+**Part 5, the single-site switch** (`server/utils/cmsSite.ts`, `plugins/cms-0-site.ts`, `utils/cmsSocketSite.ts`, `utils/cmsModel.ts`, `utils/cmsCustomTypes.ts`, `plugins/cms-changes.ts`, `plugins/cms-model.ts`, `utils/cmsLive.ts`, `utils/cmsCollabServer.ts`, two tasks; the model file in `module.ts`, `utils/cmsAppModelFile.ts`, `mergeModelFileAdditions` in `src/model-file.ts`; tests in `test/api/single-custom.spec.ts` (17), `test/unit/cms-site.spec.ts` (12 more), `test/unit/single-site-switch.spec.ts`, `test/unit/model-file-build.spec.ts`). What exists:
+
+- **The question.** `cmsSiteCounted()` in `cmsSite.ts`: true in multi mode, and in single mode when `NUXT_CMS_CUSTOM_TYPES=on`, read once from the environment. Every branch of section 9's first group asks it. Work of a counted single site that runs in no instance (a plugin at start, a timer started outside a request) runs in the site's current instance. `cmsInSiteWork()` says whether the caller runs inside one.
+- **Requests** of a counted single site run inside the current instance through the wrapper `countSingleSite` in `cms-0-site.ts` (holding it with their `waitUntil` work; a request made from inside a request stays in its caller's instance), run the start-up work of a fresh instance, and pages wait for `cmsSiteReady()`.
+- **Sockets** run every hook inside the current instance, the first ones after the site's types are read. The live hub and the shared-editing engine stop with their instance (sockets get 4000 "Reconnect"; pending documents are stored); the engine is start-up work, so a fresh instance gets one; a fresh hub asks the other instances who is here.
+- **Start-up work** runs at boot inside the first instance and again in each fresh one. After a change of structure the log shows "database is up to date" and "search index built" once more.
+- **The tasks** `cms:scheduled` and `cms:media-sizes` of a single site wait for its types; all tasks hold their instance through `forEachCmsSite`.
+- **The model file.** `module.ts` adds `cms.model.json` (beside `cms.config.ts`) to the server build as the server asset `cms-model-file`, only when it is there; in development its path is in `nuxt.options.watch`, so a change restarts the server. No module option; `module-options.json` and `layer-config.json` did not change (`api-tinyzoo.txt` gained the internal `MODEL_FILE_ASSET` and `mergeModelFileAdditions`). `cmsAppModelFile.ts` takes it in once per process inside `cmsSiteReady()`: `NUXT_CMS_MODEL_FILE` unset registers, `follow` adds first, `off` ignores; `NUXT_CMS_MODEL_CODE` names the registration. The test knob `CMS_TEST_MODEL_FILE=<path>` reads that file instead of the bundled one.
+- **The switch off** is today's path: each new question is false exactly where the old one said "single". The unit tests prove it for the seam (`cmsSiteScoped` is one object for the process's life; both retirements do nothing; `runInCmsSite` returns its function's own value in the same tick; `bindToCmsSite` returns the function; start-up work runs once) and for the plugin (the handler is the same function, no hook). The whole api project passes.
+
+**Measured** (over HTTP on a laptop, one single-site server with Redis, a field added; `single-custom.spec.ts`, "timings"): a change of structure, median of 20: 11 ms (9 to 20). The first request after it, which makes the fresh instance: median 15 ms (13 to 18). The same request warm: 2 ms. Resident memory of the server: 359 MB before the 20 changes, 392 MB after (other runs: 361 to 428, 356 to 446; the retired instances are released, what remains is the heap's growth). A change on one of two servers served by the other: 31 to 46 ms, the change included.
+
+**Leaks put in on purpose,** one at a time, each reverted:
+
+| Leak | Failed in `single-custom.spec.ts` |
+|---|---|
+| The single site's model swapped in place, the instance not retired (the custom part forgotten after the commit and read again by the next request, in the same instance) | 4: "sees one model from its start to its end" (the request under way saw a second model), "is served by the next request on every route that knows types" (the OpenAPI document of the old instance), "stops finding a word of a hidden field…" (no rebuild of the index), "is told to reconnect (4000)…". The test modelled on the multi-tenant one (a PATCH held on a row lock) did NOT fail: its request reads nothing of the model after it waited. The probe test was added for it: a route of the playground (`playground/server/api/test-model-probe.get.ts`, a 404 unless `CMS_TEST_MODEL_PROBE=1`) reads the site's types, waits for an advisory lock the test holds, and reads them again |
+| The start-up work not run for a fresh instance | 1: "stops finding a word of a hidden field, and finds it again once the field is restored" |
+| `follow` allowed to remove and change (the file sent as it is) | 1: "`follow` adds what the file has and the database lacks, and never removes or changes" (the changed label came back) |
+
+What I decided where this design was silent, or found wrong:
+
+- An identical file is not registered again at a restart (see the list in section 9): the audit log would otherwise get a line per restart, which a person sees.
+- The request wrapper of a counted single site does not unload the instances when the server closes. The first version did, as multi mode does, and the whole-run check found `cms:media-sizes` failing with "Cannot use a pool after calling end on the pool": the task of every second was still running. Single mode never ended its pool at close; the process ends it.
+- Unknown values of `NUXT_CMS_MODEL_FILE` are one warning and count as unset (the file is registered, nothing added).
+- In multi mode with the switch on, a build that carries a model file says one info line at start; nothing else reads it.
+
+Left open:
+
+- When the shared-editing engine of a retired instance stops, the Redis extension of Hocuspocus logs "Error: Connection is closed." for each document it unloads after its connections were closed (`afterUnloadDocument` unsubscribes on a client `onDestroy` already disconnected). Harmless, and the same path as a multi-tenant site's retirement; a fix belongs in how `stopCollab` orders the two, not in this part.
+- A search rebuild still running when its instance is released can lose its pool between its first query and its transaction (one error line; the next instance rebuilds). Multi mode is spared by the connection cap, which answers a closed pool with the site's current one; a counted single site has no cap.
+- A fresh instance whose migrations fail (they find nothing to do, so only the connection can fail) exits the process in production, as a single site always has.
+- The guide for developers, the changeset and the contracts' notes are part 6.
