@@ -345,3 +345,28 @@ What I decided where this design was silent:
 | The fit check skipped when the operations hold a `field.remove` | 5: "refuses removing a field it reads, also as a dry run", "lifts the refusal when the registration is removed", "does not let a registration that already does not fit block what it did not make worse", "a registration made on one instance refuses a change made on the other", "compares 20 changes …" |
 | The registrations read once and kept for the process | 10: the first is "refuses removing a field it reads, also as a dry run"; with it the type and required-to-optional refusals, the two-instance test and those that follow on the same state |
 | A token with the right accepted for `purge` | 1: "a token cannot purge, even a purge that is valid when a person does it" |
+
+**Part 3, the command line** (`cli/model.ts`, `cli/client.ts`, wired in `cli/index.ts`, listed in `cli/usage.ts`; tests in `test/unit/model-cli.spec.ts` (60), `test/unit/client-cli.spec.ts` (21), `test/api/model-cli.spec.ts` (18, on two sites in one process)). What exists:
+
+- `tinyzoo model pull [--force] [--types <file>]`, `push [--dry-run] [--yes]`, `check [--offline] [--strict]`, `register [--name <name>] [--remove]`, each with `--url <address>` and `--file <path>`. `modelCommand(argv, io)` returns the exit code (0, 1 a refusal or a misfit, 2 a wrong use) and takes the folder, the environment, `fetch` and where to print, so the tests call it in-process.
+- The token is `TINYZOO_TOKEN`, sent as `Authorization: Bearer`, no cookie. Redirects are not followed, so the token never travels to another address. A plain `http://` address that is not this machine gets a warning.
+- A refusal is printed as the site gave it: its message, then the places (`in-use`), each registration with its name, when it registered and what it reads (`breaks-code`), what the site lacks (`does-not-fit`), the reasons (`not-allowed`), the operation a 422 names. 401, 403 and 404 get the sentences about the token and the switch.
+- `tinyzoo client` and `tinyzoo openapi` lay `cms.model.json` (or `--model <file>`) over `cms.config.ts` with `customModelConfig`; `--no-model` leaves it out. Without a file the output is the same bytes as before (a test compares with the frozen contracts). `tinyzoo client --check` writes nothing and exits 1 when the file on disk differs.
+- The types `tinyzoo client` builds from a pulled file over the playground's config are the text the site serves at `/api/content-types.ts` (`model-cli.spec.ts`, the last test).
+
+What I decided where this design was silent:
+
+- `pull --types` reads `/api/content-types.ts`, a route of the content API: it takes the content token, not the access token. The CLI sends `TINYZOO_CONTENT_TOKEN` as `x-api-key` when it is set, and never sends `TINYZOO_TOKEN` there.
+- A local file read from another site (its `site` differs from the site's) stops `pull` and `push`; `pull --force` replaces it.
+- A site with no public address gives a file without `site`; the CLI writes the address it used, so the next command needs none.
+- `push` also starts again once when the dry run meets `stale-version`. A person who answers "no" gets exit 1; no terminal and no `--yes` is exit 2.
+- After a push, the lines of what the owner changed on the site since the pull are printed: the difference between the local file and the file written.
+- `pull` says what changed with `describeModelOps`. When the difference cannot be written as operations (the site removed something and made it again in another form), it says which type or field "was made anew".
+- `client` and `openapi` still ignore flags they do not know, as before. `openapi` accepts `--check` too; only `client --check` is listed.
+- In `cli/usage.ts` the four subcommands are four entries (`model pull`, …); the test that compares the list with the dispatcher reads the first word.
+
+What was wrong in this design, or is a risk:
+
+- **The address in the file.** `site` in `cms.model.json` is a value in git. When a CI job runs `tinyzoo model check` with no address, a pull request that changes `site` makes the job send `TINYZOO_TOKEN` to that address. The CLI says which address it took from the file, but the guide must tell a CI to set `TINYZOO_MODEL_URL` (or `--url`) always. A later part could refuse a token for an address that came from the file when `CI` is set.
+- **The frozen usage text.** A new flag longer than a command's flags re-aligns that command's existing flag lines. `--model <file>` did that to the `--stdout` line of `client` and `openapi` in `cli-usage.txt` (whitespace only; no flag removed or renamed).
+- The design's `pull` step 4 limits `--types` to a folder without `cms.config.ts`. The CLI does not check: in an app with a config the saved file is simply the site's types, and the last line still names `tinyzoo client`.
