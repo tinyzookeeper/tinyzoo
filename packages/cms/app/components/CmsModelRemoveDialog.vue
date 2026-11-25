@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import type { ModelField, ModelType } from '../../src/model-doc'
 import {
-  cmsModelDayText, cmsModelDistinctPlaces, cmsModelFieldRefs, cmsModelNotesText, cmsModelPlaceBlock, cmsModelPointingAt, cmsModelPurgeFromNow, cmsModelRemoveOp,
+  cmsModelDistinctPlaces, cmsModelFieldRefs, cmsModelNotesText, cmsModelPlaceBlock, cmsModelPointingAt, cmsModelPurgeFromNow, cmsModelRemoveOp,
   type CmsModelData, type CmsModelPlace,
 } from '../utils/cmsModel'
 
-// Removing a type or a field: nothing is deleted right away. It is hidden, deleted for good later, and
-// can be restored until then. The dialog says first where it is still used (and then offers no button),
-// then what happens to the content, then when it is gone for good.
+// Removing a type or a field hides it, for good: its content is kept and it can be restored at any time.
+// Only what holds nothing is deleted by the server, an hour later. The dialog says first where it is
+// still used (and then offers no button), then what happens to the content.
 const props = defineProps<{ type: ModelType; field: ModelField | null; data: CmsModelData }>()
 const emit = defineEmits<{ done: [] }>()
 const open = defineModel<boolean>('open', { default: false })
@@ -20,6 +20,8 @@ type Place = CmsModelPlace
 const loading = ref(false)
 const saving = ref(false)
 const places = ref<Place[]>([])
+// How many entries hold a value of the field (null when that cannot be read).
+const values = ref<number | null>(null)
 // The fields that link to this type: from the document, then from the server's answer when it names others.
 const refs = ref<{ type: string; key: string }[]>([])
 const failed = ref('')
@@ -29,10 +31,9 @@ const read = (label: any) => tl(label, '')
 const blocked = computed(() => places.value.length > 0 || refs.value.length > 0)
 const pointing = computed(() => cmsModelFieldRefs(props.data.doc, refs.value, read))
 const entries = computed(() => props.data.entries[props.type.name] ?? 0)
-// A type with no entries goes after an hour; a field after the long wait (one that holds nothing goes after an hour too, said below).
-const purgeAt = computed(() => cmsModelPurgeFromNow(!props.field && entries.value === 0))
-const purgeSoon = computed(() => !props.field && entries.value === 0)
-const dateCtx = { formatDateWith }
+// What holds nothing is deleted by the server an hour after it is removed; everything else stays until a person deletes it.
+const holdsNothing = computed(() => (props.field ? values.value === 0 : entries.value === 0))
+const purgeAt = computed(() => cmsModelPurgeFromNow())
 
 const placeTitle = (p: Place) => p.title || entityLabel((graph.value ?? []).find((g: any) => g.name === p.entity)) || p.entity
 const placeKind = (p: Place) => (p.title ? entityLabel((graph.value ?? []).find((g: any) => g.name === p.entity)) : '')
@@ -41,13 +42,15 @@ const blockName = (p: Place) => cmsModelPlaceBlock(p, tl)
 
 async function load() {
   places.value = []
+  values.value = null
   failed.value = ''
   refs.value = props.field ? [] : cmsModelPointingAt(props.data.doc, props.type.name)
   loading.value = true
   try {
     const query = props.field ? `type=${encodeURIComponent(props.type.name)}&field=${encodeURIComponent(props.field.key)}` : `type=${encodeURIComponent(props.type.name)}`
-    const res = await cmsFetch<{ places: Place[] }>(`/api/cms/_model/usage?${query}`)
+    const res = await cmsFetch<{ places: Place[]; values?: number | null }>(`/api/cms/_model/usage?${query}`)
     places.value = distinct(res.places ?? [])
+    values.value = typeof res.values === 'number' ? res.values : null
   }
   // The server checks again when the button is pressed, so an unreadable answer is not a reason to stop here.
   catch { /* nothing to list */ }
@@ -122,13 +125,19 @@ async function remove() {
             <span v-else-if="entries">{{ t('model.remove.entriesHold', { count: entries }) }}</span>
             <span v-else>{{ t('model.remove.noEntries') }}</span>
           </p>
-          <!-- 3. when it is gone for good -->
           <p class="flex items-start gap-3 text-sm text-default text-pretty">
             <UIcon name="i-lucide-eye-off" class="mt-0.5 size-4 shrink-0 text-muted" aria-hidden="true" />
-            <span v-if="purgeSoon && purgeAt">{{ t('model.remove.hiddenSoon', { time: formatDateWith(purgeAt, { timeStyle: 'short' }) }) }}</span>
-            <span v-else-if="purgeAt">{{ t('model.remove.hiddenUntil', { date: cmsModelDayText(purgeAt, dateCtx) }) }}</span>
+            <span>{{ t('model.remove.goneNow') }}</span>
           </p>
-          <p v-if="field" class="-mt-2 pl-7 text-sm text-muted text-pretty">{{ t('model.remove.fieldEmptyHour') }}</p>
+          <!-- 3. what holds nothing is deleted after an hour -->
+          <p v-if="holdsNothing" class="flex items-start gap-3 text-sm text-default text-pretty">
+            <UIcon name="i-lucide-clock" class="mt-0.5 size-4 shrink-0 text-muted" aria-hidden="true" />
+            <span>{{ t('model.remove.hiddenSoon', { time: formatDateWith(purgeAt, { timeStyle: 'short' }) }) }}</span>
+          </p>
+          <p v-else-if="field" class="flex items-start gap-3 text-sm text-muted text-pretty">
+            <UIcon name="i-lucide-clock" class="mt-0.5 size-4 shrink-0 text-muted" aria-hidden="true" />
+            <span>{{ t('model.remove.fieldEmptyHour') }}</span>
+          </p>
         </template>
 
         <UAlert v-if="failed" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="failed" role="alert" data-cms-error-summary />

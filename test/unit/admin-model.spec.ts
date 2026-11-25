@@ -3,12 +3,13 @@ import { applyModelOps, emptyModelDoc, MODEL_PURGE_EMPTY_AFTER_MS, type ModelDoc
 import en from '../../packages/cms/app/i18n/en'
 import {
   CMS_MODEL_ICONS, CMS_MODEL_KINDS, cmsModelCanRequire, cmsModelFields, cmsModelHiddenFields, cmsModelHiddenTypes, cmsModelKindIcon, cmsModelKindOf,
-  cmsModelNewType, cmsModelNoteText, cmsModelNotesText, cmsModelProblem, cmsModelPurgeAt, cmsModelPurgeDateText, cmsModelStarterLabel, cmsModelTakenPrefixes,
+  cmsModelNewType, cmsModelNoteText, cmsModelNotesText, cmsModelProblem, cmsModelPurgeAt, cmsModelStarterLabel, cmsModelTakenPrefixes,
   cmsModelTakenTypeNames, cmsModelVisibleTypes, cmsSheetUi,
   cmsModelAddOptionRow, cmsModelBlankForm, cmsModelColumnChoices, cmsModelDayText, cmsModelDesignKind, cmsModelFieldAddOp, cmsModelFieldCheck, cmsModelFieldParts,
   cmsModelFieldRefs, cmsModelFieldUpdateOp, cmsModelFormOf, cmsModelMoveKey, cmsModelMoveKeyTo, cmsModelNewFieldKey, cmsModelOrderFields, cmsModelOrderOp,
-  cmsModelParseNumber, cmsModelPointingAt, cmsModelPreset, cmsModelPurgeFromNow, cmsModelPurgeText, cmsModelRemoveOp, cmsModelRemoveOptionRow,
+  cmsModelParseNumber, cmsModelPointingAt, cmsModelPreset, cmsModelPurgeFromNow, cmsModelRemovedLine, cmsModelRemoveOp, cmsModelRemoveOptionRow,
   cmsModelRestoreOptionRow, cmsModelSameKeys, cmsModelSettingsCheck, cmsModelSettingsFormOf, cmsModelSettingsOp, cmsModelUsageCount,
+  cmsModelDeleteNeedsName, cmsModelFieldsAtLimit, cmsModelFieldsUsed, cmsModelNameMatches, cmsModelPurgeBlockers, cmsModelPurgeOp, cmsModelSecondsLeft, cmsModelTypesAtLimit,
 } from '../../packages/cms/app/utils/cmsModel'
 
 // A fake translator: the key and the parameters, so a test sees which sentence was chosen.
@@ -266,7 +267,8 @@ describe('a refusal in words', () => {
       'limit-types', 'limit-fields', 'limit-options', 'limit-label', 'limit-help', 'limit-size', 'invalid-label', 'invalid-name', 'reserved-key', 'name-taken', 'name-clash',
       'invalid-prefix', 'prefix-taken', 'needs-optional', 'has-missing-values', 'invalid-option', 'last-option', 'unknown-target', 'target-hidden', 'title-field', 'system-field',
       'order-manual', 'points-at-type', 'in-use', 'stale-version', 'busy', 'not-allowed', 'invalid-icon', 'unknown-type', 'type-hidden', 'unknown-field', 'already-removed',
-      'not-removed', 'invalid-op', 'not-changeable', 'design-type', 'no-page', 'invalid-doc', 'invalid-request', 'internal-only', 'not-due',
+      'not-removed', 'invalid-op', 'not-changeable', 'design-type', 'no-page', 'invalid-doc', 'invalid-request', 'not-due',
+      'limit-removed-types', 'limit-removed-fields', 'too-soon',
     ]
     for (const code of codes) {
       const text = cmsModelProblem(refusal(code, { op: 0 }, code === 'stale-version' || code === 'in-use' ? 409 : 422), (key, params) => {
@@ -304,7 +306,7 @@ const addField = (doc: ModelDoc, form: ReturnType<typeof formOf>, entries = 0) =
   return withEntries(doc, { custom_kurzy: entries }, [op]).types[0]!.fields.at(-1)!
 }
 
-describe('dates of a hidden thing', () => {
+describe('dates of a removed thing', () => {
   const fmt = (v: Date | string | number, o: Intl.DateTimeFormatOptions) => `${new Date(v).toISOString().slice(0, 16)} ${JSON.stringify(o)}`
   const now = new Date('2026-11-25T10:00:00Z')
 
@@ -313,17 +315,117 @@ describe('dates of a hidden thing', () => {
     expect(cmsModelDayText(new Date('2027-01-03T10:00:00Z'), { formatDateWith: fmt, now })).toContain('"year":"numeric"')
   })
 
-  it('says the hour when deletion is less than a day away, the day otherwise', () => {
+  it('says when the server deletes what was removed empty, and that the content of the rest is kept', () => {
     const ctx = { t, formatDateWith: fmt, now }
-    expect(cmsModelPurgeText({ removedAt: '2026-11-25T09:30:00Z', removedEmpty: true }, ctx)).toMatch(/^model\.deletedOnAt/)
-    expect(cmsModelPurgeDateText(new Date('2026-11-28T09:30:00Z'), ctx)).toMatch(/^model\.deletedOn \{/)
-    expect(cmsModelPurgeText({ removedAt: '2026-11-20T09:30:00Z' }, ctx)).toBe('')
-    expect(cmsModelPurgeText({}, ctx)).toBe('')
+    // Removed empty: the time it is deleted at, always with the hour, a day or more away or not.
+    expect(cmsModelRemovedLine({ removedAt: '2026-11-25T09:30:00Z', removedEmpty: true }, ctx)).toMatch(/^model\.deletedOnAt \{"date":.*"time":/)
+    expect(cmsModelRemovedLine({ removedAt: '2026-11-20T09:30:00Z', removedEmpty: true }, ctx)).toMatch(/^model\.deletedOnAt/)
+    // Removed with content (or not known to be empty): the day it was removed.
+    expect(cmsModelRemovedLine({ removedAt: '2026-11-20T09:30:00Z' }, ctx)).toMatch(/^model\.removedOn \{"date":/)
+    expect(cmsModelRemovedLine({ removedAt: '2026-11-20T09:30:00Z', removedEmpty: false }, ctx)).toMatch(/^model\.removedOn/)
+    // Not removed, or a date that cannot be read: nothing.
+    expect(cmsModelRemovedLine({}, ctx)).toBe('')
+    expect(cmsModelRemovedLine({ removedAt: 'soon' }, ctx)).toBe('')
   })
 
-  it('counts an hour for what holds nothing and nothing for the rest', () => {
-    expect(cmsModelPurgeFromNow(true, now)!.getTime() - now.getTime()).toBe(MODEL_PURGE_EMPTY_AFTER_MS)
-    expect(cmsModelPurgeFromNow(false, now)).toBeNull()
+  it('counts an hour from now for what is removed while it holds nothing', () => {
+    expect(cmsModelPurgeFromNow(now).getTime() - now.getTime()).toBe(MODEL_PURGE_EMPTY_AFTER_MS)
+  })
+})
+
+describe('deleting for good', () => {
+  it('builds the operation for a type and for a field', () => {
+    expect(cmsModelPurgeOp('custom_kurzy')).toEqual({ op: 'purge', types: ['custom_kurzy'] })
+    expect(cmsModelPurgeOp('custom_kurzy', 'price')).toEqual({ op: 'purge', fields: [{ type: 'custom_kurzy', key: 'price' }] })
+    expect(cmsModelPurgeOp('custom_kurzy', null)).toEqual({ op: 'purge', types: ['custom_kurzy'] })
+  })
+
+  it('compares the typed name with the label: case, spaces and the way an accent is typed do not matter', () => {
+    expect(cmsModelNameMatches('Kurzy', 'Kurzy')).toBe(true)
+    expect(cmsModelNameMatches('kurzy ', 'Kurzy')).toBe(true)
+    expect(cmsModelNameMatches('  KURZY', 'Kurzy')).toBe(true)
+    expect(cmsModelNameMatches('Nové  kurzy', 'Nové kurzy')).toBe(true)
+    // "é" typed as e + combining accent
+    expect(cmsModelNameMatches('Nove\u0301 kurzy', 'Nov\u00e9 kurzy')).toBe(true)
+    expect(cmsModelNameMatches('Kurz', 'Kurzy')).toBe(false)
+    expect(cmsModelNameMatches('Kur', 'Kurzy')).toBe(false)
+    expect(cmsModelNameMatches('Nove kurzy', 'Nové kurzy')).toBe(false)
+    expect(cmsModelNameMatches('', 'Kurzy')).toBe(false)
+    expect(cmsModelNameMatches('   ', '')).toBe(false)
+  })
+
+  it('asks for the name when it holds something or that is not known, and not when it holds nothing', () => {
+    expect(cmsModelDeleteNeedsName(0)).toBe(false)
+    expect(cmsModelDeleteNeedsName(12)).toBe(true)
+    expect(cmsModelDeleteNeedsName(null)).toBe(true)
+    expect(cmsModelDeleteNeedsName(undefined)).toBe(true)
+  })
+
+  it('finds the fields that stop a type from being deleted: removed or not, of other types only', () => {
+    const doc = apply(base(), [
+      { op: 'type.add', name: 'custom_akce', label: { cs: 'Akce' } },
+      { op: 'field.add', type: 'custom_akce', field: { type: 'relation', key: 'course', label: { cs: 'Kurz' }, to: 'custom_kurzy' } },
+      { op: 'field.add', type: 'custom_kurzy', field: { type: 'relation', key: 'self', label: { cs: 'Související' }, to: 'custom_kurzy' } },
+    ])
+    expect(cmsModelPurgeBlockers(doc, 'custom_kurzy')).toEqual([{ type: 'custom_akce', key: 'course' }])
+    const removed = apply(doc, [{ op: 'field.remove', type: 'custom_akce', key: 'course' }])
+    expect(cmsModelPurgeBlockers(removed, 'custom_kurzy')).toEqual([{ type: 'custom_akce', key: 'course' }])
+    expect(cmsModelPurgeBlockers(doc, 'custom_akce')).toEqual([])
+  })
+
+  it('says whole seconds, rounded up, and at least one', () => {
+    expect(cmsModelSecondsLeft(1)).toBe(1)
+    expect(cmsModelSecondsLeft(1000)).toBe(1)
+    expect(cmsModelSecondsLeft(1001)).toBe(2)
+    expect(cmsModelSecondsLeft(59_400)).toBe(60)
+    expect(cmsModelSecondsLeft(0)).toBe(1)
+    expect(cmsModelSecondsLeft(undefined)).toBe(1)
+  })
+
+  it('says a purge that came too soon, with the seconds left', () => {
+    const p = cmsModelProblem(refusal('too-soon', { op: 0, details: { msLeft: 12_300 } }), t)
+    expect(p).toMatchObject({ kind: 'refused', code: 'too-soon', secondsLeft: 13, text: 'model.errors.tooSoon {"count":13}' })
+  })
+
+  it('says the limits of removed things with the number the server names', () => {
+    expect(cmsModelProblem(refusal('limit-removed-types', { op: 0, details: { limit: 12 } }), t).text).toBe('model.errors.limitRemovedTypes {"limit":12}')
+    expect(cmsModelProblem(refusal('limit-removed-fields', { op: 0, details: { limit: 30 } }), t).text).toBe('model.errors.limitRemovedFields {"limit":30}')
+  })
+
+  it('leaves out the codes that only the server’s own sweep makes', () => {
+    expect(cmsModelProblem(refusal('internal-only', { op: 0 }), t).kind).toBe('other')
+  })
+
+  it('has every sentence of the dialog in the catalogue, with its number', () => {
+    const d = en.model.delete as Record<string, any>
+    expect(d.typeEntries.other).toContain('{count}')
+    expect(d.fieldValues.one).toContain('{count}')
+    expect(en.model.errors.tooSoon.other).toContain('{count}')
+    expect(en.model.errors.limitRemovedTypes).toContain('{limit}')
+    expect(en.model.errors.limitRemovedFields).toContain('{limit}')
+  })
+})
+
+describe('what counts toward the limits', () => {
+  const doc = apply(base(), [
+    { op: 'type.add', name: 'custom_akce', label: { cs: 'Akce' } },
+    { op: 'field.add', type: 'custom_kurzy', field: { type: 'text', key: 'a', label: { cs: 'A' } } },
+    { op: 'field.add', type: 'custom_kurzy', field: { type: 'text', key: 'b', label: { cs: 'B' } } },
+    { op: 'field.remove', type: 'custom_kurzy', key: 'b' },
+    { op: 'type.remove', type: 'custom_akce' },
+  ])
+
+  it('counts the visible fields only', () => {
+    const type = doc.types.find((x) => x.name === 'custom_kurzy')!
+    // title + a (b is removed)
+    expect(cmsModelFieldsUsed(type)).toBe(2)
+    expect(cmsModelFieldsAtLimit(type, 2)).toBe(true)
+    expect(cmsModelFieldsAtLimit(type, 3)).toBe(false)
+  })
+
+  it('counts the visible types only', () => {
+    expect(cmsModelTypesAtLimit(doc, 1)).toBe(true)
+    expect(cmsModelTypesAtLimit(doc, 2)).toBe(false)
   })
 })
 
@@ -683,9 +785,9 @@ describe('removing', () => {
 describe('the texts of part 2', () => {
   it('has the words the dialogs and the page use', () => {
     const text = en.model as any
-    for (const key of ['type.addField', 'type.openEntries', 'type.websiteMakes', 'field.chooseKind', 'field.requiredSwitch', 'field.questionOptions', 'settings.questionColumns', 'settings.order.newest', 'remove.confirm', 'remove.hiddenUntil', 'validation.labelRequired']) {
+    for (const key of ['type.addField', 'type.openEntries', 'type.websiteMakes', 'field.chooseKind', 'field.requiredSwitch', 'field.questionOptions', 'settings.questionColumns', 'settings.order.newest', 'remove.confirm', 'remove.goneNow', 'delete.confirm', 'delete.media', 'delete.noUndo', 'deleteForGood', 'removedOn', 'validation.labelRequired']) {
       expect(key.split('.').reduce((node, part) => node?.[part], text), key).toBeTruthy()
     }
-    expect(en.model.remove.confirm).toBe('Hide and delete later')
+    expect(en.model.remove.confirm).toBe('Remove')
   })
 })

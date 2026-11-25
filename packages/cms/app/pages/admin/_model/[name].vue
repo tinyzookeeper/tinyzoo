@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import type { ModelField } from '../../../../src/model-doc'
+import type { ModelField, ModelType } from '../../../../src/model-doc'
 import {
   CMS_MODEL_DEFAULT_ICON, cmsModelDesignKind, cmsModelFieldParts, cmsModelFields, cmsModelHiddenFields, cmsModelKindIcon, cmsModelKindOf, cmsModelMoveKey,
-  cmsModelMoveKeyTo, cmsModelNotesText, cmsModelOrderOp, cmsModelPurgeText, cmsModelSameKeys,
+  cmsModelFieldsAtLimit, cmsModelFieldsUsed, cmsModelMoveKeyTo, cmsModelNotesText, cmsModelOrderOp, cmsModelRemovedLine, cmsModelSameKeys,
 } from '../../../utils/cmsModel'
 
 // One content type: its fields (in the order the form shows them), what the website adds itself,
-// the hidden fields that wait for their deletion, its settings, and removing it. A type that is
-// hidden says so and offers to bring it back; a type of the design is shown, and cannot be changed here.
+// the removed fields (kept until a person restores or deletes them), its settings, and removing it. A type
+// that is removed says so and offers to bring it back or delete it for good; a type of the design is shown, and cannot be changed here.
 definePageMeta({ layout: 'admin' })
 const route = useRoute()
 const { t, tl, formatDateWith, formatNumber } = useCmsI18n()
@@ -38,7 +38,8 @@ const modelKeys = computed(() => (type.value ? cmsModelFields(type.value).map((f
 const order = ref<string[]>([...modelKeys.value])
 const fields = computed(() => order.value.flatMap((key) => type.value?.fields.find((f) => f.key === key && !f.removedAt) ?? []))
 const hiddenFields = computed(() => (type.value ? cmsModelHiddenFields(type.value) : []))
-const fieldsFull = computed(() => !!type.value && !!data.value && type.value.fields.length >= data.value.limits.fields)
+// Removed fields do not count toward the limit.
+const fieldsFull = computed(() => !!type.value && !!data.value && cmsModelFieldsAtLimit(type.value, data.value.limits.fields))
 const entries = computed(() => data.value?.entries[name.value] ?? 0)
 
 const fieldLabel = (f: { key: string; label?: unknown }) => tl(f.label as any, f.key)
@@ -134,7 +135,21 @@ async function restoreField(field: ModelField) {
   }
 }
 
-// ── a hidden type ──
+// ── deleting for good ──
+// The dialog is mounted outside the page's branches and holds the type it was opened for: when the type is
+// deleted it is gone from the model, and the branch that showed it goes with it.
+const deleteOpen = ref(false)
+const deleteType = ref<ModelType | null>(null)
+const deleteField = ref<ModelField | null>(null)
+function askDelete(field: ModelField | null) {
+  deleteType.value = (field ? type.value : hiddenType.value) ?? null
+  deleteField.value = field
+  deleteOpen.value = true
+}
+// A removed type that is deleted is gone: back to the list.
+const deleted = () => { if (!deleteField.value) void navigateTo('/admin/_model') }
+
+// ── a removed type ──
 const restoringType = ref(false)
 async function restoreType() {
   if (!hiddenType.value) return
@@ -200,12 +215,16 @@ const pageIcon = computed(() => (type.value ? type.value.icon || CMS_MODEL_DEFAU
       <CmsLoadError :error="error" @retry="refresh()" />
     </div>
 
-    <!-- hidden: waits for its deletion, and can come back -->
+    <!-- removed: its content is kept, and it can come back or be deleted for good -->
     <div v-else-if="hiddenType" class="cms-card overflow-hidden">
-      <CmsEmptyState plain icon="i-lucide-eye-off" :title="t('model.type.hiddenTitle', { name: typeTitle })" :description="cmsModelPurgeText(hiddenType, dateCtx)">
+      <CmsEmptyState plain icon="i-lucide-eye-off" :title="t('model.type.hiddenTitle', { name: typeTitle })" :description="cmsModelRemovedLine(hiddenType, dateCtx)">
         <template #actions>
-          <UButton icon="i-lucide-rotate-ccw" :loading="restoringType" @click="restoreType">{{ t('model.restore') }}</UButton>
-          <UButton to="/admin/_model" color="neutral" variant="ghost">{{ t('model.type.backToList') }}</UButton>
+          <!-- one under the other on a phone, so none of the three wraps its words -->
+          <div class="flex w-full max-w-64 flex-col gap-2 sm:w-auto sm:max-w-none sm:flex-row sm:items-center">
+            <UButton icon="i-lucide-rotate-ccw" class="min-h-11 justify-center" :loading="restoringType" @click="restoreType">{{ t('model.restore') }}</UButton>
+            <UButton color="neutral" variant="ghost" icon="i-lucide-trash-2" class="min-h-11 justify-center" :aria-label="t('model.deleteNamed', { name: typeTitle })" @click="askDelete(null)">{{ t('model.deleteForGood') }}</UButton>
+            <UButton to="/admin/_model" color="neutral" variant="ghost" class="min-h-11 justify-center">{{ t('model.type.backToList') }}</UButton>
+          </div>
         </template>
       </CmsEmptyState>
     </div>
@@ -242,7 +261,7 @@ const pageIcon = computed(() => (type.value ? type.value.icon || CMS_MODEL_DEFAU
       <section :aria-label="t('model.type.fields')">
         <div class="mb-1.5 flex items-baseline justify-between gap-3">
           <h2 class="cms-label">{{ t('model.type.fields') }}</h2>
-          <span class="text-xs text-muted tabular-nums">{{ t('model.usedOf', { used: formatNumber(type.fields.length), limit: formatNumber(data.limits.fields) }) }}</span>
+          <span class="text-xs text-muted tabular-nums">{{ t('model.usedOf', { used: formatNumber(cmsModelFieldsUsed(type)), limit: formatNumber(data.limits.fields) }) }}</span>
         </div>
         <ol class="cms-card overflow-hidden">
           <li
@@ -290,18 +309,24 @@ const pageIcon = computed(() => (type.value ? type.value.icon || CMS_MODEL_DEFAU
       <section v-if="hiddenFields.length" :aria-label="t('model.hidden')">
         <h2 class="cms-label mb-1.5">{{ t('model.hidden') }}</h2>
         <ul class="cms-card overflow-hidden">
-          <li v-for="f in hiddenFields" :key="f.key" class="flex items-center gap-3 border-b border-default px-4 py-3 last:border-0">
+          <li v-for="f in hiddenFields" :key="f.key" class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-default px-4 py-3 last:border-0">
             <span class="grid size-9 shrink-0 place-items-center rounded-md border border-default text-dimmed">
               <UIcon :name="cmsModelKindIcon(cmsModelKindOf(f))" class="size-4" aria-hidden="true" />
             </span>
-            <span class="min-w-0 flex-1">
+            <span class="min-w-0 flex-1 basis-44">
               <span class="block truncate font-medium text-muted">{{ fieldLabel(f) }}</span>
-              <span class="block text-sm text-muted text-pretty">{{ cmsModelPurgeText(f, dateCtx) }}</span>
+              <span class="block text-sm text-muted text-pretty">{{ cmsModelRemovedLine(f, dateCtx) }}</span>
             </span>
-            <UButton
-              color="neutral" variant="outline" size="sm" icon="i-lucide-rotate-ccw" :loading="restoring === f.key" :disabled="!!restoring && restoring !== f.key"
-              :aria-label="t('model.restoreNamed', { name: fieldLabel(f) })" @click="restoreField(f)"
-            >{{ t('model.restore') }}</UButton>
+            <span class="flex shrink-0 items-center gap-1 max-sm:w-full max-sm:justify-end">
+              <UButton
+                color="neutral" variant="ghost" size="sm" icon="i-lucide-trash-2" class="min-h-11 px-3" :disabled="restoring === f.key"
+                :aria-label="t('model.deleteNamed', { name: fieldLabel(f) })" @click="askDelete(f)"
+              >{{ t('model.deleteForGood') }}</UButton>
+              <UButton
+                color="neutral" variant="outline" size="sm" icon="i-lucide-rotate-ccw" class="min-h-11 px-3" :loading="restoring === f.key" :disabled="!!restoring && restoring !== f.key"
+                :aria-label="t('model.restoreNamed', { name: fieldLabel(f) })" @click="restoreField(f)"
+              >{{ t('model.restore') }}</UButton>
+            </span>
           </li>
         </ul>
       </section>
@@ -333,5 +358,6 @@ const pageIcon = computed(() => (type.value ? type.value.icon || CMS_MODEL_DEFAU
         </template>
       </CmsEmptyState>
     </div>
+    <CmsModelDeleteDialog v-if="data && deleteType" v-model:open="deleteOpen" :type="deleteType" :field="deleteField" :data="data" @done="deleted" />
   </CmsPage>
 </template>

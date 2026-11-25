@@ -65,6 +65,8 @@ export interface CmsModelProblemInfo {
   /** The form field it is about, or null when the dialog says it. */
   at: 'label' | 'help' | 'key' | 'prefix' | 'options' | 'required' | 'to' | 'icon' | null
   places?: CmsModelPlace[]
+  /** `too-soon`: whole seconds until the thing may be deleted for good. */
+  secondsLeft?: number
   fields?: { type: string; key: string }[]
   missing?: number
 }
@@ -119,14 +121,20 @@ export const cmsModelCanRequire = (id: CmsModelKindId): boolean => !['media', 'f
 
 /** The types a person sees: not hidden, in the document's order. */
 export const cmsModelVisibleTypes = (doc: ModelDoc): ModelType[] => doc.types.filter((t) => !t.removedAt)
-/** The types that are hidden and wait for their deletion. */
+/** The types that are removed (hidden, content kept) until a person restores or deletes them. */
 export const cmsModelHiddenTypes = (doc: ModelDoc): ModelType[] => doc.types.filter((t) => !!t.removedAt)
 /** The fields of a type a person sees, in the form's order. */
 export const cmsModelFields = (type: ModelType): ModelField[] => type.fields.filter((f) => !f.removedAt)
-/** The fields of a type that are hidden. */
+/** The fields of a type that are removed. */
 export const cmsModelHiddenFields = (type: ModelType): ModelField[] => type.fields.filter((f) => !!f.removedAt)
+/** How many fields of a type count toward the limit: the visible ones, removed ones do not. */
+export const cmsModelFieldsUsed = (type: ModelType): number => cmsModelFields(type).length
+/** Whether a type has all the fields it may have. */
+export const cmsModelFieldsAtLimit = (type: ModelType, limit: number): boolean => cmsModelFieldsUsed(type) >= limit
+/** Whether the site has all the content types it may have (removed ones do not count). */
+export const cmsModelTypesAtLimit = (doc: ModelDoc, limit: number): boolean => cmsModelVisibleTypes(doc).length >= limit
 
-/** When the server deletes a hidden thing by itself, or null: only what was removed empty is ever deleted by the server, after an hour. */
+/** When the server deletes a removed thing by itself, or null: only what was removed empty is ever deleted by the server, after an hour. */
 export function cmsModelPurgeAt(item: { removedAt?: string | null; removedEmpty?: boolean }): Date | null {
   if (!item.removedAt || item.removedEmpty !== true) return null
   const at = Date.parse(item.removedAt)
@@ -211,10 +219,10 @@ export function cmsModelNewType(
 const ERROR_ALIAS: Record<string, string> = {
   'unknown-type': 'gone', 'type-hidden': 'gone', 'unknown-field': 'gone', 'already-removed': 'gone', 'not-removed': 'gone',
   'invalid-op': 'generic', 'not-changeable': 'generic', 'design-type': 'generic', 'no-page': 'generic', 'invalid-doc': 'generic',
-  'invalid-request': 'generic', 'internal-only': 'generic', 'not-due': 'generic', 'too-large': 'generic',
+  'invalid-request': 'generic', 'not-due': 'generic', 'too-large': 'generic',
 }
 const KNOWN = new Set([
-  'limit-types', 'limit-fields', 'limit-options', 'limit-label', 'limit-help', 'limit-size', 'invalid-label', 'invalid-name', 'reserved-key',
+  'limit-types', 'limit-fields', 'limit-options', 'limit-label', 'limit-help', 'limit-size', 'limit-removed-types', 'limit-removed-fields', 'too-soon', 'invalid-label', 'invalid-name', 'reserved-key',
   'name-taken', 'name-clash', 'invalid-prefix', 'prefix-taken', 'needs-optional', 'has-missing-values', 'invalid-option', 'last-option',
   'unknown-target', 'target-hidden', 'title-field', 'system-field', 'order-manual', 'points-at-type', 'in-use', 'stale-version', 'busy',
   'not-allowed', 'invalid-icon', ...Object.keys(ERROR_ALIAS),
@@ -228,6 +236,9 @@ const AT: Record<string, CmsModelProblemInfo['at']> = {
   'needs-optional': 'required', 'has-missing-values': 'required',
   'unknown-target': 'to', 'target-hidden': 'to', 'invalid-icon': 'icon',
 }
+
+/** Whole seconds left of a wait in milliseconds, rounded up, at least one. */
+export const cmsModelSecondsLeft = (ms: unknown): number => (typeof ms === 'number' && Number.isFinite(ms) ? Math.max(1, Math.ceil(ms / 1000)) : 1)
 
 /**
  * A refused change in the admin's language, and the form field it is about. `ops` are the ones that were
@@ -258,6 +269,13 @@ export function cmsModelProblem(err: any, t: T, ops: ModelOp[] = []): CmsModelPr
       out.text = t('model.errors.hasMissingValues', { count: details.missing })
     }
     else out.text = t('model.errors.hasMissingValuesSome')
+  }
+  else if (code === 'limit-removed-types' || code === 'limit-removed-fields') {
+    out.text = t(`model.errors.${camel(code)}`, { limit: typeof details.limit === 'number' ? details.limit : 0 })
+  }
+  else if (code === 'too-soon') {
+    out.secondsLeft = cmsModelSecondsLeft(details.msLeft)
+    out.text = t('model.errors.tooSoon', { count: out.secondsLeft })
   }
   else if (code === 'limit-label') out.text = t('model.errors.limitLabel', { max: MODEL_LABEL_MAX })
   else if (code === 'limit-help') out.text = t('model.errors.limitHelp', { max: MODEL_HELP_MAX })
@@ -302,24 +320,22 @@ export function cmsModelDayText(value: Date | string, ctx: Pick<CmsModelDateCtx,
   return ctx.formatDateWith(d, d.getFullYear() === year ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-/** "Deleted for good on 3 December", with the hour when it is less than a day away. */
-export function cmsModelPurgeDateText(at: Date, ctx: CmsModelDateCtx): string {
-  const now = ctx.now ?? new Date()
-  if (at.getTime() - now.getTime() < 24 * 60 * 60 * 1000) {
-    return ctx.t('model.deletedOnAt', { date: cmsModelDayText(at, ctx), time: ctx.formatDateWith(at, { timeStyle: 'short' }) })
-  }
-  return ctx.t('model.deletedOn', { date: cmsModelDayText(at, ctx) })
-}
-
-/** The same for a hidden type or field; empty when it is not hidden. */
-export function cmsModelPurgeText(item: { removedAt?: string | null; removedEmpty?: boolean }, ctx: CmsModelDateCtx): string {
+/**
+ * The line under a removed row. A thing removed while it held nothing says when the server deletes it
+ * (an hour after, with the time); any other says when it was removed and that its content is kept.
+ * Empty when it is not removed.
+ */
+export function cmsModelRemovedLine(item: { removedAt?: string | null; removedEmpty?: boolean }, ctx: CmsModelDateCtx): string {
+  if (!item.removedAt) return ''
   const at = cmsModelPurgeAt(item)
-  return at ? cmsModelPurgeDateText(at, ctx) : ''
+  if (at) return ctx.t('model.deletedOnAt', { date: cmsModelDayText(at, ctx), time: ctx.formatDateWith(at, { timeStyle: 'short' }) })
+  const removed = new Date(item.removedAt)
+  if (Number.isNaN(removed.getTime())) return ''
+  return ctx.t('model.removedOn', { date: cmsModelDayText(removed, ctx) })
 }
 
-/** When something hidden right now is deleted by the server: an hour for what holds nothing, never for the rest (null). */
-export const cmsModelPurgeFromNow = (empty: boolean, now: Date = new Date()): Date | null =>
-  empty ? new Date(now.getTime() + MODEL_PURGE_EMPTY_AFTER_MS) : null
+/** When a thing that is removed right now while it holds nothing is deleted by the server: an hour from now. */
+export const cmsModelPurgeFromNow = (now: Date = new Date()): Date => new Date(now.getTime() + MODEL_PURGE_EMPTY_AFTER_MS)
 
 // ---------------------------------------------------------------------------------------------
 // Order of the fields
@@ -730,3 +746,25 @@ export function cmsModelFieldRefs(
 /** The operation that hides a type, or one of its fields. */
 export const cmsModelRemoveOp = (type: string, key?: string | null): ModelOp =>
   (key ? { op: 'field.remove', type, key } : { op: 'type.remove', type })
+
+/** The operation that deletes a removed type, or one of its removed fields, for good. */
+export const cmsModelPurgeOp = (type: string, key?: string | null): ModelOp =>
+  (key ? { op: 'purge', fields: [{ type, key }] } : { op: 'purge', types: [type] })
+
+/** Text for comparing a typed name: trimmed, one space between words, composed, lower case. */
+const foldName = (text: string): string => text.normalize('NFKC').replace(/\s+/g, ' ').trim().toLocaleLowerCase()
+
+/** Whether what a person typed is the name of the thing (case, spaces around it and the way an accent is typed do not matter). */
+export const cmsModelNameMatches = (typed: string, name: string): boolean => {
+  const want = foldName(name)
+  return want !== '' && foldName(typed) === want
+}
+
+/** Whether a name has to be typed before deleting for good: when the thing holds something, or that could not be read (null). */
+export const cmsModelDeleteNeedsName = (count: number | null | undefined): boolean => typeof count !== 'number' || count > 0
+
+/** Fields that stop a type from being deleted for good: every relation field of another type that links to it (removed or not). */
+export const cmsModelPurgeBlockers = (doc: ModelDoc, name: string): { type: string; key: string }[] =>
+  doc.types
+    .filter((other) => other.name !== name)
+    .flatMap((other) => other.fields.filter((f) => f.type === 'relation' && f.to === name).map((f) => ({ type: other.name, key: f.key })))

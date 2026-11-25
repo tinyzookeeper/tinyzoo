@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import {
-  CMS_MODEL_DEFAULT_ICON, cmsModelDayText, cmsModelFields, cmsModelHiddenTypes, cmsModelNotesText, cmsModelPlaceBlock, cmsModelPurgeText, cmsModelVisibleTypes,
+  CMS_MODEL_DEFAULT_ICON, cmsModelDayText, cmsModelFields, cmsModelHiddenTypes, cmsModelNotesText, cmsModelPlaceBlock, cmsModelRemovedLine, cmsModelTypesAtLimit, cmsModelVisibleTypes,
   type CmsModelAttentionPlace,
 } from '../../../utils/cmsModel'
 
-// Content types: the kinds of content the site's owner made (Courses, Branches…), the ones waiting
-// to be deleted for good, and the ones that come with the website's design. Administrators only;
+// Content types: the kinds of content the site's owner made (Courses, Branches…), the removed ones
+// (kept until a person restores or deletes them), and the ones that come with the website's design. Administrators only;
 // a site without the feature answers 404 and the page says so calmly.
 definePageMeta({ layout: 'admin' })
 const { t, tl, formatDateWith, formatNumber, entityLabel, languageName } = useCmsI18n()
@@ -22,8 +22,9 @@ const doc = computed(() => data.value?.doc ?? { format: 1, types: [] })
 const visible = computed(() => cmsModelVisibleTypes(doc.value))
 const hidden = computed(() => cmsModelHiddenTypes(doc.value))
 const limit = computed(() => data.value?.limits.types ?? 0)
-const used = computed(() => data.value?.used.types ?? 0)
-const atLimit = computed(() => !!data.value && used.value >= limit.value)
+// Removed types do not count toward the limit.
+const used = computed(() => visible.value.length)
+const atLimit = computed(() => !!data.value && cmsModelTypesAtLimit(doc.value, limit.value))
 const empty = computed(() => !!data.value && !visible.value.length && !hidden.value.length)
 
 // Collections first, then single pages, each in the order the server gave.
@@ -82,7 +83,7 @@ const attentionRows = computed(() => attention.value.map((p, i) => {
 
 const dateCtx = { t: t as any, formatDateWith }
 const dayText = (value: Date | string) => cmsModelDayText(value, dateCtx)
-const purgeText = (type: (typeof hidden.value)[number]) => cmsModelPurgeText(type, dateCtx)
+const removedLine = (type: (typeof hidden.value)[number]) => cmsModelRemovedLine(type, dateCtx)
 
 const restoring = ref('')
 async function restore(type: (typeof hidden.value)[number]) {
@@ -100,6 +101,14 @@ async function restore(type: (typeof hidden.value)[number]) {
   finally {
     restoring.value = ''
   }
+}
+
+// Deleting a removed type for good: its own dialog.
+const deleteType = ref<(typeof hidden.value)[number] | null>(null)
+const deleteOpen = ref(false)
+function askDelete(type: (typeof hidden.value)[number]) {
+  deleteType.value = type
+  deleteOpen.value = true
 }
 
 const dialogOpen = ref(false)
@@ -194,18 +203,24 @@ const lastChange = computed(() => {
       <section v-if="hidden.length" :aria-label="t('model.hidden')">
         <h2 class="cms-label mb-1.5">{{ t('model.hidden') }}</h2>
         <ul class="cms-card overflow-hidden">
-          <li v-for="type in hidden" :key="type.name" class="flex items-center gap-3 border-b border-default px-4 py-3 last:border-0">
+          <li v-for="type in hidden" :key="type.name" class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-default px-4 py-3 last:border-0">
             <span class="grid size-9 shrink-0 place-items-center rounded-md border border-default text-dimmed">
               <UIcon :name="type.icon || CMS_MODEL_DEFAULT_ICON" class="size-5" aria-hidden="true" />
             </span>
-            <span class="min-w-0 flex-1">
+            <span class="min-w-0 flex-1 basis-44">
               <span class="block truncate font-medium text-muted">{{ typeName(type) }}</span>
-              <span class="block text-sm text-muted text-pretty">{{ purgeText(type) }}</span>
+              <span class="block text-sm text-muted text-pretty">{{ removedLine(type) }}</span>
             </span>
-            <UButton
-              color="neutral" variant="outline" size="sm" icon="i-lucide-rotate-ccw" :loading="restoring === type.name" :disabled="!!restoring && restoring !== type.name"
-              :aria-label="t('model.restoreNamed', { name: typeName(type) })" @click="restore(type)"
-            >{{ t('model.restore') }}</UButton>
+            <span class="flex shrink-0 items-center gap-1 max-sm:w-full max-sm:justify-end">
+              <UButton
+                color="neutral" variant="ghost" size="sm" icon="i-lucide-trash-2" class="min-h-11 px-3" :disabled="restoring === type.name"
+                :aria-label="t('model.deleteNamed', { name: typeName(type) })" @click="askDelete(type)"
+              >{{ t('model.deleteForGood') }}</UButton>
+              <UButton
+                color="neutral" variant="outline" size="sm" icon="i-lucide-rotate-ccw" class="min-h-11 px-3" :loading="restoring === type.name" :disabled="!!restoring && restoring !== type.name"
+                :aria-label="t('model.restoreNamed', { name: typeName(type) })" @click="restore(type)"
+              >{{ t('model.restore') }}</UButton>
+            </span>
           </li>
         </ul>
       </section>
@@ -229,6 +244,7 @@ const lastChange = computed(() => {
       <p v-if="lastChange" class="text-xs text-muted">{{ lastChange }}</p>
     </div>
 
+    <CmsModelDeleteDialog v-if="data && deleteType" v-model:open="deleteOpen" :type="deleteType" :field="null" :data="data" />
     <CmsModelTypeDialog v-if="data" v-model:open="dialogOpen" :doc="doc" :design="data.design" :limits="data.limits" :used="data.used" @created="created" />
   </CmsPage>
 </template>
