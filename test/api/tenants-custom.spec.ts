@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Client, doc, signIn } from '../helpers/api'
 import { createAuthor } from '../helpers/fixtures'
 import { repoRoot } from '../setup/database'
+import { Collaborator } from '../helpers/sockets'
 import { expectNoSiteErrors, siteClient, siteQuery, startTenants, type Tenants, type TenantSite, tenantGet, tenantPost, until } from '../helpers/tenants'
 
 // Two sites of the same model in one process, each with content types of its own
@@ -1354,6 +1355,83 @@ describe('deleting what was removed', () => {
     expect((await siteClient(t.a, 'editor').get('/api/cms/_model/usage?type=custom_doomed')).status).toBe(403)
     expect((await siteClient(t.a).get('/api/cms/_model/usage?type=custom_doomed')).status).toBe(401)
     console.info(`[timing] deletion by hand: allowed ${DELETE_WAIT_MS} ms after the removal (test knob); the purge itself took ${changeMs.at(-1)!.toFixed(0)} ms`)
+  }, 90_000)
+
+  it('takes a deleted rich-text field out of the shared-editing working copies, and keeps what was typed in the other fields', async () => {
+    const GONE = 'plameniakovec'
+    const KEPT = 'tucnakovina'
+    const TYPED = 'lenochodnik'
+    await mustChange(adminA, [
+      { op: 'type.add', name: 'custom_memo', label: text('Memo') },
+      { op: 'field.add', type: 'custom_memo', field: { key: 'keepText', type: 'richtext', label: text('Keep') } },
+      { op: 'field.add', type: 'custom_memo', field: { key: 'goneText', type: 'richtext', label: text('Gone') } },
+    ])
+    const one = await adminA.post('/api/cms/custom_memo', { title: 'Both', keepText: doc(`saved ${KEPT}`), goneText: doc(`saved ${GONE}`) })
+    const two = await adminA.post('/api/cms/custom_memo', { title: 'One', keepText: doc('only this') })
+    expect(one.status, JSON.stringify(one.body)).toBe(201)
+    expect(two.status, JSON.stringify(two.body)).toBe(201)
+    const session = (id: string) => adminA.get<any>(`/api/cms/_collab/session?entity=custom_memo&id=${id}`)
+    const s1 = await session(one.body.row.id)
+    const s2 = await session(two.body.row.id)
+    expect(s1.status, JSON.stringify(s1.body)).toBe(200)
+    expect([...s1.body.fields].sort()).toEqual(['goneText', 'keepText'])
+    const stored = async (name: string) => (await siteQuery(t.a, 'select epoch, state from cms_collab where name = $1', [name]))[0] as { epoch: string; state: string } | undefined
+    const bytes = (state: string) => Buffer.from(state, 'base64')
+
+    // Someone types into both fields and leaves without saving: the working copy is ahead of the entry.
+    const tab = new Collaborator(adminA, s1.body)
+    await tab.synced()
+    tab.type(`typed ${TYPED}`, 'keepText')
+    tab.type(`typed too ${GONE}`, 'goneText')
+    await until('the typing to be stored', async () => bytes((await stored(s1.body.name))!.state), (b) => b.includes(TYPED) && b.includes(`typed too ${GONE}`), 20_000)
+    tab.close()
+    // Left-over text waiting aside, as a closed tab leaves it: one row with both fields, one with the deleted field only.
+    const note = (values: Record<string, unknown>) => JSON.stringify({ by: 'Someone', at: new Date().toISOString(), values })
+    await siteQuery(t.a, `insert into cms_collab (name, epoch, state) values ($1, gen_random_uuid(), $2), ($3, gen_random_uuid(), $4)`, [
+      `${s1.body.name}~unsaved`, note({ keepText: doc(`aside ${KEPT}`), goneText: doc(`aside ${GONE}`) }),
+      `${s2.body.name}~unsaved`, note({ goneText: doc(`aside ${GONE}`) }),
+    ])
+    const before2 = await stored(s2.body.name)
+
+    const hid = await change(adminA, [{ op: 'field.remove', type: 'custom_memo', key: 'goneText' }])
+    expect(hid.status, JSON.stringify(hid.body)).toBe(200)
+    await waitDeleteWait(performance.now())
+    // Removed only: the working copy still holds it (the content is kept).
+    expect(bytes((await stored(s1.body.name))!.state).includes(GONE)).toBe(true)
+    const deleted = await purgeBy(adminA, { fields: [{ type: 'custom_memo', key: 'goneText' }] })
+    expect(deleted.status, JSON.stringify(deleted.body)).toBe(200)
+
+    // No working copy of the type holds the field's text any more, as stored and inside the documents.
+    const rows = await siteQuery(t.a, `select name, state from cms_collab where left(name, 12) = 'custom_memo/'`)
+    for (const r of rows) {
+      expect(String(r.state).includes(GONE), `${r.name} as stored`).toBe(false)
+      if (!String(r.name).includes('~')) expect(bytes(r.state).includes(GONE), `${r.name} inside the document`).toBe(false)
+    }
+    // The document that held it is a new history, with the other field as it was typed.
+    const after1 = (await stored(s1.body.name))!
+    expect(after1.epoch).not.toBe(s1.body.epoch)
+    expect(bytes(after1.state).includes(TYPED)).toBe(true)
+    expect(bytes(after1.state).includes(KEPT)).toBe(true)
+    // The one that never held it was not touched.
+    expect(await stored(s2.body.name)).toEqual(before2)
+    // The left-over text lost the field; a row with nothing else is gone.
+    expect(Object.keys(JSON.parse((await stored(`${s1.body.name}~unsaved`))!.state).values)).toEqual(['keepText'])
+    expect(await stored(`${s2.body.name}~unsaved`)).toBeUndefined()
+    // A browser that holds the old history is refused, and the next one to open the entry is offered what was typed.
+    const old = new Collaborator(adminA, s1.body)
+    await expect(old.synced()).rejects.toThrow(/refused/)
+    old.close()
+    const again = await session(one.body.row.id)
+    expect(again.status, JSON.stringify(again.body)).toBe(200)
+    expect(again.body.fields).toEqual(['keepText'])
+    expect(JSON.stringify(again.body.unsaved?.values?.keepText ?? null)).toContain(TYPED)
+    expect(Object.keys(again.body.unsaved.values)).toEqual(['keepText'])
+    const fresh = new Collaborator(adminA, again.body)
+    await fresh.synced()
+    expect(fresh.text('keepText')).toContain(KEPT)
+    expect([...fresh.doc.share.keys()]).not.toContain('goneText')
+    fresh.close()
+    await mustChange(adminA, [{ op: 'type.remove', type: 'custom_memo' }])
   }, 90_000)
 
   it('refuses to delete a type while a field of another type points at it, and says which', async () => {

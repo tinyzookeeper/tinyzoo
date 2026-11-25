@@ -265,11 +265,13 @@ async function placesInUse(db: any, reg: CmsRegistry, ops: ModelOp[]): Promise<{
  * - a deleted field: its key (and `<key>__media`) in every stored revision of the type, and the
  *   search index's signature: the field's text sits inside the index's concatenated columns, so the
  *   next instance (this one is retired after the commit) rebuilds the index from the current model.
+ *   A rich-text field also: its text in the shared-editing documents of the type's entries
+ *   (`forgetCollabFields` in cmsCollab.ts: each such document is stored again without it).
  *
  * The audit log (`model.change` records the deletion; entries' lines carry ids only) and the media
  * rows are not touched.
  */
-async function forgetDeleted(before: ModelDoc, after: ModelDoc, exec: (text: string, params?: unknown[]) => Promise<unknown>): Promise<void> {
+async function forgetDeleted(before: ModelDoc, after: ModelDoc, exec: (text: string, params?: unknown[]) => Promise<any[]>): Promise<void> {
   let fields = false
   for (const t of before.types) {
     const now = after.types.find((x) => x.name === t.name)
@@ -279,14 +281,18 @@ async function forgetDeleted(before: ModelDoc, after: ModelDoc, exec: (text: str
       await exec('delete from "cms_collab" where left(name, length($1::text)) = $1::text', [t.name + '/'])
       continue
     }
+    const text = new Set<string>()
     for (const f of t.fields) {
       if (now.fields.some((x) => x.key === f.key)) continue
       fields = true
+      // Only rich text is edited together, so only it sits in working copies (a field's kind never changes).
+      if (f.type === 'richtext') text.add(f.key)
       await exec(
         'update "cms_revisions" set data = data - $2::text - $3::text, changed = changed - $2::text where entity = $1 and (jsonb_exists(data, $2::text) or jsonb_exists(data, $3::text) or jsonb_exists(changed, $2::text))',
         [t.name, f.key, f.key + '__media'],
       )
     }
+    if (text.size) await forgetCollabFields(t.name, text, exec)
   }
   if (fields) await exec('delete from "cms_state" where key = $1', [CMS_SEARCH_STATE_KEY])
 }

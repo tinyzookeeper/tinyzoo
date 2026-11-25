@@ -12,8 +12,9 @@ export interface PlanDef {
   }
   /**
    * The site's own content types (experimental), when the cloud runs with CLOUD_CUSTOM_TYPES=on:
-   * how many types it may make, and how many fields each may have, hidden ones included. They go
-   * into the row as `config.customTypes.types` and `.fields`.
+   * how many types it may make, and how many fields each may have. They go into the row as
+   * `config.customTypes.types` and `.fields`. Removed ones do not count; a site keeps as many
+   * removed ones as the same numbers.
    */
   customTypes: {
     types: number

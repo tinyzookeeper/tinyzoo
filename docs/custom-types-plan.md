@@ -211,6 +211,7 @@ Postgres runs these statements inside a transaction, a new choice included: a fa
 
 - A deleted type takes its revisions (`cms_revisions`), its rows of the search index (`cms_search`) and its shared-editing working copies (`cms_collab`).
 - A deleted field's key (and `<key>__media`) is taken out of every stored revision of its type, in `data` and in `changed`. The search index's stored signature is cleared, so the next instance rebuilds the index from the current model. A field's text sits inside the index's joined columns; hiding already starts a rebuild, and this makes it certain.
+- A deleted rich-text field's text is taken out of the shared-editing working copies of its type's entries (`forgetCollabFields` in `cmsCollab.ts`). Only rich text is edited together, so only it sits there. Yjs keeps deleted text in a document's history, so a document that holds the field is stored again as a new document without it, under a new epoch. The text of the other fields is carried over as it was last stored, typed and unsaved text included. A browser or an instance that holds the old history is refused when it stores or reconnects; the browser starts over and gets the new document. Left-over text that waits aside (`~unsaved`) loses the field, and a row with nothing else is deleted. A document that never held the field is not touched, so nobody working in it is disturbed. A document that cannot be carried over is deleted and starts afresh from the saved entry. The rows are read in pages of 100 and locked until the commit.
 - These are ordinary parameterised statements on tinyzoo's own tables. The allowed list of structure statements is unchanged.
 - The audit log keeps the line that the deletion happened, with the names of what was deleted. An entry's audit lines hold ids only.
 - Pictures and files stay in the media library.
@@ -219,7 +220,7 @@ Postgres runs these statements inside a transaction, a new choice included: a fa
 
 | What is left | Why | Options |
 |---|---|---|
-| A deleted field's values in the shared-editing working copies (`cms_collab`: the Yjs state and the `~unsaved` rows) of the type's entries | Someone may have the entry open, so they are not deleted. The existing clean-up of working copies untouched for a long time removes them | Delete those rows (they restart from the saved entry); delete only the ones not active; strip the field from the Yjs state |
+| What someone typed into another field of an open entry in the seconds before a rich-text field of its type was deleted | A working copy is stored 3 to 15 seconds after typing. The new document is made from what was stored | Leave it: it is the same window as a server that stops |
 | The analytics plugin's rows: `analytics_events` (entity, entry id, address) and `analytics_daily` (address) | Counts, no field content | Clear the entity and entry id; delete the rows; leave them |
 | Redirects made when an entry's address changed (the design's redirects collection) | Old addresses | Delete those that lead to a deleted type |
 | The `cms_model` history, the newest 200 versions | Old documents hold the names and labels of deleted types and fields, never their content | Leave it |
@@ -559,10 +560,11 @@ The owner decided that no timer ever deletes content. It replaces Part 2's delet
 - The admin: *Delete for good* on every removed row, in a dialog that shows how many entries the thing holds and asks for its name when it holds content.
 - Test knobs: `CMS_TEST_MODEL_PURGE_EMPTY_MS` and `CMS_TEST_MODEL_DELETE_WAIT_MS`.
 
-**Tested** (`test/api/tenants-custom.spec.ts`, two sites in one process, 45 tests; 120 unit tests on the model document's rules and 33 on the server's pure parts):
+**Tested** (`test/api/tenants-custom.spec.ts`, two sites in one process, 46 tests; 120 unit tests on the model document's rules and 33 on the server's pure parts):
 
 - A thing removed empty is gone after the shortened hour. A thing with content is still there well after that and comes back with its content.
 - An administrator deletes a removed type and a removed field for good: the table and the column are gone, the type's revisions are gone, no stored revision of the type still names the field, the type's search rows are gone and the field's text is gone from the rebuilt index, the type's working copies are gone (two look-alike names are untouched). The names are free again, with empty columns.
+- An administrator deletes a rich-text field that people typed into: no working copy of the type holds its text, the copy that held it is a new history with the other field's typed text, the copy that never held it is unchanged, the old history is refused.
 - Too soon gives `too-soon`. A thing removed empty that got content before the sweep is kept. An editor gets 403.
 - The other site is untouched: its model version, its tables, its instance loads.
 - With two instances (Redis), the second one sees the deletion.
@@ -594,7 +596,8 @@ The owner decided that no timer ever deletes content. It replaces Part 2's delet
 ### Open after this step
 
 - Decided by the owner on 2026-11-25: the prefix `custom_` (section 3), and removal without a timer (section 6). Still the owner's: what each plan's limits are.
-- A deleted field's values can stay in the shared-editing working copies of its type's entries until those copies are cleaned (section 6, the table of what is left). The saved entries and their revisions no longer hold them.
+- Closed on 2026-11-25: a deleted rich-text field's text is taken out of the shared-editing working copies (section 6). Tested with a real editing session: the text typed into the deleted field is gone from every row, the text typed into the other field is offered to the next person, a browser with the old history is refused. With the call taken out, the test fails.
+- Found on the way, not checked and not changed: a rich-text field that is removed and then restored while a working copy made in between stays open. That copy has no text for the field, and nothing fills it from the saved entry. A person who then opens the entry would see the field empty and could save it empty (the revisions keep the text). The same is true today when the API writes into an empty rich-text field of an entry someone has open. A fix belongs to shared editing as a whole: a working copy that never held a field which now has saved text starts over, with the typed text set aside.
 - A new block's "layout" starts empty in the admin, and the kit draws an empty one as cards: the admin does not carry a block field's default (so for every block of every site).
 - A block of the two kinds stored on a site that has no type of its own shows in the admin as a block that "no longer exists". It is kept on save; only the words are wrong.
 - The search index of a large site after a change of structure was not measured.
