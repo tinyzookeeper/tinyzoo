@@ -1,6 +1,6 @@
 # Sections and layout as data, the builder: a first design of step 5
 
-**Status (2026-11-25):** a first design, not a detailed one. What is counted here was counted on the branch `feat/builder` (cut from `feat/look-as-data`, step 4). One experiment was run and is on the branch as an unchecked commit (section 4). Nothing else is built. The points marked **(owner)** are the owner's decisions, each with my pick. It is step 5 of `docs/one-app-plan.md` (2.11, levels 3 and 4).
+**Status (2026-11-25):** a first design, not a detailed one. What is counted here was counted on the branch `feat/builder` (cut from `feat/look-as-data`, step 4). One experiment was run and is on the branch as an unchecked commit (section 4). Nothing else is built. The owner made the four decisions of section 6 on 2026-11-25, each as picked there, and added one rule: the limits are there so that every site stays responsive (3.4). It is step 5 of `docs/one-app-plan.md` (2.11, levels 3 and 4).
 
 **Words.** A *block* is one part of a page, as today. A *section* is a block that belongs to no template: the kit draws it once for every look. A look's *frame* is what its own Text part gives every section: the container, the space above and below, the heading.
 
@@ -8,7 +8,7 @@
 
 ## 1. The short read
 
-1. **Build a library of sections with choices, not a free canvas.** An owner adds "Cards", "Text and picture", "Questions" to any page of any template and chooses from a few layouts. They do not drag boxes into a tree. A free tree is where a site gets ugly, and no look can keep its character in it **(owner, decision 1)**.
+1. **Build a library of sections with choices, not a free canvas.** An owner adds "Cards", "Text and picture", "Questions" to any page of any template and chooses from a few layouts. They do not drag boxes into a tree. A free tree is where a site gets ugly, and no look can keep its character in it (decision 1, made).
 2. **Every look already has the frame a section needs.** All 52 looks have a Text part with the same four things: a container, vertical space, a heading size, text styles. With one line added to each (a slot), the kit can draw any section inside the look's own frame. The experiment shows it.
 3. **Start with what hurts today: a site's own types.** The two blocks of step 2 are drawn in one generic layout, and the owner cannot say how. Put them into the look's frame and give them choices (columns, picture shape, rows, a table). That is the first part, useful alone.
 4. **The engine needs four small additions,** all for the admin: a block's default values, groups and pictures in the block picker, settings shown apart from content, and a click in the preview that opens the section in the form.
@@ -39,15 +39,17 @@
 | Steps | numbered steps | in a row or one under another |
 | Gallery | pictures | grid or one row |
 
-Names get a prefix so they never meet a design's own block names **(owner, decision 2)**. My pick: `section_` (`section_cards`).
+Names get the prefix `section_` (`section_cards`), so they never meet a design's own block names (decision 2, made).
 
 **3.3 Every section has the same few settings.** Background: the page's own, or tinted (the look's surface that is "like the page", which step 4 already finds for every look and keeps readable). Width: the look's, or narrow. Close to the section above: no space on top. Not in the first version: a band in the main colour (the looks' buttons and headings are not made for it in most looks) and free spacing values.
 
 **3.4 What an owner cannot break.** A section has no free positions and no free sizes. Its colours are the look's. A choice is one of a short list, checked by the server like every choice field. A section bound to a type keeps the guard of step 2.
 
+**Every choice is responsive.** This is the owner's rule, and the reason for the limits. A choice says what a section is at most, and the section narrows by itself: "three columns" is three on a wide screen, two on a tablet, one on a phone; a picture beside a text goes above it on a phone; a table becomes rows. No choice exists that works on a wide screen only, and the owner sets nothing per screen size. Each section is drawn for 390 px first, and its pictures are taken at 390 and 1440 px in every look before it ships.
+
 **3.5 The admin.** The page editor stays the base. Additions to the engine, each small and additive: (a) the admin carries a block field's default; (b) a block names its group and a small picture, and the picker shows groups ("This look's blocks", "Sections", "Your content types"); (c) a block's settings are shown apart from its content, behind one row; (d) a click on a section in the preview opens it in the form, and the form marks the section it edits in the preview.
 
-**3.6 Later parts.** The page of an entry of an own type: a choice of three layouts and which fields go where. The header and the footer: choices the look offers (the button, what stands in the footer), not a layout editor. A website without a template: one neutral design made only of sections, with its colours, typefaces, corners and spacing as data from the start **(owner, decision 3)**.
+**3.6 Later parts.** The page of an entry of an own type: a choice of three layouts and which fields go where. The header and the footer: choices the look offers (the button, what stands in the footer), not a layout editor. A website without a template: one neutral design made only of sections, with its colours, typefaces, corners and spacing as data from the start. It is the last part (decision 3, made).
 
 ## 4. The experiment
 
@@ -63,10 +65,12 @@ On the branch, as one commit marked as an experiment: the slot in all 52 Text pa
 
 ## 6. Decisions
 
-1. **Sections with choices, or a free layout tree.** My pick: sections with choices. Example: an owner adds "Cards", picks three columns and a tinted background; they cannot move a card 20 pixels to the left.
-2. **The prefix of the kit's sections.** My pick: `section_`.
-3. **A website without a template in step 5, or after it.** My pick: after the sections, as the last part; it is the largest, and the only part that needs new looks.
-4. **What becomes of step 4's open points.** My pick: merge step 4 as built (one own colour), and let typefaces, corners and spacing wait for part 7 here.
+All four were made by the owner on 2026-11-25, as picked.
+
+1. **Sections with choices, not a free layout tree.** Example: an owner adds "Cards", picks three columns and a tinted background; they cannot move a card 20 pixels to the left. The owner's reason: the sites must be responsive, and limits are how that is reached (3.4).
+2. **The prefix of the kit's sections is `section_`.**
+3. **A website without a template comes after the sections,** as the last part; it is the largest, and the only part that needs new looks.
+4. **Step 4 is merged as built** (one own colour). Typefaces, corners and spacing wait for part 7 here.
 
 ## 7. Not explored
 
