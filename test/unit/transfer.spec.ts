@@ -1394,9 +1394,9 @@ describe('a site with content types of its own', () => {
   })
 
   it('refuses to export a site with a type of its own, hidden ones too, and writes no file', async () => {
-    for (const types of [[course], [{ ...course, removedAt: '2026-11-24T10:00:00.000Z' }]]) {
-      await putModel(urlA, [{ format: 1, types }])
-      const file = archive(`custom-${types[0]!.removedAt ? 'hidden' : 'shown'}.tar.gz`)
+    for (const [kind, type] of [['shown', course], ['hidden', { ...course, removedAt: '2026-11-24T10:00:00.000Z' }]] as const) {
+      await putModel(urlA, [{ format: 1, types: [type] }])
+      const file = archive(`custom-${kind}.tar.gz`)
       const err: Error = await exportContent({ reg, databaseUrl: urlA, storage: storageA, file }).catch((e) => e)
       expect(err).toBeInstanceOf(Error)
       expect(err.message).toBe('This site has content types of its own (x_course), which tinyzoo export does not carry yet. tinyzoo backup and tinyzoo restore take them: they copy the whole database. Nothing was changed.')
