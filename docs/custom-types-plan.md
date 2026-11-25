@@ -47,7 +47,7 @@ The server makes it itself the first time a site changes its structure, as it ma
 {
   "format": 1,
   "types": [{
-    "name": "x_course",
+    "name": "custom_course",
     "label": { "cs": "Kurzy", "en": "Courses" },
     "labelSingular": { "cs": "Kurz", "en": "Course" },
     "description": null,
@@ -113,13 +113,13 @@ Every field also has `label`, optional `help`, and `required` where the kind has
 
 ## 3. Names
 
-- **A custom type's name is `x_` and a key:** `x_course`. The key is made from the first label (lower case, no accents, `a-z0-9_`, a letter first). The table is `x_course`, the API is `/api/content/x_course` and `/api/cms/x_course`, the generated type is `XCourse`. Editors see labels only.
+- **A custom type's name is `custom_` and a key:** `custom_course`. The key is made from the first label (lower case, no accents, `a-z0-9_`, a letter first). The table is `custom_course`, the API is `/api/content/custom_course` and `/api/cms/custom_course`, the generated type is `CustomCourse`. Editors see labels only.
 - **Why a prefix:** a design may add a type `course` in a later release. Without a prefix that release would fail on every site that made its own `course`.
-- **How the prefix is kept free.** `defineEntity` does not refuse `x_` names today, and the public surface only grows (`docs/api-surface.md`), so it stays that way. Instead: the one app's build refuses a design whose model has an `x_` type (`templates/kit/module.ts` already checks look ids and addresses before a build); a server with custom types switched on refuses to load them for a site whose code-first model has one, and says so. No template, the playground or the starter has such a name today (checked).
+- **How the prefix is kept free.** `defineEntity` does not refuse `custom_` names today, and the public surface only grows (`docs/api-surface.md`), so it stays that way. Instead: the one app's build refuses a design whose model has a `custom_` type (`templates/kit/module.ts` already checks look ids and addresses before a build); a server with custom types switched on refuses to load them for a site whose code-first model has one, and says so. No template, the playground or the starter has such a name today (checked).
 - **A field key** is made from the first label in lower camel case (`startsAt`). It cannot be a name tinyzoo uses (`RESERVED_FIELD_NAMES` and `LIST_PARAMS` in `src/entity.ts`), nor `slug`, `status` or `position`, which the mapper makes.
 - **A page prefix** is one address part (`kurzy`). It cannot be the first part of another type's address (`content.path` of any type of the site), nor `admin`, `api`, `home`, or a name starting with `_`.
-- **Lengths.** Postgres cuts names at 63 bytes. A type's table name is at most 26 characters and a field's column at most 30, so every table, column and choice type fits uncut. Constraint and index names may be cut; the planner cuts them the way Postgres does and refuses two that would become equal.
-- **Generic block types** are `x_entries` and `x_chosen`: the same prefix, so a design's own block can never have the name (114 block names exist; none starts with `x_`).
+- **Lengths.** Postgres cuts names at 63 bytes. A type's table name is at most 32 characters and a field's column at most 30, so every table, column and choice type fits uncut. Constraint and index names may be cut; the planner cuts them the way Postgres does and refuses two that would become equal.
+- **Generic block types** are `custom_entries` and `custom_chosen`: the same prefix, so a design's own block can never have the name (114 block names exist; none starts with `custom_`).
 
 ## 4. Loading the model, and how a change spreads
 
@@ -163,15 +163,15 @@ Reading the table objects, not the document, settles three things the plan left 
 
 | Statement | When |
 |---|---|
-| `CREATE TYPE "x_…" AS ENUM (…)` | a new choice field |
-| `ALTER TYPE "x_…" ADD VALUE '…'` | a new choice |
-| `CREATE TABLE "x_…" (…)` | a new type, its translations, a relation table |
-| `ALTER TABLE "x_…" ADD COLUMN …` | a new field: optional, or with a default |
-| `ALTER TABLE "x_…" ADD CONSTRAINT … FOREIGN KEY … REFERENCES …` | a picture, a file, a relation. Only here may another table be named, and only as the target |
-| `CREATE [UNIQUE] INDEX … ON "x_…"` | on a table made in the same change |
-| `ALTER TABLE "x_…" ALTER COLUMN … DROP NOT NULL` | hiding a field; a required field made optional |
-| `ALTER TABLE "x_…" ALTER COLUMN … SET NOT NULL` | an optional field made required, after a count shows that no entry lacks a value |
-| `ALTER TABLE "x_…" DROP COLUMN …`, `DROP TABLE "x_…"`, `DROP TYPE "x_…"` | only the later deletion of something hidden long enough (section 6) |
+| `CREATE TYPE "custom_…" AS ENUM (…)` | a new choice field |
+| `ALTER TYPE "custom_…" ADD VALUE '…'` | a new choice |
+| `CREATE TABLE "custom_…" (…)` | a new type, its translations, a relation table |
+| `ALTER TABLE "custom_…" ADD COLUMN …` | a new field: optional, or with a default |
+| `ALTER TABLE "custom_…" ADD CONSTRAINT … FOREIGN KEY … REFERENCES …` | a picture, a file, a relation. Only here may another table be named, and only as the target |
+| `CREATE [UNIQUE] INDEX … ON "custom_…"` | on a table made in the same change |
+| `ALTER TABLE "custom_…" ALTER COLUMN … DROP NOT NULL` | hiding a field; a required field made optional |
+| `ALTER TABLE "custom_…" ALTER COLUMN … SET NOT NULL` | an optional field made required, after a count shows that no entry lacks a value |
+| `ALTER TABLE "custom_…" DROP COLUMN …`, `DROP TABLE "custom_…"`, `DROP TYPE "custom_…"` | only the later deletion of something hidden long enough (section 6) |
 
 Refused whatever asks for them: a changed column type, a renamed column or table, a removed choice, a new unique rule on a table with entries, anything on a table without the prefix.
 
@@ -207,7 +207,7 @@ It runs when the site is loaded and then once a day while it stays loaded, throu
 
 The guard runs inside the structure function, in the transaction, before any statement. It answers from four places: the document, the registry, the entries, and the stored blocks.
 
-**Finding bindings.** For every blocks field of every type of the site (translations too), the server selects the rows whose value holds a block type that has a binding (`sections @> '[{"type":"x_entries"}]'`), and walks those blocks. Measured with 12 blocks a page and one page in 50 bound: 200 pages 1.6 ms, 2 000 pages 6.3 ms, 20 000 pages 57 ms.
+**Finding bindings.** For every blocks field of every type of the site (translations too), the server selects the rows whose value holds a block type that has a binding (`sections @> '[{"type":"custom_entries"}]'`), and walks those blocks. Measured with 12 blocks a page and one page in 50 bound: 200 pages 1.6 ms, 2 000 pages 6.3 ms, 20 000 pages 57 ms.
 
 | Change | What happens |
 |---|---|
@@ -237,8 +237,8 @@ A refusal answers 409 with `{ code, message, places: [{ entity, id, title, field
 
 **What exists.**
 
-- **Entries** (`x_entries`): a list of a type's entries, newest or in the type's order, with a limit.
-- **Chosen entries** (`x_chosen`): entries picked by hand, in the picked order.
+- **Entries** (`custom_entries`): a list of a type's entries, newest or in the type's order, with a limit.
+- **Chosen entries** (`custom_chosen`): entries picked by hand, in the picked order.
 - **The page of one entry,** at the type's address. It is not a block on a page: the type's `page` in the document is its binding.
 
 **How a design gets the blocks.** `customTypeBlocks()`, a new experimental export of `tinyzoo`, returns the two block definitions. Each template's `cms.config.ts` adds them to its `definePages({ blocks })`. Blocks are JSON in one column, so no template needs a migration; each template's generated client is made again. The admin's block picker leaves them out on a site that has no custom type with entries to show (`server/api/cms/_graph.get.ts` already shapes the graph per person).
@@ -246,7 +246,7 @@ A refusal answers 409 with `{ code, message, places: [{ entity, id, title, field
 **The binding** is the value of one field of the block, of a new kind `binding` (allowed inside blocks only, made by `customTypeBlocks()`, not part of `f.*` yet):
 
 ```json
-{ "type": "x_course",
+{ "type": "custom_course",
   "show": { "image": "cover", "text": "perex", "date": "startsAt", "label": "level", "more": ["price"] },
   "order": { "by": "startsAt", "dir": "asc" },
   "limit": 6,
@@ -259,7 +259,7 @@ The server checks a binding's shape when a page is saved (strings, lengths, ids)
 
 **The admin's control** (`CmsFieldBinding`): the type as a choice of the site's custom types; then one choice per place, each offering only the fields of a fitting kind (a picture for the image, a date for the date); the order and the limit; for chosen entries a picker that searches the type (`/api/cms/<type>/options`, as `CmsFieldRelationMany` does).
 
-**Where the data comes from.** The block's component asks the public content API, as every block of a template does (`useSiteList` in `templates/kit/app/composables/useSite.ts`): `/api/content/x_course?limit=6&sort=startsAt&dir=asc` for the list, `/api/content/x_course/<id>` for each chosen entry. So drafts, hidden fields and the content token follow the rules that exist. Labels of fields and choices come from a new public route, `GET /api/content/_types`: the site's public custom types with their labels, page prefix and fields (kind, label, choices). The name starts with `_`, which no type can.
+**Where the data comes from.** The block's component asks the public content API, as every block of a template does (`useSiteList` in `templates/kit/app/composables/useSite.ts`): `/api/content/custom_course?limit=6&sort=startsAt&dir=asc` for the list, `/api/content/custom_course/<id>` for each chosen entry. So drafts, hidden fields and the content token follow the rules that exist. Labels of fields and choices come from a new public route, `GET /api/content/_types`: the site's public custom types with their labels, page prefix and fields (kind, label, choices). The name starts with `_`, which no type can.
 
 **The page of an entry.** The kit's server middleware puts the site's custom page prefixes on the request beside the design (`templates/kit/server/middleware/design.ts`), so `useSitePage` knows without another request that `/kurzy/python` is an entry. The kit draws it with one component: the title, the picture, the short facts (dates, numbers, choices, relations) as a list, the texts, the gallery, the file as a download. The order is the type's field order. The address is in the sitemap and in the site search because the type has `content.path`.
 
@@ -277,11 +277,11 @@ So the kit's components are built from these, in this order:
 1. Headings and texts sit in `.prose-look`, so they are the look's.
 2. Colours are inherited. Lines and quiet text are made from the text colour (`color-mix(in oklab, currentColor 16%, transparent)`, opacity), so they fit a light and a dark look alike.
 3. Widths and spacing are the kit's own, fluid.
-4. A look may set a few variables to refine the result (`--x-radius`, `--x-line`, `--x-gap`). Each has a fallback, so no look has to.
+4. A look may set a few variables to refine the result (`--custom-radius`, `--custom-line`, `--custom-gap`). Each has a fallback, so no look has to.
 
 **Seen in a browser.** A prototype of both layouts, drawn with exactly these rules and injected into a seeded Photographer site: in Atelier (light, serif headings) and in Negativ (dark, condensed capitals, and none of `--ink`, `--paper`, `--line`), at 1280 and 390 pixels. Headings took each look's type, text and lines sat right on both grounds. The build's first task for this part is the same check on all 52 looks, as pictures, before any look gets a line of its own.
 
-**The kit's module** registers the two block components under each design's block prefix (`PhotographerBlockXEntries`, …), because `CmsBlocks` looks a block up as `<prefix><Type>` and today only a design's own files are registered that way (`templates/kit/module.ts`, lines 124 to 129: the loop over a design's own block files).
+**The kit's module** registers the two block components under each design's block prefix (`PhotographerBlockCustomEntries`, …), because `CmsBlocks` looks a block up as `<prefix><Type>` and today only a design's own files are registered that way (`templates/kit/module.ts`, lines 124 to 129: the loop over a design's own block files).
 
 ## 9. The structure editor
 
@@ -364,7 +364,7 @@ Rows drag to reorder (arrows on a phone, as in the menu editor, `CmsMenuEditor.v
 - The channel message names its site and is applied inside it; a message for an unknown site is dropped.
 - The design's entities are shared, and hold structure only. A custom entity points at them; they never point back.
 
-**Proven by tests** (`test/api/tenants-custom.spec.ts`, on the harness of `test/api/tenants-models.spec.ts`): two sites of the same design in one process, A with `x_course` and B with `x_recipe`.
+**Proven by tests** (`test/api/tenants-custom.spec.ts`, on the harness of `test/api/tenants-models.spec.ts`): two sites of the same design in one process, A with `custom_course` and B with `custom_recipe`.
 
 - Every admin and content route with A's type on B answers 404, and the other way round.
 - B's admin graph, generated types, OpenAPI document, public types route, search and sitemap name nothing of A's.
@@ -484,7 +484,7 @@ Built on the branch `feat/custom-types`, local only: nothing is released or depl
 
 **In the core and the admin.**
 
-- A field kind `binding`, for blocks only (`src/binding.ts`), and `customTypeBlocks()` with the blocks `x_entries` and `x_chosen` (`src/custom-blocks.ts`). Both are public and experimental. The generated client types and the OpenAPI document describe a binding only for a model that has one, so every other site's generated files are what they were.
+- A field kind `binding`, for blocks only (`src/binding.ts`), and `customTypeBlocks()` with the blocks `custom_entries` and `custom_chosen` (`src/custom-blocks.ts`). Both are public and experimental. The generated client types and the OpenAPI document describe a binding only for a model that has one, so every other site's generated files are what they were.
 - The control `CmsFieldBinding.vue`, with its rules as plain functions (`app/utils/cmsBinding.ts`): which fields fit which place, what a stored binding names that is gone.
 - The block picker leaves the two blocks out on a site with no type of its own (`server/api/cms/_graph.get.ts`).
 - The guard reads the pages (`findBindings` in `server/utils/cmsModelChange.ts`, the walk in `server/utils/cmsBindings.ts`): removing a field or a type that a block shows is refused with the page and the block named. `GET /api/cms/_model/usage` counts the pages per field; `GET /api/cms/_model/attention` lists the blocks whose binding names something missing.
@@ -492,14 +492,14 @@ Built on the branch `feat/custom-types`, local only: nothing is released or depl
 
 **In the kit and the templates.**
 
-- `templates/kit/app/components/KitEntries.vue`, `BlockXEntries.vue`, `BlockXChosen.vue` and `KitCustomEntry.vue`, with what they decide as plain functions in `app/utils/customTypes.ts`. They draw nothing where there is nothing to draw: no type, a type the site does not have, a failed request, no entries.
+- `templates/kit/app/components/KitEntries.vue`, `BlockCustomEntries.vue`, `BlockCustomChosen.vue` and `KitCustomEntry.vue`, with what they decide as plain functions in `app/utils/customTypes.ts`. They draw nothing where there is nothing to draw: no type, a type the site does not have, a failed request, no entries.
 - The kit's module registers the two block components for every design, and stops a build whose design has a type with the custom prefix.
 - An entry's page: the server puts the site's custom page prefixes on the request, `useSitePage` leads such an address to the entry, and `[...slug].vue` draws it.
 - All 20 templates have the two blocks in their pages. No template needed a migration: each one's generated `schema.ts` is unchanged.
 
 **Every look, in pictures.** `templates/app/scripts/custom-shots.mjs` makes one site per look, gives each a type with five entries, puts the three kinds of block on its home page, and takes pictures of the blocks and of an entry's page at 1440 and 390 pixels, with contact sheets per template. All 52 looks drew them with no failure and no error in the browser. What the pictures showed:
 
-- The footing of section 8 holds for the blocks in every look. No look needed one of the optional `--x-*` properties.
+- The footing of section 8 holds for the blocks in every look. No look needed one of the optional `--custom-*` properties.
 - It does not cover one thing: no look styles a first-level heading inside `.prose-look`. The title of an entry's page therefore has a size of the kit's own, and 25 looks have one line that gives it the typeface and weight of their own headings. Two looks whose header lies over the page (Association's Čtvero dob, Event's Časomíra) have a line that starts the entry's page below it.
 - Formatted text on an entry's page takes each look's own list style, as that look's text pages do.
 
