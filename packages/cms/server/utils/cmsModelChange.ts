@@ -9,9 +9,10 @@ import { scrubError } from './cmsScrub'
  *
  * One transaction on the site's own pool, as the site's own database user: the lock (two changes of
  * one site take turns), the version check, the facts the operations need, the operations, the
- * guard, the statements (each checked against the allowed list), the new version and the audit
- * line. After the commit the site's instance is retired, so the next request reads the new model,
- * and the change is announced to the other instances.
+ * guard (the stored content, and the code registered against the site: cmsModelCode.ts), the
+ * statements (each checked against the allowed list), the new version and the audit line. After
+ * the commit the site's instance is retired, so the next request reads the new model, and the
+ * change is announced to the other instances.
  */
 
 /** The advisory lock of a site's structure changes (the others in use: 72_011_001…005, _040, _050, _060). */
@@ -322,7 +323,8 @@ async function fillRestored(before: ModelDoc, after: ModelDoc, design: Record<st
  * (the feature is off for the site), 422 `{ code, message, op, details }` (an operation is not
  * valid, or the planner refuses a statement: `not-allowed` with `reasons`), 409 `stale-version`
  * (the model changed since `baseVersion`; `version` is the current one), 409 `in-use` with
- * `places`, 503 `busy` (the tables are in use; try again). Anything else is logged and answers 500.
+ * `places`, 409 `breaks-code` with `registrations` (code registered against the site reads what
+ * the change takes away), 403 `token-cannot-purge`, 503 `busy` (the tables are in use; try again). Anything else is logged and answers 500.
  */
 /** `event`: the request that asked (its person is named in the history and the audit log), or null for the server's own work. */
 export function cmsChangeModel(event: any, input: CmsModelChangeInput): Promise<CmsModelChangeResult> {
@@ -342,6 +344,10 @@ async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: b
   if (!feature.on) throw createError({ statusCode: 404, statusMessage: 'Not found' })
   if (!input || !Number.isInteger(input.baseVersion) || input.baseVersion < 0 || !Array.isArray(input.ops)) {
     throw refusal(422, 'invalid-request', 'A change names the version it was made against (a whole number) and a list of operations')
+  }
+  // Deleting for good stays a person's act in the admin: a personal access token never does it.
+  if (event?.context?.cmsUser?.token && (input.ops as any[]).some((o) => o?.op === 'purge')) {
+    throw refusal(403, 'token-cannot-purge', 'An access token cannot delete content types or fields for good. Do that in the admin, signed in')
   }
   const site = useCmsSite()
   const design = cmsDesignModel()
@@ -380,6 +386,12 @@ async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: b
           ? 'This content type is still in use: blocks on pages show its entries, or content links to them. Change those first'
           : 'This field is still shown or used to order a list on the website, by the blocks listed here. Change those blocks first'
         throw refusal(409, 'in-use', message, { op: first.op, places: inUse.flatMap((u) => u.places) })
+      }
+
+      // Code registered against the site (cmsModelCode.ts): only what this change would newly take away refuses it.
+      const broken = await cmsRegistrationsBrokenBy(exec, before, applied.doc, design.config)
+      if (broken.length) {
+        throw refusal(409, 'breaks-code', 'Code that runs against this site reads what this change would take away. Update that code first, or remove its registration', { registrations: broken })
       }
 
       const plan = planModelChange(before, applied.doc, design.config, input.ops)
