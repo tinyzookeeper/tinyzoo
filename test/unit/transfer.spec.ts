@@ -1368,7 +1368,7 @@ describe('tinyzoo export / import (command line)', () => {
 describe('a site with content types of its own', () => {
   // A site's own types (docs/custom-types-plan.md) are one document in `cms_model`, and a table
   // each. Export and import carry the content model of cms.config.ts only: such a site is refused.
-  const course = { name: 'x_course', label: { en: 'Courses' }, fields: [{ key: 'title', type: 'text', label: { en: 'Title' } }] }
+  const course = { name: 'custom_course', label: { en: 'Courses' }, fields: [{ key: 'title', type: 'text', label: { en: 'Title' } }] }
   const putModel = async (url: string, docs: unknown[]) => {
     const pool = new pg.Pool({ connectionString: url })
     try {
@@ -1399,7 +1399,7 @@ describe('a site with content types of its own', () => {
       const file = archive(`custom-${kind}.tar.gz`)
       const err: Error = await exportContent({ reg, databaseUrl: urlA, storage: storageA, file }).catch((e) => e)
       expect(err).toBeInstanceOf(Error)
-      expect(err.message).toBe('This site has content types of its own (x_course), which tinyzoo export does not carry. tinyzoo backup and tinyzoo restore take them: they copy the whole database. Nothing was changed.')
+      expect(err.message).toBe('This site has content types of its own (custom_course), which tinyzoo export does not carry. tinyzoo backup and tinyzoo restore take them: they copy the whole database. Nothing was changed.')
       expect(existsSync(file)).toBe(false)
       expect(existsSync(`${file}.partial`)).toBe(false)
     }
@@ -1413,7 +1413,7 @@ describe('a site with content types of its own', () => {
     await putModel(urlB, [{ format: 1, types: [course] }])
     const before = await snapshot(B.db)
     const err: Error = await importInto(file).catch((e) => e)
-    expect(err.message).toMatch(/^The site you import into has content types of its own \(x_course\), which tinyzoo import does not carry\. tinyzoo backup and tinyzoo restore take them/)
+    expect(err.message).toMatch(/^The site you import into has content types of its own \(custom_course\), which tinyzoo import does not carry\. tinyzoo backup and tinyzoo restore take them/)
     expect(await snapshot(B.db)).toEqual(before)
     // An empty document is a site without types of its own.
     await putModel(urlB, [{ format: 1, types: [] }])

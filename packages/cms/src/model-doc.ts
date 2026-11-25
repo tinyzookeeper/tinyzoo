@@ -8,7 +8,7 @@ import { LIST_PARAMS, RESERVED_FIELD_NAMES } from './entity'
 import { snake } from './fields'
 
 /** The start of every custom type's name (and of its tables). Written here only. @internal */
-export const CUSTOM_PREFIX = 'x_'
+export const CUSTOM_PREFIX = 'custom_'
 
 /** The version of the document's format this tinyzoo writes and reads. @internal */
 export const MODEL_FORMAT = 1
@@ -94,7 +94,7 @@ export type ModelOrder = 'manual' | { by: string; dir: 'asc' | 'desc' }
 
 /** @internal */
 export interface ModelType {
-  /** Never changes: `x_` and a key (`x_course`). The table has this name. */
+  /** Never changes: `custom_` and a key (`custom_course`). The table has this name. */
   name: string
   label: ModelLabel
   labelSingular?: ModelLabel | null
@@ -192,7 +192,7 @@ export interface ModelContext {
   now: Date
   /**
    * Facts only the database knows, given by the caller for the types and fields the operations
-   * touch. Keys are 'x_course' and 'x_course.price'. Absent means unknown, treated as "has
+   * touch. Keys are 'custom_course' and 'custom_course.price'. Absent means unknown, treated as "has
    * entries", "has values" and "has missing values" (the safe side).
    */
   counts?: { entries?: Record<string, number>; values?: Record<string, number>; missing?: Record<string, number> }
@@ -237,8 +237,12 @@ export class ModelProblem extends Error {
 // ---------------------------------------------------------------------------------------------
 // Names (design section 3)
 
-/** The longest type name, prefix included. */
-const TYPE_NAME_MAX = 26
+/**
+ * The longest type name, prefix included. A choice field's Postgres type is named
+ * `<type>_<column>`, a column is at most 30 characters, and Postgres cuts names at 63 bytes:
+ * 32 + 1 + 30 = 63.
+ */
+const TYPE_NAME_MAX = 32
 /** The longest column name Postgres needs us to keep uncut. */
 const COLUMN_MAX = 30
 /** The longest column a generated key may have: room for `_id`. */
@@ -306,9 +310,9 @@ function freeSlug(base: string, taken: Iterable<string>, max: number, reserved: 
 }
 
 /**
- * The name of a new custom type from its label: `x_` and the words, without accents:
- * "Kurzy a školení" gives `x_kurzy_a_skoleni`. At most 26 characters. A number is added
- * (`x_kurzy2`) while the name is in `taken`.
+ * The name of a new custom type from its label: `custom_` and the words, without accents:
+ * "Kurzy a školení" gives `custom_kurzy_a_skoleni`. At most 32 characters. A number is added
+ * (`custom_kurzy2`) while the name is in `taken`.
  * @internal
  */
 export function modelTypeName(label: string, taken: Iterable<string> = []): string {

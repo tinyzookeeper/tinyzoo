@@ -13,11 +13,11 @@ const Category = defineEntity('category', { label: 'Categories', titleField: 'na
 const design = { locales, Category }
 
 function custom(step: 1 | 2 | 3) {
-  const Teacher: any = defineEntity('x_teacher', {
+  const Teacher: any = defineEntity('custom_teacher', {
     label: 'Teachers', titleField: 'name',
     fields: { name: f.text({ required: true }), photo: f.media({ accept: 'image/*' }).optional() },
   })
-  const Course = defineEntity('x_course', {
+  const Course = defineEntity('custom_course', {
     label: 'Courses', titleField: 'title',
     fields: {
       title: f.text({ required: true }).localized(),
@@ -65,11 +65,21 @@ function schemaOf(reg: any) {
 // The comparison changes spelling only:
 //  - `"public".` is removed (drizzle-kit writes the schema, the planner does not),
 //  - a run of white space becomes one space,
-//  - a trailing `;` is removed.
+//  - a trailing `;` is removed,
+//  - a name longer than 63 bytes is cut to 63 bytes, as Postgres cuts it when it runs drizzle-kit's
+//    statement (the planner writes the cut name itself; the relation table of the fixture has such names).
 // Nothing else is changed: names, lists, types, defaults and every word of a statement must be equal.
 // Both lists are sorted, because drizzle-kit orders its statements differently from the planner.
+const postgresName = (name: string) => {
+  let out = ''
+  for (const ch of name) {
+    if (Buffer.byteLength(out + ch) > 63) break
+    out += ch
+  }
+  return out
+}
 const norm = (s: string) =>
-  s.replace(/"public"\./g, '').replace(/\s+/g, ' ').trim().replace(/;$/, '')
+  s.replace(/"public"\./g, '').replace(/"([^"]+)"/g, (_m, name: string) => `"${postgresName(name)}"`).replace(/\s+/g, ' ').trim().replace(/;$/, '')
 const sorted = (list: string[]) => list.map(norm).sort()
 
 const allStatements: string[] = []
@@ -111,7 +121,7 @@ describe('planModelDdl against drizzle-kit', () => {
   it('plans a new choice like drizzle-kit', async () => {
     const out = plan(shape1, customShape(reg3))
     expect(out.refused).toEqual([])
-    expect(out.statements).toEqual([`ALTER TYPE "x_course_level" ADD VALUE 'expert'`])
+    expect(out.statements).toEqual([`ALTER TYPE "custom_course_level" ADD VALUE 'expert'`])
     const theirs = await kitPlan(schemaOf(reg1), schemaOf(reg3))
     expect(sorted(out.statements)).toEqual(sorted(theirs))
   })
@@ -131,10 +141,10 @@ describe('planModelDdl against drizzle-kit', () => {
 
 describe('hiding', () => {
   const build = (optional: boolean) => {
-    const Pic = defineEntity('x_pic', { label: 'Pics', titleField: 'name', fields: { name: f.text({ required: true }) } })
+    const Pic = defineEntity('custom_pic', { label: 'Pics', titleField: 'name', fields: { name: f.text({ required: true }) } })
     void Pic
     const maybe = <T extends { optional: () => any }>(x: T) => (optional ? x.optional() : x)
-    const T = defineEntity('x_thing', {
+    const T = defineEntity('custom_thing', {
       label: 'Things', titleField: 'name',
       fields: {
         name: f.text({ required: true }),
@@ -150,12 +160,12 @@ describe('hiding', () => {
     const before = build(false)
     const after = build(true)
     // The picture's foreign key goes from restrict to set null.
-    expect(before.tables.x_thing!.fks.map((k) => k.onDelete)).not.toEqual(after.tables.x_thing!.fks.map((k) => k.onDelete))
+    expect(before.tables.custom_thing!.fks.map((k) => k.onDelete)).not.toEqual(after.tables.custom_thing!.fks.map((k) => k.onDelete))
     const out = plan(before, after)
     expect(out.refused).toEqual([])
     expect(out.statements).toEqual([
-      `ALTER TABLE "x_thing" ALTER COLUMN "note" DROP NOT NULL`,
-      `ALTER TABLE "x_thing" ALTER COLUMN "picture_id" DROP NOT NULL`,
+      `ALTER TABLE "custom_thing" ALTER COLUMN "note" DROP NOT NULL`,
+      `ALTER TABLE "custom_thing" ALTER COLUMN "picture_id" DROP NOT NULL`,
     ])
   })
 })
@@ -164,11 +174,11 @@ describe('purge', () => {
   const full = customShape(regOf(2))
   const gone = (): DbShape => {
     const s = clone(full)
-    delete s.tables.x_teacher
-    delete s.tables.x_course_to_x_teacher
+    delete s.tables.custom_teacher
+    delete s.tables.custom_course_to_custom_teacher
     for (const k of Object.keys(s.tables)) if (k.includes('teacher')) delete s.tables[k]
-    s.tables.x_course!.columns = s.tables.x_course!.columns.filter((c) => c.name !== 'seats')
-    delete s.enums.x_course_kind
+    s.tables.custom_course!.columns = s.tables.custom_course!.columns.filter((c) => c.name !== 'seats')
+    delete s.enums.custom_course_kind
     return s
   }
 
@@ -176,46 +186,46 @@ describe('purge', () => {
     const after = gone()
     const out = plan(full, after)
     expect(out.statements).toEqual([])
-    expect(out.refused.join('\n')).toContain('x_course.seats')
-    expect(out.refused.join('\n')).toContain('x_teacher')
-    expect(out.refused.join('\n')).toContain('x_course_kind')
+    expect(out.refused.join('\n')).toContain('custom_course.seats')
+    expect(out.refused.join('\n')).toContain('custom_teacher')
+    expect(out.refused.join('\n')).toContain('custom_course_kind')
   })
 
   it('drops columns, then tables (the referencing one first), then types', () => {
     const after = gone()
     const teacherTables = Object.keys(full.tables).filter((k) => k.includes('teacher'))
     const out = plan(full, after, {
-      drop: { columns: ['x_course.seats'], tables: teacherTables, types: ['x_course_kind'] },
+      drop: { columns: ['custom_course.seats'], tables: teacherTables, types: ['custom_course_kind'] },
     })
-    // The foreign key of x_course.kind's removal is not needed: only the column "seats" is dropped.
-    expect(out.statements[0]).toBe('ALTER TABLE "x_course" DROP COLUMN "seats"')
+    // The foreign key of custom_course.kind's removal is not needed: only the column "seats" is dropped.
+    expect(out.statements[0]).toBe('ALTER TABLE "custom_course" DROP COLUMN "seats"')
     const tableDrops = out.statements.filter((s) => s.startsWith('DROP TABLE'))
     expect(tableDrops.length).toBe(teacherTables.length)
-    const junction = Object.values(full.tables).find((t) => t.fks.some((k) => k.table === 'x_teacher'))!
-    expect(tableDrops.indexOf(`DROP TABLE "${junction.name}"`)).toBeLessThan(tableDrops.indexOf('DROP TABLE "x_teacher"'))
-    expect(out.statements[out.statements.length - 1]).toBe('DROP TYPE "x_course_kind"')
+    const junction = Object.values(full.tables).find((t) => t.fks.some((k) => k.table === 'custom_teacher'))!
+    expect(tableDrops.indexOf(`DROP TABLE "${junction.name}"`)).toBeLessThan(tableDrops.indexOf('DROP TABLE "custom_teacher"'))
+    expect(out.statements[out.statements.length - 1]).toBe('DROP TYPE "custom_course_kind"')
     expect(out.statements.some((s) => s.includes('CASCADE'))).toBe(false)
   })
 
   it('a partial allow drops only what is named and refuses the rest', () => {
     const after = gone()
-    const out = plan(full, after, { drop: { columns: ['x_course.seats'] } })
-    expect(out.statements).toEqual(['ALTER TABLE "x_course" DROP COLUMN "seats"'])
-    expect(out.refused.join('\n')).toContain('x_teacher')
-    expect(out.refused.join('\n')).toContain('x_course_kind')
+    const out = plan(full, after, { drop: { columns: ['custom_course.seats'] } })
+    expect(out.statements).toEqual(['ALTER TABLE "custom_course" DROP COLUMN "seats"'])
+    expect(out.refused.join('\n')).toContain('custom_teacher')
+    expect(out.refused.join('\n')).toContain('custom_course_kind')
   })
 
   it('ignores an allowed drop of something that is still there', () => {
-    expect(plan(full, clone(full), { drop: { columns: ['x_course.seats'], tables: ['x_teacher'], types: ['x_course_kind'] } })).toEqual({ statements: [], refused: [] })
+    expect(plan(full, clone(full), { drop: { columns: ['custom_course.seats'], tables: ['custom_teacher'], types: ['custom_course_kind'] } })).toEqual({ statements: [], refused: [] })
   })
 
   it('gives a column of a dropped table no statement of its own', () => {
     const after = clone(full)
-    delete after.tables.x_teacher
-    const refs = Object.values(after.tables).filter((t) => t.fks.some((k) => k.table === 'x_teacher'))
+    delete after.tables.custom_teacher
+    const refs = Object.values(after.tables).filter((t) => t.fks.some((k) => k.table === 'custom_teacher'))
     for (const t of refs) delete after.tables[t.name]
     const names = Object.keys(full.tables).filter((k) => !after.tables[k])
-    const out = plan(full, after, { drop: { tables: names, columns: ['x_teacher.name'] } })
+    const out = plan(full, after, { drop: { tables: names, columns: ['custom_teacher.name'] } })
     expect(out.statements.every((s) => s.startsWith('DROP TABLE'))).toBe(true)
   })
 })
@@ -223,8 +233,8 @@ describe('purge', () => {
 describe('SET NOT NULL', () => {
   const before = customShape(regOf(1))
   const after = clone(before)
-  after.tables.x_course!.columns.find((c) => c.name === 'price')!.notNull = true
-  after.tables.x_course!.columns.find((c) => c.name === 'cover_id')!.notNull = true
+  after.tables.custom_course!.columns.find((c) => c.name === 'price')!.notNull = true
+  after.tables.custom_course!.columns.find((c) => c.name === 'cover_id')!.notNull = true
 
   it('is refused without the allow list', () => {
     const out = plan(before, after)
@@ -233,10 +243,10 @@ describe('SET NOT NULL', () => {
   })
 
   it('is planned for the named columns only', () => {
-    const out = plan(before, after, { setNotNull: ['x_course.price'] })
-    expect(out.statements).toEqual(['ALTER TABLE "x_course" ALTER COLUMN "price" SET NOT NULL'])
+    const out = plan(before, after, { setNotNull: ['custom_course.price'] })
+    expect(out.statements).toEqual(['ALTER TABLE "custom_course" ALTER COLUMN "price" SET NOT NULL'])
     expect(out.refused).toHaveLength(1)
-    expect(out.refused[0]).toContain('x_course.cover_id')
+    expect(out.refused[0]).toContain('custom_course.cover_id')
   })
 })
 
@@ -244,16 +254,16 @@ describe('defaults', () => {
   it('sets and drops a default', () => {
     const before = customShape(regOf(1))
     const after = clone(before)
-    const cols = after.tables.x_course!.columns
+    const cols = after.tables.custom_course!.columns
     cols.find((c) => c.name === 'level')!.default = `'advanced'`
     cols.find((c) => c.name === 'price')!.default = '0'
     cols.find((c) => c.name === 'created_at')!.default = null
     const out = plan(before, after)
     expect(out.refused).toEqual([])
     expect(out.statements).toEqual([
-      `ALTER TABLE "x_course" ALTER COLUMN "price" SET DEFAULT 0`,
-      `ALTER TABLE "x_course" ALTER COLUMN "level" SET DEFAULT 'advanced'`,
-      `ALTER TABLE "x_course" ALTER COLUMN "created_at" DROP DEFAULT`,
+      `ALTER TABLE "custom_course" ALTER COLUMN "price" SET DEFAULT 0`,
+      `ALTER TABLE "custom_course" ALTER COLUMN "level" SET DEFAULT 'advanced'`,
+      `ALTER TABLE "custom_course" ALTER COLUMN "created_at" DROP DEFAULT`,
     ])
   })
 })
@@ -265,65 +275,65 @@ describe('refusals', () => {
     change(after)
     return planModelDdl(before, after, allow)
   }
-  const col = (s: DbShape, name: string) => s.tables.x_course!.columns.find((c) => c.name === name)!
+  const col = (s: DbShape, name: string) => s.tables.custom_course!.columns.find((c) => c.name === name)!
 
   it('a changed column type', () => {
     const out = refusedBy((s) => { col(s, 'price').type = 'text' })
     expect(out.statements).toEqual([])
-    expect(out.refused[0]).toContain('x_course.price')
+    expect(out.refused[0]).toContain('custom_course.price')
   })
 
   it('a removed choice value', () => {
-    const out = refusedBy((s) => { s.enums.x_course_level = ['beginner'] })
+    const out = refusedBy((s) => { s.enums.custom_course_level = ['beginner'] })
     expect(out.statements).toEqual([])
     expect(out.refused[0]).toContain('advanced')
   })
 
   it('a column made unique', () => {
-    const out = refusedBy((s) => { col(s, 'price').unique = 'x_course_price_unique' })
+    const out = refusedBy((s) => { col(s, 'price').unique = 'custom_course_price_unique' })
     expect(out.statements).toEqual([])
-    expect(out.refused[0]).toContain('x_course.price')
+    expect(out.refused[0]).toContain('custom_course.price')
   })
 
   it('a new unique column on an existing table', () => {
     const out = refusedBy((s) => {
-      s.tables.x_course!.columns.push({ name: 'code', type: 'text', enum: false, notNull: false, default: null, primary: false, unique: 'x_course_code_unique' })
+      s.tables.custom_course!.columns.push({ name: 'code', type: 'text', enum: false, notNull: false, default: null, primary: false, unique: 'custom_course_code_unique' })
     })
     expect(out.statements).toEqual([])
-    expect(out.refused[0]).toContain('x_course.code')
+    expect(out.refused[0]).toContain('custom_course.code')
   })
 
   it('a new index on an existing table', () => {
-    const out = refusedBy((s) => { s.tables.x_course!.indexes.push({ name: 'x_course_price_idx', unique: false, columns: ['price'] }) })
+    const out = refusedBy((s) => { s.tables.custom_course!.indexes.push({ name: 'custom_course_price_idx', unique: false, columns: ['price'] }) })
     expect(out.statements).toEqual([])
-    expect(out.refused[0]).toContain('x_course_price_idx')
+    expect(out.refused[0]).toContain('custom_course_price_idx')
   })
 
   it('a removed index', () => {
-    const out = refusedBy((s) => { s.tables.x_course_locales!.indexes = [] })
+    const out = refusedBy((s) => { s.tables.custom_course_locales!.indexes = [] })
     expect(out.statements).toEqual([])
     expect(out.refused.length).toBeGreaterThan(0)
   })
 
   it('a removed foreign key', () => {
-    const out = refusedBy((s) => { s.tables.x_course!.fks = [] })
+    const out = refusedBy((s) => { s.tables.custom_course!.fks = [] })
     expect(out.statements).toEqual([])
     expect(out.refused.length).toBeGreaterThan(0)
   })
 
   it('a foreign key with another target', () => {
-    const out = refusedBy((s) => { s.tables.x_course!.fks[0]!.table = 'x_teacher' })
+    const out = refusedBy((s) => { s.tables.custom_course!.fks[0]!.table = 'custom_teacher' })
     expect(out.statements).toEqual([])
     expect(out.refused[0]).toContain('changes its columns or its target')
   })
 
   it('a foreign key that differs only in onDelete is not refused and not planned', () => {
-    const out = refusedBy((s) => { for (const k of s.tables.x_course!.fks) k.onDelete = 'set null' })
+    const out = refusedBy((s) => { for (const k of s.tables.custom_course!.fks) k.onDelete = 'set null' })
     expect(out).toEqual({ statements: [], refused: [] })
   })
 
   it('a changed primary key', () => {
-    const out = refusedBy((s) => { s.tables.x_course!.pk = { name: 'x_course_pk', columns: ['id', 'slug'] } })
+    const out = refusedBy((s) => { s.tables.custom_course!.pk = { name: 'custom_course_pk', columns: ['id', 'slug'] } })
     expect(out.statements).toEqual([])
     expect(out.refused[0]).toContain('primary key')
   })
@@ -332,50 +342,50 @@ describe('refusals', () => {
     const out = planModelDdl(EMPTY, customShape(buildRegistry({ ...design, ...custom(1) } as any)))
     expect(out.refused).toEqual([])
     const after = clone(before)
-    after.tables.category_to_x_course = {
-      name: 'category_to_x_course', columns: [{ name: 'id', type: 'uuid', enum: false, notNull: true, default: null, primary: true, unique: null }],
+    after.tables.category_to_custom_course = {
+      name: 'category_to_custom_course', columns: [{ name: 'id', type: 'uuid', enum: false, notNull: true, default: null, primary: true, unique: null }],
       fks: [], indexes: [], pk: null,
     }
     const refused = planModelDdl(before, after)
     expect(refused.statements).toEqual([])
-    expect(refused.refused[0]).toContain('category_to_x_course')
+    expect(refused.refused[0]).toContain('category_to_custom_course')
   })
 
   it('a many-to-many to a design collection makes a relation table without the prefix', () => {
-    const Course = defineEntity('x_course', {
+    const Course = defineEntity('custom_course', {
       label: 'Courses', titleField: 'title',
       fields: { title: f.text({ required: true }), categories: f.relation({ to: () => Category, kind: 'many-to-many' }) },
     })
     const shape = customShape(buildRegistry({ ...design, Course } as any))
-    const name = Object.keys(shape.tables).find((k) => !k.startsWith('x_'))
-    expect(name).toBe('category_to_x_course')
+    const name = Object.keys(shape.tables).find((k) => !k.startsWith('custom_'))
+    expect(name).toBe('category_to_custom_course')
     const out = planModelDdl(EMPTY, shape)
     expect(out.statements).toEqual([])
-    expect(out.refused[0]).toContain('category_to_x_course')
+    expect(out.refused[0]).toContain('category_to_custom_course')
   })
 
   it('a required column added without a default', () => {
     const out = refusedBy((s) => {
-      s.tables.x_course!.columns.push({ name: 'must', type: 'text', enum: false, notNull: true, default: null, primary: false, unique: null })
+      s.tables.custom_course!.columns.push({ name: 'must', type: 'text', enum: false, notNull: true, default: null, primary: false, unique: null })
     })
     expect(out.statements).toEqual([])
-    expect(out.refused[0]).toContain('x_course.must')
+    expect(out.refused[0]).toContain('custom_course.must')
   })
 
   it('a required column added with a default is planned', () => {
     const after = clone(before)
-    after.tables.x_course!.columns.push({ name: 'must', type: 'text', enum: false, notNull: true, default: `'a'`, primary: false, unique: null })
-    expect(plan(before, after).statements).toEqual([`ALTER TABLE "x_course" ADD COLUMN "must" text DEFAULT 'a' NOT NULL`])
+    after.tables.custom_course!.columns.push({ name: 'must', type: 'text', enum: false, notNull: true, default: `'a'`, primary: false, unique: null })
+    expect(plan(before, after).statements).toEqual([`ALTER TABLE "custom_course" ADD COLUMN "must" text DEFAULT 'a' NOT NULL`])
   })
 
   it('a foreign key on a new column is planned', () => {
     const after = clone(before)
-    after.tables.x_course!.columns.push({ name: 'boss_id', type: 'uuid', enum: false, notNull: false, default: null, primary: false, unique: null })
-    after.tables.x_course!.fks.push({ name: 'x_course_boss_id_x_teacher_id_fk', columns: ['boss_id'], table: 'x_teacher', foreign: ['id'], onDelete: 'set null' })
+    after.tables.custom_course!.columns.push({ name: 'boss_id', type: 'uuid', enum: false, notNull: false, default: null, primary: false, unique: null })
+    after.tables.custom_course!.fks.push({ name: 'custom_course_boss_id_custom_teacher_id_fk', columns: ['boss_id'], table: 'custom_teacher', foreign: ['id'], onDelete: 'set null' })
     const out = plan(before, after)
     expect(out.statements).toEqual([
-      'ALTER TABLE "x_course" ADD COLUMN "boss_id" uuid',
-      'ALTER TABLE "x_course" ADD CONSTRAINT "x_course_boss_id_x_teacher_id_fk" FOREIGN KEY ("boss_id") REFERENCES "x_teacher"("id") ON DELETE set null ON UPDATE no action',
+      'ALTER TABLE "custom_course" ADD COLUMN "boss_id" uuid',
+      'ALTER TABLE "custom_course" ADD CONSTRAINT "custom_course_boss_id_custom_teacher_id_fk" FOREIGN KEY ("boss_id") REFERENCES "custom_teacher"("id") ON DELETE set null ON UPDATE no action',
     ])
   })
 })
@@ -384,7 +394,7 @@ describe('names of 63 bytes', () => {
   const before = customShape(regOf(1))
   const withColumn = (name: string): DbShape => {
     const after = clone(before)
-    after.tables.x_course!.columns.push({ name, type: 'text', enum: false, notNull: false, default: null, primary: false, unique: null })
+    after.tables.custom_course!.columns.push({ name, type: 'text', enum: false, notNull: false, default: null, primary: false, unique: null })
     return after
   }
 
@@ -402,7 +412,7 @@ describe('names of 63 bytes', () => {
 
   it('refuses a table or a choice type of 64 bytes', () => {
     const table = clone(EMPTY)
-    const name = `x_${'a'.repeat(62)}`
+    const name = `custom_${'a'.repeat(57)}`
     table.tables[name] = { name, columns: [], fks: [], indexes: [], pk: null }
     expect(planModelDdl(EMPTY, table).refused[0]).toContain('table name')
     expect(planModelDdl(EMPTY, { enums: { [name]: ['a'] }, tables: {} }).refused[0]).toContain('choice type name')
@@ -410,64 +420,64 @@ describe('names of 63 bytes', () => {
 
   it('cuts a long foreign key name to 63 bytes in the statement', () => {
     const after = withColumn('boss_id')
-    const long = `x_course_boss_id_${'y'.repeat(60)}_fk`
-    after.tables.x_course!.fks.push({ name: long, columns: ['boss_id'], table: 'x_teacher', foreign: ['id'], onDelete: 'cascade' })
+    const long = `custom_course_boss_id_${'y'.repeat(60)}_fk`
+    after.tables.custom_course!.fks.push({ name: long, columns: ['boss_id'], table: 'custom_teacher', foreign: ['id'], onDelete: 'cascade' })
     const out = plan(before, after)
     expect(out.refused).toEqual([])
     const cut = long.slice(0, 63)
-    expect(out.statements[1]).toBe(`ALTER TABLE "x_course" ADD CONSTRAINT "${cut}" FOREIGN KEY ("boss_id") REFERENCES "x_teacher"("id") ON DELETE cascade ON UPDATE no action`)
+    expect(out.statements[1]).toBe(`ALTER TABLE "custom_course" ADD CONSTRAINT "${cut}" FOREIGN KEY ("boss_id") REFERENCES "custom_teacher"("id") ON DELETE cascade ON UPDATE no action`)
     expect(cut.length).toBe(63)
   })
 
   it('cuts at a character boundary', () => {
     const after = withColumn('boss_id')
-    const long = `x_course_${'č'.repeat(40)}`
-    after.tables.x_course!.fks.push({ name: long, columns: ['boss_id'], table: 'x_teacher', foreign: ['id'], onDelete: 'cascade' })
+    const long = `custom_course_${'č'.repeat(40)}`
+    after.tables.custom_course!.fks.push({ name: long, columns: ['boss_id'], table: 'custom_teacher', foreign: ['id'], onDelete: 'cascade' })
     const out = plan(before, after)
-    expect(out.statements[1]).toContain(`"x_course_${'č'.repeat(27)}"`)
+    expect(out.statements[1]).toContain(`"custom_course_${'č'.repeat(24)}"`)
   })
 
   it('compares the cut names, so an unchanged long name is not a change', () => {
     const t = clone(before)
-    const long = `x_course_boss_id_${'y'.repeat(60)}_fk`
-    t.tables.x_course!.fks.push({ name: long, columns: ['cover_id'], table: 'cms_media', foreign: ['id'], onDelete: 'cascade' })
+    const long = `custom_course_boss_id_${'y'.repeat(60)}_fk`
+    t.tables.custom_course!.fks.push({ name: long, columns: ['cover_id'], table: 'cms_media', foreign: ['id'], onDelete: 'cascade' })
     const was = clone(t)
-    was.tables.x_course!.fks[was.tables.x_course!.fks.length - 1]!.name = long.slice(0, 63)
+    was.tables.custom_course!.fks[was.tables.custom_course!.fks.length - 1]!.name = long.slice(0, 63)
     expect(planModelDdl(was, t)).toEqual({ statements: [], refused: [] })
   })
 
   it('refuses two constraint names of one table that become equal after the cut', () => {
     const after = withColumn('boss_id')
-    const base = `x_course_${'z'.repeat(60)}`
-    after.tables.x_course!.fks.push({ name: `${base}_a`, columns: ['boss_id'], table: 'x_teacher', foreign: ['id'], onDelete: 'cascade' })
-    after.tables.x_course!.fks.push({ name: `${base}_b`, columns: ['boss_id'], table: 'x_teacher', foreign: ['id'], onDelete: 'cascade' })
+    const base = `custom_course_${'z'.repeat(60)}`
+    after.tables.custom_course!.fks.push({ name: `${base}_a`, columns: ['boss_id'], table: 'custom_teacher', foreign: ['id'], onDelete: 'cascade' })
+    after.tables.custom_course!.fks.push({ name: `${base}_b`, columns: ['boss_id'], table: 'custom_teacher', foreign: ['id'], onDelete: 'cascade' })
     const out = planModelDdl(before, after)
     expect(out.statements).toEqual([])
-    expect(out.refused[0]).toContain('x_course')
+    expect(out.refused[0]).toContain('custom_course')
   })
 
   it('refuses an index name that two tables share, or that is also a table name', () => {
     const after = clone(before)
-    after.tables.x_teacher!.indexes.push({ name: 'x_dup', unique: false, columns: ['name'] })
-    after.tables.x_course!.indexes.push({ name: 'x_dup', unique: false, columns: ['price'] })
-    expect(planModelDdl(before, after).refused.join()).toContain('x_dup')
+    after.tables.custom_teacher!.indexes.push({ name: 'custom_dup', unique: false, columns: ['name'] })
+    after.tables.custom_course!.indexes.push({ name: 'custom_dup', unique: false, columns: ['price'] })
+    expect(planModelDdl(before, after).refused.join()).toContain('custom_dup')
     const second = clone(before)
-    second.tables.x_teacher!.indexes.push({ name: 'x_course', unique: false, columns: ['name'] })
-    expect(planModelDdl(before, second).refused.join()).toContain('x_course')
+    second.tables.custom_teacher!.indexes.push({ name: 'custom_course', unique: false, columns: ['name'] })
+    expect(planModelDdl(before, second).refused.join()).toContain('custom_course')
   })
 })
 
 describe('a name with a doubled quote', () => {
   it('is written and accepted', () => {
-    const name = 'x_a"b'
+    const name = 'custom_a"b'
     const shape: DbShape = {
       enums: {},
       tables: { [name]: { name, columns: [{ name: 'i"d', type: 'uuid', enum: false, notNull: true, default: null, primary: true, unique: null }], fks: [], indexes: [], pk: null } },
     }
     const out = plan(EMPTY, shape)
     expect(out.refused).toEqual([])
-    expect(out.statements).toEqual(['CREATE TABLE "x_a""b" (\n\t"i""d" uuid PRIMARY KEY NOT NULL\n)'])
-    expect(() => assertAllowedStatement('DROP TABLE "x_a""b"')).not.toThrow()
+    expect(out.statements).toEqual(['CREATE TABLE "custom_a""b" (\n\t"i""d" uuid PRIMARY KEY NOT NULL\n)'])
+    expect(() => assertAllowedStatement('DROP TABLE "custom_a""b"')).not.toThrow()
   })
 })
 
@@ -488,14 +498,14 @@ describe('from the document to the statements', () => {
 
   // A new type with a page and publishing, and fields of most kinds, on a type known to be empty.
   const { doc: doc1 } = applyModelOps(doc0, [
-    { op: 'type.add', name: 'x_course', label: { cs: 'Kurzy' }, page: {}, publish: true },
-    { op: 'field.add', type: 'x_course', field: { key: 'teacher', type: 'text', required: true, label: { cs: 'Lektor' } } },
-    { op: 'field.add', type: 'x_course', field: { key: 'price', type: 'number', decimal: true, label: { cs: 'Cena' } } },
-    { op: 'field.add', type: 'x_course', field: { key: 'level', type: 'select', required: true, default: 'zacatecnici', label: { cs: 'Úroveň' }, options: [{ label: { cs: 'Začátečníci' } }, { label: { cs: 'Pokročilí' } }] } },
-    { op: 'field.add', type: 'x_course', field: { key: 'cover', type: 'media', label: { cs: 'Obrázek' } } },
-    { op: 'field.add', type: 'x_course', field: { key: 'category', type: 'relation', to: 'category', label: { cs: 'Kategorie' } } },
-    { op: 'field.add', type: 'x_course', field: { key: 'photos', type: 'gallery', label: { cs: 'Fotky' } } },
-  ], ctx({ counts: { entries: { x_course: 0 } } }))
+    { op: 'type.add', name: 'custom_course', label: { cs: 'Kurzy' }, page: {}, publish: true },
+    { op: 'field.add', type: 'custom_course', field: { key: 'teacher', type: 'text', required: true, label: { cs: 'Lektor' } } },
+    { op: 'field.add', type: 'custom_course', field: { key: 'price', type: 'number', decimal: true, label: { cs: 'Cena' } } },
+    { op: 'field.add', type: 'custom_course', field: { key: 'level', type: 'select', required: true, default: 'zacatecnici', label: { cs: 'Úroveň' }, options: [{ label: { cs: 'Začátečníci' } }, { label: { cs: 'Pokročilí' } }] } },
+    { op: 'field.add', type: 'custom_course', field: { key: 'cover', type: 'media', label: { cs: 'Obrázek' } } },
+    { op: 'field.add', type: 'custom_course', field: { key: 'category', type: 'relation', to: 'category', label: { cs: 'Kategorie' } } },
+    { op: 'field.add', type: 'custom_course', field: { key: 'photos', type: 'gallery', label: { cs: 'Fotky' } } },
+  ], ctx({ counts: { entries: { custom_course: 0 } } }))
 
   it('makes a new type with the statements drizzle-kit makes', async () => {
     const out = plan(EMPTY, shapeOf(doc1))
@@ -505,65 +515,95 @@ describe('from the document to the statements', () => {
     expect(sorted(out.statements)).toEqual(sorted(theirs))
   })
 
+  it('keeps every name of a type of 32 characters whole: a choice column of 30 makes a choice type of 63 bytes', () => {
+    const name = `custom_${'a'.repeat(25)}`
+    const key = 'b'.repeat(30)
+    expect(name.length).toBe(32)
+    const { doc } = applyModelOps(doc0, [
+      { op: 'type.add', name, label: { cs: 'Dlouhý' }, page: {}, publish: true },
+      { op: 'field.add', type: name, field: { key, type: 'select', label: { cs: 'Volba' }, options: [{ label: { cs: 'Jedna' } }] } },
+    ], ctx())
+    const shape = shapeOf(doc)
+    const choice = `${name}_${key}`
+    expect(choice.length).toBe(63)
+    expect(Object.keys(shape.enums)).toContain(choice)
+    expect(Object.keys(shape.tables)).toContain(name)
+    const out = plan(EMPTY, shape)
+    expect(out.refused).toEqual([])
+    expect(out.statements).toContain(`CREATE TYPE "${choice}" AS ENUM('jedna')`)
+    expect(out.statements.some((s) => s.startsWith(`CREATE TABLE "${name}" (`) && s.includes(`"${key}" "${choice}"`))).toBe(true)
+    for (const s of out.statements) expect(() => assertAllowedStatement(s)).not.toThrow()
+
+    let problem: any
+    try {
+      applyModelOps(doc0, [{ op: 'type.add', name: `custom_${'a'.repeat(26)}`, label: { cs: 'Dlouhý' } }], ctx())
+    }
+    catch (err) {
+      problem = err
+    }
+    expect(problem?.code).toBe('invalid-name')
+    expect(problem?.message).toContain('longer than 32 characters')
+  })
+
   it('hides a field with one DROP NOT NULL, and a second hidden field with nothing', () => {
     const { doc: doc2 } = applyModelOps(doc1, [
-      { op: 'field.remove', type: 'x_course', key: 'teacher' },
-      { op: 'field.remove', type: 'x_course', key: 'price' },
+      { op: 'field.remove', type: 'custom_course', key: 'teacher' },
+      { op: 'field.remove', type: 'custom_course', key: 'price' },
     ], ctx())
-    expect(Object.keys((visible(doc2).x_course as any).fields)).not.toContain('teacher')
-    expect(plan(shapeOf(doc1), shapeOf(doc2))).toEqual({ statements: ['ALTER TABLE "x_course" ALTER COLUMN "teacher" DROP NOT NULL'], refused: [] })
+    expect(Object.keys((visible(doc2).custom_course as any).fields)).not.toContain('teacher')
+    expect(plan(shapeOf(doc1), shapeOf(doc2))).toEqual({ statements: ['ALTER TABLE "custom_course" ALTER COLUMN "teacher" DROP NOT NULL'], refused: [] })
   })
 
   it('hides a picture with no statement: it was optional, and its foreign key already lets its target go', () => {
-    const { doc: doc2 } = applyModelOps(doc1, [{ op: 'field.remove', type: 'x_course', key: 'cover' }], ctx())
+    const { doc: doc2 } = applyModelOps(doc1, [{ op: 'field.remove', type: 'custom_course', key: 'cover' }], ctx())
     expect(plan(shapeOf(doc1), shapeOf(doc2))).toEqual({ statements: [], refused: [] })
-    expect(shapeOf(doc1).tables.x_course!.fks.find((fk) => fk.columns[0] === 'cover_id')!.onDelete).toBe('set null')
+    expect(shapeOf(doc1).tables.custom_course!.fks.find((fk) => fk.columns[0] === 'cover_id')!.onDelete).toBe('set null')
   })
 
   it('restores a field as optional with no statement, or as required with SET NOT NULL when allowed', () => {
-    const { doc: hidden } = applyModelOps(doc1, [{ op: 'field.remove', type: 'x_course', key: 'teacher' }], ctx())
-    const optional = applyModelOps(hidden, [{ op: 'field.restore', type: 'x_course', key: 'teacher' }], ctx({ counts: { missing: { 'x_course.teacher': 3 } } }))
+    const { doc: hidden } = applyModelOps(doc1, [{ op: 'field.remove', type: 'custom_course', key: 'teacher' }], ctx())
+    const optional = applyModelOps(hidden, [{ op: 'field.restore', type: 'custom_course', key: 'teacher' }], ctx({ counts: { missing: { 'custom_course.teacher': 3 } } }))
     expect(optional.notes.map((n) => n.code)).toEqual(['restored-optional'])
     expect(plan(shapeOf(hidden), shapeOf(optional.doc))).toEqual({ statements: [], refused: [] })
 
-    const required = applyModelOps(hidden, [{ op: 'field.restore', type: 'x_course', key: 'teacher' }], ctx({ counts: { missing: { 'x_course.teacher': 0 } } }))
+    const required = applyModelOps(hidden, [{ op: 'field.restore', type: 'custom_course', key: 'teacher' }], ctx({ counts: { missing: { 'custom_course.teacher': 0 } } }))
     expect(plan(shapeOf(hidden), shapeOf(required.doc)).refused).toHaveLength(1)
-    expect(plan(shapeOf(hidden), shapeOf(required.doc), { setNotNull: ['x_course.teacher'] }).statements)
-      .toEqual(['ALTER TABLE "x_course" ALTER COLUMN "teacher" SET NOT NULL'])
+    expect(plan(shapeOf(hidden), shapeOf(required.doc), { setNotNull: ['custom_course.teacher'] }).statements)
+      .toEqual(['ALTER TABLE "custom_course" ALTER COLUMN "teacher" SET NOT NULL'])
   })
 
   it('adds a choice and a field to a type with entries, and refuses nothing', () => {
     const { doc: doc2 } = applyModelOps(doc1, [
-      { op: 'field.update', type: 'x_course', key: 'level', addOptions: [{ label: { cs: 'Experti' } }] },
-      { op: 'field.add', type: 'x_course', after: 'teacher', field: { type: 'boolean', default: true, label: { cs: 'Online' } } },
+      { op: 'field.update', type: 'custom_course', key: 'level', addOptions: [{ label: { cs: 'Experti' } }] },
+      { op: 'field.add', type: 'custom_course', after: 'teacher', field: { type: 'boolean', default: true, label: { cs: 'Online' } } },
     ], ctx())
     const out = plan(shapeOf(doc1), shapeOf(doc2))
     expect(out).toEqual({
-      statements: [`ALTER TYPE "x_course_level" ADD VALUE 'experti'`, 'ALTER TABLE "x_course" ADD COLUMN "online" boolean DEFAULT true NOT NULL'],
+      statements: [`ALTER TYPE "custom_course_level" ADD VALUE 'experti'`, 'ALTER TABLE "custom_course" ADD COLUMN "online" boolean DEFAULT true NOT NULL'],
       refused: [],
     })
   })
 
   it('deletes a hidden field and a hidden type for good only when the drops are allowed', () => {
     const { doc: withBranch } = applyModelOps(doc1, [
-      { op: 'type.add', name: 'x_branch', label: { cs: 'Pobočky' } },
-      { op: 'field.add', type: 'x_branch', field: { key: 'kind', type: 'select', label: { cs: 'Druh' }, options: [{ value: 'city', label: { cs: 'Město' } }] } },
+      { op: 'type.add', name: 'custom_branch', label: { cs: 'Pobočky' } },
+      { op: 'field.add', type: 'custom_branch', field: { key: 'kind', type: 'select', label: { cs: 'Druh' }, options: [{ value: 'city', label: { cs: 'Město' } }] } },
     ], ctx())
     const { doc: hidden } = applyModelOps(withBranch, [
-      { op: 'field.remove', type: 'x_course', key: 'price' },
-      { op: 'type.remove', type: 'x_branch' },
+      { op: 'field.remove', type: 'custom_course', key: 'price' },
+      { op: 'type.remove', type: 'custom_branch' },
     ], ctx())
     const due = modelPurgeDue(hidden, later(31))
-    expect(due).toEqual({ types: ['x_branch'], fields: [{ type: 'x_course', key: 'price' }] })
+    expect(due).toEqual({ types: ['custom_branch'], fields: [{ type: 'custom_course', key: 'price' }] })
     const { doc: purged } = applyModelOps(hidden, [{ op: 'purge', ...due }], ctx({ now: later(31), internal: true }))
 
     const refused = plan(shapeOf(hidden), shapeOf(purged))
     expect(refused.statements).toEqual([])
     expect(refused.refused).toHaveLength(3)
 
-    const allowed = plan(shapeOf(hidden), shapeOf(purged), { drop: { columns: ['x_course.price'], tables: ['x_branch'], types: ['x_branch_kind'] } })
+    const allowed = plan(shapeOf(hidden), shapeOf(purged), { drop: { columns: ['custom_course.price'], tables: ['custom_branch'], types: ['custom_branch_kind'] } })
     expect(allowed).toEqual({
-      statements: ['ALTER TABLE "x_course" DROP COLUMN "price"', 'DROP TABLE "x_branch"', 'DROP TYPE "x_branch_kind"'],
+      statements: ['ALTER TABLE "custom_course" DROP COLUMN "price"', 'DROP TABLE "custom_branch"', 'DROP TYPE "custom_branch_kind"'],
       refused: [],
     })
   })
@@ -577,49 +617,49 @@ describe('assertAllowedStatement', () => {
 
   it('accepts the shapes on the list, with a final semicolon and loose spacing', () => {
     for (const s of [
-      'CREATE TYPE "x_a" AS ENUM(\'a\', \'it\'\'s\')',
-      'ALTER TYPE "x_a" ADD VALUE \'b\';',
-      'CREATE TABLE "x_a" ("id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL, "p" numeric(12, 2), "t" timestamp (3) with time zone DEFAULT now() NOT NULL, "j" jsonb DEFAULT \'[]\'::jsonb NOT NULL, "k" "x_a_kind" DEFAULT \'a\', CONSTRAINT "u" UNIQUE("p"))',
-      'ALTER   TABLE "x_a"\n ADD COLUMN "n" integer DEFAULT -3',
-      'ALTER TABLE "x_a" ADD CONSTRAINT "fk" FOREIGN KEY ("a") REFERENCES "cms_media"("id") ON DELETE no action ON UPDATE no action',
-      'CREATE UNIQUE INDEX "i" ON "x_a" USING btree ("a", "b")',
-      'ALTER TABLE "x_a" ALTER COLUMN "n" SET DEFAULT true',
-      'ALTER TABLE "x_a" DROP COLUMN "n"',
-      'DROP TABLE "x_a"',
-      'DROP TYPE "x_a"',
+      'CREATE TYPE "custom_a" AS ENUM(\'a\', \'it\'\'s\')',
+      'ALTER TYPE "custom_a" ADD VALUE \'b\';',
+      'CREATE TABLE "custom_a" ("id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL, "p" numeric(12, 2), "t" timestamp (3) with time zone DEFAULT now() NOT NULL, "j" jsonb DEFAULT \'[]\'::jsonb NOT NULL, "k" "custom_a_kind" DEFAULT \'a\', CONSTRAINT "u" UNIQUE("p"))',
+      'ALTER   TABLE "custom_a"\n ADD COLUMN "n" integer DEFAULT -3',
+      'ALTER TABLE "custom_a" ADD CONSTRAINT "fk" FOREIGN KEY ("a") REFERENCES "cms_media"("id") ON DELETE no action ON UPDATE no action',
+      'CREATE UNIQUE INDEX "i" ON "custom_a" USING btree ("a", "b")',
+      'ALTER TABLE "custom_a" ALTER COLUMN "n" SET DEFAULT true',
+      'ALTER TABLE "custom_a" DROP COLUMN "n"',
+      'DROP TABLE "custom_a"',
+      'DROP TYPE "custom_a"',
     ]) expect(() => assertAllowedStatement(s), s).not.toThrow()
   })
 
   it('refuses hostile statements', () => {
     for (const s of [
-      'CREATE TABLE "x_a" ("id" uuid); DROP TABLE "cms_users"',
+      'CREATE TABLE "custom_a" ("id" uuid); DROP TABLE "cms_users"',
       'DROP TABLE "cms_users"',
-      'DROP TABLE "x_a" CASCADE',
-      'ALTER TABLE "x_a" RENAME TO "x_b"',
-      'ALTER TABLE "x_a" OWNER TO "postgres"',
-      'GRANT ALL ON "x_a" TO PUBLIC',
-      'CREATE EXTENSION "x_ext"',
-      `COPY "x_a" FROM '/etc/passwd'`,
-      'DROP TABLE "x_a" -- x',
-      'DROP TABLE "x_a" /* x */',
-      'DROP TABLE "x_a"; DROP TABLE "cms_users"--"',
-      `ALTER TABLE "x_a" ADD COLUMN "b" text DEFAULT ''); DROP TABLE cms_users; --'`,
-      'ALTER TABLE "cms_users" ADD CONSTRAINT "fk" FOREIGN KEY ("a") REFERENCES "x_a"("id") ON DELETE cascade ON UPDATE no action',
-      'ALTER TABLE "x_a" ADD COLUMN "b" text[]',
-      'ALTER TABLE "x_a" ADD COLUMN "b" text DEFAULT pg_sleep(10)',
-      `ALTER TABLE "x_a" ADD COLUMN "b" text DEFAULT 'a' || 'b'`,
-      `DROP TABLE "x_${'a'.repeat(62)}"`,
-      'DROP TABLE "x_a',
+      'DROP TABLE "custom_a" CASCADE',
+      'ALTER TABLE "custom_a" RENAME TO "custom_b"',
+      'ALTER TABLE "custom_a" OWNER TO "postgres"',
+      'GRANT ALL ON "custom_a" TO PUBLIC',
+      'CREATE EXTENSION "custom_ext"',
+      `COPY "custom_a" FROM '/etc/passwd'`,
+      'DROP TABLE "custom_a" -- x',
+      'DROP TABLE "custom_a" /* x */',
+      'DROP TABLE "custom_a"; DROP TABLE "cms_users"--"',
+      `ALTER TABLE "custom_a" ADD COLUMN "b" text DEFAULT ''); DROP TABLE cms_users; --'`,
+      'ALTER TABLE "cms_users" ADD CONSTRAINT "fk" FOREIGN KEY ("a") REFERENCES "custom_a"("id") ON DELETE cascade ON UPDATE no action',
+      'ALTER TABLE "custom_a" ADD COLUMN "b" text[]',
+      'ALTER TABLE "custom_a" ADD COLUMN "b" text DEFAULT pg_sleep(10)',
+      `ALTER TABLE "custom_a" ADD COLUMN "b" text DEFAULT 'a' || 'b'`,
+      `DROP TABLE "custom_${'a'.repeat(57)}"`,
+      'DROP TABLE "custom_a',
       'DROP TYPE "cms_role"',
       'ALTER TYPE "role" ADD VALUE \'x\'',
       'CREATE INDEX "i" ON "cms_users" USING btree ("a")',
-      'CREATE TABLE "x_a" ("id" uuid) INHERITS ("cms_users")',
-      'drop table "x_a"',
+      'CREATE TABLE "custom_a" ("id" uuid) INHERITS ("cms_users")',
+      'drop table "custom_a"',
     ]) expect(() => assertAllowedStatement(s), s).toThrow(/not allowed/)
   })
 
   it('accepts a semicolon inside a literal or a name', () => {
-    expect(() => assertAllowedStatement(`ALTER TYPE "x_a;b" ADD VALUE 'a;--b'`)).not.toThrow()
+    expect(() => assertAllowedStatement(`ALTER TYPE "custom_a;b" ADD VALUE 'a;--b'`)).not.toThrow()
   })
 
   it('names the statement in the message, cut to 200 characters', () => {

@@ -653,17 +653,17 @@ async function customTypes({ one, wed, row1, rowW, rowB, admin1, adminW, home, p
     return admin.post('/api/cms/_model', { baseVersion: m?.version, ops })
   }
   const made = await change(admin1, [
-    { op: 'type.add', name: 'x_course', label: label('Courses', 'Kurzy'), labelSingular: label('Course', 'Kurz'), page: { prefix: 'kurzy' }, publish: true },
-    { op: 'field.add', type: 'x_course', field: { key: 'perex', type: 'text', long: true, label: label('Summary', 'Krátký popis') } },
-    { op: 'field.add', type: 'x_course', field: { key: 'startsAt', type: 'datetime', label: label('Starts', 'Začátek') } },
-    { op: 'field.add', type: 'x_course', field: { key: 'place', type: 'text', label: label('Place', 'Místo') } },
+    { op: 'type.add', name: 'custom_course', label: label('Courses', 'Kurzy'), labelSingular: label('Course', 'Kurz'), page: { prefix: 'kurzy' }, publish: true },
+    { op: 'field.add', type: 'custom_course', field: { key: 'perex', type: 'text', long: true, label: label('Summary', 'Krátký popis') } },
+    { op: 'field.add', type: 'custom_course', field: { key: 'startsAt', type: 'datetime', label: label('Starts', 'Začátek') } },
+    { op: 'field.add', type: 'custom_course', field: { key: 'place', type: 'text', label: label('Place', 'Místo') } },
   ])
   check('the owner makes a type with a page and three fields through the admin API', made.status === 200, `${made.status} ${made.text.slice(0, 300)}`)
   const titles = [`Kurz světla ${stamp}`, `Kurz portrétu ${stamp}`]
   const slugs = [`kurz-svetla-${stamp}`, `kurz-portretu-${stamp}`]
   const entries = []
   for (const [i, title] of titles.entries()) {
-    const res = await admin1.post('/api/cms/x_course', { title, slug: slugs[i], perex: `Krátce o kurzu ${i + 1}.`, startsAt: `2027-0${i + 3}-01T09:00:00.000Z`, place: 'Praha', status: 'published' })
+    const res = await admin1.post('/api/cms/custom_course', { title, slug: slugs[i], perex: `Krátce o kurzu ${i + 1}.`, startsAt: `2027-0${i + 3}-01T09:00:00.000Z`, place: 'Praha', status: 'published' })
     entries.push(res)
   }
   check('two published entries are added', entries.every((r, i) => r.status === 201 && r.body?.row?.slug === slugs[i]), entries.map((r) => `${r.status} ${JSON.stringify(r.body?.data ?? r.body).slice(0, 300)}`).join(' | '))
@@ -671,7 +671,7 @@ async function customTypes({ one, wed, row1, rowW, rowB, admin1, adminW, home, p
   // The Entries block on the home page, after what is there.
   const homeEntry = (await anon(one).get('/api/content/page/home')).body?.item
   const homeRow = (await admin1.get(`/api/cms/page/${homeEntry?.id}`)).body?.row
-  const block = { id: `x-courses-${stamp}`, type: 'x_entries', heading: 'Kurzy', text: '', layout: 'cards', source: { type: 'x_course', show: { text: 'perex', date: 'startsAt' }, order: { by: 'startsAt', dir: 'asc' }, limit: 6 } }
+  const block = { id: `custom-courses-${stamp}`, type: 'custom_entries', heading: 'Kurzy', text: '', layout: 'cards', source: { type: 'custom_course', show: { text: 'perex', date: 'startsAt' }, order: { by: 'startsAt', dir: 'asc' }, limit: 6 } }
   const put = await admin1.request('PATCH', `/api/cms/page/${homeRow?.id}`, { json: { sections: [...(homeRow?.sections ?? []), block] } })
   check('an Entries block of the type is put on the home page', put.status === 200 && Array.isArray(homeRow?.sections), `${put.status} ${put.text.slice(0, 300)}`)
 
@@ -683,10 +683,10 @@ async function customTypes({ one, wed, row1, rowW, rowB, admin1, adminW, home, p
   const sitemap = await page(one.publicUrl, '/sitemap.xml')
   check('the sitemap lists that address', sitemap.status === 200 && sitemap.text.includes(`/kurzy/${slugs[0]}</loc>`) && sitemap.text.includes(`/kurzy/${slugs[1]}</loc>`), `${sitemap.status} ${sitemap.text.slice(0, 200)}`)
   const tables1 = await query(row1.databaseUrl, `select tablename as name from pg_tables where schemaname = 'public' and (tablename = 'cms_model' or tablename like 'x\\_%') order by 1`)
-  check('the Photographer site\'s own database holds the type\'s table and its model', JSON.stringify(tables1.map((t) => t.name)) === '["cms_model","x_course"]', JSON.stringify(tables1))
+  check('the Photographer site\'s own database holds the type\'s table and its model', JSON.stringify(tables1.map((t) => t.name)) === '["cms_model","custom_course"]', JSON.stringify(tables1))
 
   // The Wedding site: the same process, nothing of it.
-  const weddingRoutes = [(await adminW.get('/api/cms/x_course')).status, (await anon(wed).get('/api/content/x_course')).status, (await anon(wed).get(`/api/content/x_course/${slugs[0]}`)).status, (await adminW.post('/api/cms/x_course', { title: 'x' })).status]
+  const weddingRoutes = [(await adminW.get('/api/cms/custom_course')).status, (await anon(wed).get('/api/content/custom_course')).status, (await anon(wed).get(`/api/content/custom_course/${slugs[0]}`)).status, (await adminW.post('/api/cms/custom_course', { title: 'x' })).status]
   check('on the Wedding site the type\'s admin and content routes answer 404', weddingRoutes.every((s) => s === 404), weddingRoutes.join(' '))
   const typesW = await anon(wed).get('/api/content/_types')
   check('its list of the site\'s own types is empty', typesW.status === 200 && JSON.stringify(typesW.body) === '{"types":[]}', `${typesW.status} ${typesW.text.slice(0, 200)}`)
@@ -695,14 +695,14 @@ async function customTypes({ one, wed, row1, rowW, rowB, admin1, adminW, home, p
   const pageW = await page(wed.publicUrl, `/kurzy/${slugs[0]}`)
   check('and the entry\'s address is not a page there', pageW.status === 404 && !pageW.text.includes(titles[0]), `${pageW.status}`)
   const tablesW = await query(rowW.databaseUrl, `select tablename as name from pg_tables where schemaname = 'public' and (tablename = 'cms_model' or tablename like 'x\\_%')`)
-  check('its database has no cms_model table and no x_ table', tablesW.length === 0, JSON.stringify(tablesW))
+  check('its database has no cms_model table and no custom_ table', tablesW.length === 0, JSON.stringify(tablesW))
 
   // The guard: a field the block shows cannot go while the block shows it.
-  const refused = await change(admin1, [{ op: 'field.remove', type: 'x_course', key: 'perex' }])
+  const refused = await change(admin1, [{ op: 'field.remove', type: 'custom_course', key: 'perex' }])
   const places = refused.body?.data?.places ?? []
   check('removing a field the block shows is refused (409), with the home page named', refused.status === 409 && refused.body?.data?.code === 'in-use' && places.length === 1 && places[0].entity === 'page' && places[0].id === homeRow.id && places[0].title === homeRow.title && places[0].block?.id === block.id, `${refused.status} ${refused.text.slice(0, 300)}`)
   const still = (await admin1.get('/api/cms/_model')).body
-  check('and the field is still there', JSON.stringify(still?.doc?.types?.find((t) => t.name === 'x_course')?.fields?.map((x) => [x.key, x.removedAt ?? null])).includes('["perex",null]'), JSON.stringify(still?.doc?.types?.[0]?.fields))
+  check('and the field is still there', JSON.stringify(still?.doc?.types?.find((t) => t.name === 'custom_course')?.fields?.map((x) => [x.key, x.removedAt ?? null])).includes('["perex",null]'), JSON.stringify(still?.doc?.types?.[0]?.fields))
 }
 
 let failed = null

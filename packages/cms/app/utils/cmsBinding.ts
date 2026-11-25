@@ -40,7 +40,7 @@ export interface CmsBindingMissing {
 const MAPPED = new Set(['slug', 'status', 'position'])
 const isObject = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
 
-/** The site's own types (names start with `x_`) from the admin graph. */
+/** The site's own types (names start with `custom_`) from the admin graph. */
 export function cmsBindingTypes(graph: readonly any[] | null | undefined): CmsBindingType[] {
   return (Array.isArray(graph) ? graph : [])
     .filter((e) => typeof e?.name === 'string' && e.name.startsWith(CUSTOM_PREFIX))

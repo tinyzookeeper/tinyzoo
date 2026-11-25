@@ -16,7 +16,7 @@ const label = (cs: string, en = cs) => ({ cs, en })
 const field = (key: string, type: string, extra: Partial<CustomTypeField> = {}): CustomTypeField => ({ key, type, label: label(key), ...extra })
 
 const course: CustomType = {
-  name: 'x_course',
+  name: 'custom_course',
   label: label('Kurzy', 'Courses'),
   labelSingular: label('Kurz', 'Course'),
   titleField: 'name',
@@ -31,7 +31,7 @@ const course: CustomType = {
     field('startsAt', 'datetime', { label: label('Začátek', 'Starts') }),
     field('price', 'number', { label: label('Cena', 'Price') }),
     field('level', 'select', { label: label('Úroveň', 'Level'), options: [{ value: 'easy', label: label('Lehký', 'Easy') }, { value: 'hard', label: label('Těžký') }] }),
-    field('teacher', 'relation', { label: label('Lektor', 'Teacher'), to: 'x_teacher' }),
+    field('teacher', 'relation', { label: label('Lektor', 'Teacher'), to: 'custom_teacher' }),
     field('full', 'boolean', { label: label('Obsazeno', 'Full') }),
     field('room', 'text', { label: label('Místnost', 'Room') }),
     field('about', 'text', { label: label('O kurzu', 'About'), long: true }),
@@ -42,10 +42,10 @@ const course: CustomType = {
   ],
 }
 const teacher: CustomType = {
-  ...course, name: 'x_teacher', titleField: 'fullName', prefix: null, path: null, order: 'manual', page: null,
+  ...course, name: 'custom_teacher', titleField: 'fullName', prefix: null, path: null, order: 'manual', page: null,
   fields: [field('fullName', 'text'), field('title', 'text')],
 }
-const plain: CustomType = { ...course, name: 'x_note', order: null, prefix: null, path: null, page: null, fields: [field('name', 'text'), field('createdOn', 'datetime')] }
+const plain: CustomType = { ...course, name: 'custom_note', order: null, prefix: null, path: null, page: null, fields: [field('name', 'text'), field('createdOn', 'datetime')] }
 const types = [course, teacher, plain]
 const opts = { lang: 'cs', types }
 
@@ -111,7 +111,7 @@ describe('the text of a field of a custom type', () => {
 
 describe('which request a block leads to', () => {
   const block = (source: unknown, extra: Record<string, unknown> = {}) => ({ heading: 'Kurzy', text: '', source, layout: null, ...extra })
-  const binding = (extra: Record<string, unknown> = {}) => ({ type: 'x_course', show: {}, order: null, limit: null, entries: [], ...extra })
+  const binding = (extra: Record<string, unknown> = {}) => ({ type: 'custom_course', show: {}, order: null, limit: null, entries: [], ...extra })
   const request = (b: unknown, kind: 'entries' | 'chosen' = 'entries') => {
     const plan = customBlockPlan(b, types, kind)
     if (!plan.ok) throw new Error(plan.reason)
@@ -120,17 +120,17 @@ describe('which request a block leads to', () => {
 
   it('is a list with the binding\'s order and limit', () => {
     expect(request(block(binding({ order: { by: 'startsAt', dir: 'asc' }, limit: 3 })))).toEqual({
-      kind: 'list', path: '/api/content/x_course', query: { limit: 3, sort: 'startsAt', dir: 'asc' },
+      kind: 'list', path: '/api/content/custom_course', query: { limit: 3, sort: 'startsAt', dir: 'asc' },
     })
   })
 
   it('takes the type\'s own order when the binding has none', () => {
-    expect(request(block(binding()))).toEqual({ kind: 'list', path: '/api/content/x_course', query: { limit: 6, sort: 'startsAt', dir: 'desc' } })
+    expect(request(block(binding()))).toEqual({ kind: 'list', path: '/api/content/custom_course', query: { limit: 6, sort: 'startsAt', dir: 'desc' } })
   })
 
   it('asks for no sort when the type is arranged by hand, or has no order', () => {
-    expect(request(block(binding({ type: 'x_teacher' })))).toEqual({ kind: 'list', path: '/api/content/x_teacher', query: { limit: 6 } })
-    expect(request(block(binding({ type: 'x_note' })))).toEqual({ kind: 'list', path: '/api/content/x_note', query: { limit: 6 } })
+    expect(request(block(binding({ type: 'custom_teacher' })))).toEqual({ kind: 'list', path: '/api/content/custom_teacher', query: { limit: 6 } })
+    expect(request(block(binding({ type: 'custom_note' })))).toEqual({ kind: 'list', path: '/api/content/custom_note', query: { limit: 6 } })
   })
 
   it('falls back to the type\'s order when the binding orders by a field the type no longer has', () => {
@@ -157,12 +157,12 @@ describe('which request a block leads to', () => {
 
   it('asks for chosen entries one by one, in the picked order, each once and at most 12', () => {
     expect(request(block(binding({ entries: ['b', 'a', 'b', 'c'] })), 'chosen')).toEqual({
-      kind: 'chosen', paths: ['/api/content/x_course/b', '/api/content/x_course/a', '/api/content/x_course/c'],
+      kind: 'chosen', paths: ['/api/content/custom_course/b', '/api/content/custom_course/a', '/api/content/custom_course/c'],
     })
     const many = Array.from({ length: 20 }, (_, i) => `e${i}`)
     const req = request(block(binding({ entries: many })), 'chosen')
     expect(req.kind === 'chosen' && req.paths).toHaveLength(12)
-    expect(req.kind === 'chosen' && req.paths[11]).toBe('/api/content/x_course/e11')
+    expect(req.kind === 'chosen' && req.paths[11]).toBe('/api/content/custom_course/e11')
   })
 
   it('keeps the heading and the short text', () => {
@@ -187,14 +187,14 @@ describe('a block that has nothing to draw', () => {
   })
 
   it('says so when the site does not have the type', () => {
-    expect(reason({ source: { type: 'x_gone' } })).toContain('x_gone')
-    expect(reason({ source: { type: 'x_course' } }, 'entries', [])).toContain('x_course')
-    expect(reason({ source: { type: 'x_course' } }, 'entries', null)).toContain('x_course')
+    expect(reason({ source: { type: 'custom_gone' } })).toContain('custom_gone')
+    expect(reason({ source: { type: 'custom_course' } }, 'entries', [])).toContain('custom_course')
+    expect(reason({ source: { type: 'custom_course' } }, 'entries', null)).toContain('custom_course')
   })
 
   it('says so when no entries are chosen', () => {
-    expect(reason({ source: { type: 'x_course', entries: [] } }, 'chosen')).toMatch(/no entries/)
-    expect(reason({ source: { type: 'x_course' } }, 'chosen')).toMatch(/no entries/)
+    expect(reason({ source: { type: 'custom_course', entries: [] } }, 'chosen')).toMatch(/no entries/)
+    expect(reason({ source: { type: 'custom_course' } }, 'chosen')).toMatch(/no entries/)
   })
 
   it('leaves a place empty when it names a field the type no longer has, and drops a "more" the type lacks', () => {
@@ -212,7 +212,7 @@ describe('a block that has nothing to draw', () => {
 
 describe('the cards of a block', () => {
   const plan = (show: Record<string, unknown>) => {
-    const p = customBlockPlan({ source: { type: 'x_course', show } }, types, 'entries')
+    const p = customBlockPlan({ source: { type: 'custom_course', show } }, types, 'entries')
     if (!p.ok) throw new Error(p.reason)
     return p
   }
@@ -269,10 +269,10 @@ describe('the address of an entry', () => {
 })
 
 describe('the page an address leads to', () => {
-  const pages: CustomPage[] = [{ prefix: 'kurzy', type: 'x_course' }, { prefix: 'alba', type: 'x_album' }]
+  const pages: CustomPage[] = [{ prefix: 'kurzy', type: 'custom_course' }, { prefix: 'alba', type: 'custom_album' }]
 
   it('is the site\'s page when the address has two parts and the first is a custom prefix', () => {
-    expect(customPageFor(['kurzy', 'joga'], pages, ['album'])).toEqual({ prefix: 'kurzy', type: 'x_course' })
+    expect(customPageFor(['kurzy', 'joga'], pages, ['album'])).toEqual({ prefix: 'kurzy', type: 'custom_course' })
   })
 
   it('is nothing for one part or three parts', () => {
@@ -347,16 +347,16 @@ describe('the page of one entry', () => {
 
 describe('the module\'s check of a design\'s content model', () => {
   it('gives one message naming the design and the type for a type that starts with the prefix', () => {
-    const problems = customPrefixProblems('photographer', ['album', 'x_course'], 'x_')
+    const problems = customPrefixProblems('photographer', ['album', 'custom_course'], 'custom_')
     expect(problems).toHaveLength(1)
     expect(problems[0]).toContain('photographer')
-    expect(problems[0]).toContain('x_course')
+    expect(problems[0]).toContain('custom_course')
     expect(problems[0]).not.toContain('"album"')
   })
 
   it('gives none for clean names', () => {
-    expect(customPrefixProblems('photographer', ['album', 'page', 'siteSettings'], 'x_')).toEqual([])
-    expect(customPrefixProblems('photographer', [], 'x_')).toEqual([])
+    expect(customPrefixProblems('photographer', ['album', 'page', 'siteSettings'], 'custom_')).toEqual([])
+    expect(customPrefixProblems('photographer', [], 'custom_')).toEqual([])
   })
 
   it('reads the names of the types a config exports, and ignores other exports', () => {
@@ -369,7 +369,7 @@ describe('the module\'s check of a design\'s content model', () => {
   })
 
   it('uses the prefix tinyzoo gives to a site\'s own types', () => {
-    expect(CUSTOM_PREFIX).toBe('x_')
+    expect(CUSTOM_PREFIX).toBe('custom_')
   })
 })
 

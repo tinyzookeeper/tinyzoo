@@ -1,4 +1,4 @@
-// GET /api/cms/_model/usage?type=x_course&field=price — where a custom type (or one of its
+// GET /api/cms/_model/usage?type=custom_course&field=price — where a custom type (or one of its
 // fields) is shown or linked to now: what removing it would meet. Administrators only; 404 when
 // the feature is off for the site. With `field`: { places } (the blocks that show it or order by it).
 // Without: { places, fields } (the blocks that show the type and the content that links to it, and

@@ -8,8 +8,8 @@ import { repoRoot } from '../setup/database'
 import { expectNoSiteErrors, siteClient, siteQuery, startTenants, type Tenants, type TenantSite, tenantGet, tenantPost, until } from '../helpers/tenants'
 
 // Two sites of the same model in one process, each with content types of its own
-// (docs/custom-types-plan.md): site A makes `x_course` (a page, publishing, a choice, a picture,
-// a relation to the author, a required text) and site B makes `x_recipe`. The structure is
+// (docs/custom-types-plan.md): site A makes `custom_course` (a page, publishing, a choice, a picture,
+// a relation to the author, a required text) and site B makes `custom_recipe`. The structure is
 // changed through `POST /api/cms/_model`.
 //
 // What is proven: the routes that serve the playground's own types serve a site's own types too;
@@ -123,28 +123,28 @@ describe('the premise', () => {
   // Every later test builds on what this one makes.
   it('each site makes its own types through the structure function, and its first entries through the admin routes', async () => {
     // A: a type with a page and publishing, then its fields (the required text while the type is empty).
-    await mustChange(adminA, [{ op: 'type.add', name: 'x_course', label: text('Courses'), labelSingular: text('Course'), page: { prefix: 'kurzy' }, publish: true }])
+    await mustChange(adminA, [{ op: 'type.add', name: 'custom_course', label: text('Courses'), labelSingular: text('Course'), page: { prefix: 'kurzy' }, publish: true }])
     await mustChange(adminA, [
-      { op: 'field.add', type: 'x_course', field: { key: 'level', type: 'select', label: text('Level'), options: [{ value: 'beginner', label: text('Beginner') }, { value: 'advanced', label: text('Advanced') }] } },
-      { op: 'field.add', type: 'x_course', field: { key: 'cover', type: 'media', label: text('Cover') } },
-      { op: 'field.add', type: 'x_course', field: { key: 'author', type: 'relation', to: 'author', label: text('Author') } },
-      { op: 'field.add', type: 'x_course', field: { key: 'teacher', type: 'text', required: true, label: text('Teacher') } },
+      { op: 'field.add', type: 'custom_course', field: { key: 'level', type: 'select', label: text('Level'), options: [{ value: 'beginner', label: text('Beginner') }, { value: 'advanced', label: text('Advanced') }] } },
+      { op: 'field.add', type: 'custom_course', field: { key: 'cover', type: 'media', label: text('Cover') } },
+      { op: 'field.add', type: 'custom_course', field: { key: 'author', type: 'relation', to: 'author', label: text('Author') } },
+      { op: 'field.add', type: 'custom_course', field: { key: 'teacher', type: 'text', required: true, label: text('Teacher') } },
     ])
-    // A second type of A's (for the tests that change the structure while x_course is in use).
-    await mustChange(adminA, [{ op: 'type.add', name: 'x_event', label: text('Events'), labelSingular: text('Event'), page: { prefix: 'akce' }, publish: true }])
+    // A second type of A's (for the tests that change the structure while custom_course is in use).
+    await mustChange(adminA, [{ op: 'type.add', name: 'custom_event', label: text('Events'), labelSingular: text('Event'), page: { prefix: 'akce' }, publish: true }])
     // B: its own type.
-    await mustChange(adminB, [{ op: 'type.add', name: 'x_recipe', label: text('Recipes'), labelSingular: text('Recipe'), page: { prefix: 'recepty' }, publish: true }])
-    await mustChange(adminB, [{ op: 'field.add', type: 'x_recipe', field: { key: 'minutes', type: 'number', label: text('Minutes') } }])
+    await mustChange(adminB, [{ op: 'type.add', name: 'custom_recipe', label: text('Recipes'), labelSingular: text('Recipe'), page: { prefix: 'recepty' }, publish: true }])
+    await mustChange(adminB, [{ op: 'field.add', type: 'custom_recipe', field: { key: 'minutes', type: 'number', label: text('Minutes') } }])
 
     // Content of each site's own, made before anything asks for the sitemap (it is cached for a while).
     authorA = (await createAuthor(adminA, { name: 'Autor kurzu' })).id
-    const made = await adminA.post('/api/cms/x_course', { title: `Kurz ${WORD.a}`, slug: 'python', teacher: 'Ada', level: 'beginner', author: authorA, status: 'published' })
+    const made = await adminA.post('/api/cms/custom_course', { title: `Kurz ${WORD.a}`, slug: 'python', teacher: 'Ada', level: 'beginner', author: authorA, status: 'published' })
     if (made.status !== 201) throw new Error(`course on A: ${made.status} ${JSON.stringify(made.body)}`)
     course = { id: made.body.row.id, slug: made.body.row.slug }
-    const draft = await adminA.post('/api/cms/x_course', { title: `Koncept ${WORD.a}`, slug: 'koncept', teacher: 'Bob', status: 'draft' })
+    const draft = await adminA.post('/api/cms/custom_course', { title: `Koncept ${WORD.a}`, slug: 'koncept', teacher: 'Bob', status: 'draft' })
     if (draft.status !== 201) throw new Error(`draft on A: ${draft.status} ${JSON.stringify(draft.body)}`)
     courseDraft = { id: draft.body.row.id, slug: draft.body.row.slug }
-    const r = await adminB.post('/api/cms/x_recipe', { title: `Polévka ${WORD.b}`, slug: 'polevka', minutes: 20, status: 'published' })
+    const r = await adminB.post('/api/cms/custom_recipe', { title: `Polévka ${WORD.b}`, slug: 'polevka', minutes: 20, status: 'published' })
     if (r.status !== 201) throw new Error(`recipe on B: ${r.status} ${JSON.stringify(r.body)}`)
     recipe = { id: r.body.row.id, slug: r.body.row.slug }
   }, 60_000)
@@ -153,13 +153,13 @@ describe('the premise', () => {
     expect(bHadModelTable).toBe(false)
     const a = await model(adminA)
     const b = await model(adminB)
-    expect(a.doc.types.map((x: any) => x.name)).toEqual(['x_course', 'x_event'])
-    expect(b.doc.types.map((x: any) => x.name)).toEqual(['x_recipe'])
+    expect(a.doc.types.map((x: any) => x.name)).toEqual(['custom_course', 'custom_event'])
+    expect(b.doc.types.map((x: any) => x.name)).toEqual(['custom_recipe'])
     expect(a.problems).toEqual([])
     expect(b.limits).toEqual({ types: 12, fields: 30, options: 30 })
     expect(b.used).toEqual({ types: 1 })
-    expect(a.entries).toMatchObject({ x_course: 2, x_event: 0 })
-    expect(b.entries).toEqual({ x_recipe: 1 })
+    expect(a.entries).toMatchObject({ custom_course: 2, custom_event: 0 })
+    expect(b.entries).toEqual({ custom_recipe: 1 })
     // The design's own types are listed for the editor to read.
     expect(a.design.map((d: any) => d.name)).toEqual(expect.arrayContaining(['author', 'post', 'page']))
   })
@@ -210,62 +210,62 @@ describe('the menu', () => {
 describe('the routes of the playground serve a site\'s own type', () => {
   it('makes, checks, publishes and reads an entry of a custom type', async () => {
     // A bad entry: the required field is missing, a choice that does not exist, no title.
-    expect((await adminA.post('/api/cms/x_course', { title: 'Bez učitele', slug: 'bez-ucitele' })).status).toBe(422)
-    expect((await adminA.post('/api/cms/x_course', { title: 'Zlá volba', slug: 'zla-volba', teacher: 'Eva', level: 'expert' })).status).toBe(422)
-    expect((await adminA.post('/api/cms/x_course', { slug: 'bez-nazvu', teacher: 'Eva' })).status).toBe(422)
-    expect((await siteQuery(t.a, `select slug from x_course order by slug`)).map((r) => r.slug)).toEqual(['koncept', 'python'])
+    expect((await adminA.post('/api/cms/custom_course', { title: 'Bez učitele', slug: 'bez-ucitele' })).status).toBe(422)
+    expect((await adminA.post('/api/cms/custom_course', { title: 'Zlá volba', slug: 'zla-volba', teacher: 'Eva', level: 'expert' })).status).toBe(422)
+    expect((await adminA.post('/api/cms/custom_course', { slug: 'bez-nazvu', teacher: 'Eva' })).status).toBe(422)
+    expect((await siteQuery(t.a, `select slug from custom_course order by slug`)).map((r) => r.slug)).toEqual(['koncept', 'python'])
 
     // A draft is made, read by the admin, not served; publishing serves it.
-    const made = await adminA.post('/api/cms/x_course', { title: 'JavaScript', slug: 'javascript', teacher: 'Jan', level: 'advanced', author: authorA, status: 'draft' })
+    const made = await adminA.post('/api/cms/custom_course', { title: 'JavaScript', slug: 'javascript', teacher: 'Jan', level: 'advanced', author: authorA, status: 'draft' })
     expect(made.status, JSON.stringify(made.body)).toBe(201)
     const id = made.body.row.id
     expect(made.body.row).toMatchObject({ title: 'JavaScript', teacher: 'Jan', level: 'advanced', status: 'draft' })
-    expect((await adminA.get(`/api/cms/x_course/${id}`)).body.row.teacher).toBe('Jan')
-    expect((await get(t.a, '/api/content/x_course/javascript')).status).toBe(404)
-    expect((await get(t.a, '/api/content/x_course')).body.items.map((i: any) => i.slug)).toEqual(['python'])
+    expect((await adminA.get(`/api/cms/custom_course/${id}`)).body.row.teacher).toBe('Jan')
+    expect((await get(t.a, '/api/content/custom_course/javascript')).status).toBe(404)
+    expect((await get(t.a, '/api/content/custom_course')).body.items.map((i: any) => i.slug)).toEqual(['python'])
 
-    const published = await adminA.patch(`/api/cms/x_course/${id}`, { status: 'published' })
+    const published = await adminA.patch(`/api/cms/custom_course/${id}`, { status: 'published' })
     expect(published.status, JSON.stringify(published.body)).toBe(200)
-    const list = await get(t.a, '/api/content/x_course')
+    const list = await get(t.a, '/api/content/custom_course')
     expect(list.status).toBe(200)
     expect(list.body.items.map((i: any) => i.slug).sort()).toEqual(['javascript', 'python'])
-    const one = await get(t.a, '/api/content/x_course/python')
+    const one = await get(t.a, '/api/content/custom_course/python')
     expect(one.status).toBe(200)
     expect(one.body.item).toMatchObject({ title: `Kurz ${WORD.a}`, teacher: 'Ada', level: 'beginner' })
-    expect((await get(t.a, '/api/content/x_course/koncept')).status).toBe(404)
-    expect((await get(t.a, `/api/content/x_course/${UUID_NOWHERE}`)).status).toBe(404)
+    expect((await get(t.a, '/api/content/custom_course/koncept')).status).toBe(404)
+    expect((await get(t.a, `/api/content/custom_course/${UUID_NOWHERE}`)).status).toBe(404)
 
     // An update and a delete on the admin routes.
-    expect((await adminA.patch(`/api/cms/x_course/${id}`, { teacher: 'Jana' })).body.row.teacher).toBe('Jana')
-    expect((await adminA.patch(`/api/cms/x_course/${id}`, { teacher: '' })).status).toBe(422)
-    expect((await adminA.delete(`/api/cms/x_course/${id}`)).status).toBe(200)
-    expect((await get(t.a, '/api/content/x_course/javascript')).status).toBe(404)
+    expect((await adminA.patch(`/api/cms/custom_course/${id}`, { teacher: 'Jana' })).body.row.teacher).toBe('Jana')
+    expect((await adminA.patch(`/api/cms/custom_course/${id}`, { teacher: '' })).status).toBe(422)
+    expect((await adminA.delete(`/api/cms/custom_course/${id}`)).status).toBe(200)
+    expect((await get(t.a, '/api/content/custom_course/javascript')).status).toBe(404)
   })
 
   it('lists the type in the admin graph, the generated types and the API description', async () => {
-    const e = await graphEntity(adminA, 'x_course')
+    const e = await graphEntity(adminA, 'custom_course')
     expect(e).toBeTruthy()
     expect((e.fields as any[]).map((f) => f.key)).toEqual(expect.arrayContaining(['title', 'slug', 'status', 'level', 'cover', 'author', 'teacher']))
     expect((e.fields as any[]).find((f) => f.key === 'teacher').required).toBe(true)
-    expect(await fieldKeys(adminA, 'x_event')).toEqual(expect.arrayContaining(['title', 'slug', 'status']))
+    expect(await fieldKeys(adminA, 'custom_event')).toEqual(expect.arrayContaining(['title', 'slug', 'status']))
 
     const types = await get(t.a, '/api/content-types.ts')
     expect(types.status).toBe(200)
-    expect(types.text).toMatch(/\bXCourse\b/)
-    expect(types.text).toMatch(/\bXEvent\b/)
-    expect(/export interface XCourse \{[^]*?\n\}/.exec(types.text)?.[0]).toContain('teacher')
+    expect(types.text).toMatch(/\bCustomCourse\b/)
+    expect(types.text).toMatch(/\bCustomEvent\b/)
+    expect(/export interface CustomCourse \{[^]*?\n\}/.exec(types.text)?.[0]).toContain('teacher')
 
     const api = (await get(t.a, '/api/openapi.json')).body
-    expect(Object.keys(api.paths)).toEqual(expect.arrayContaining(['/api/content/x_course', '/api/content/x_course/{slug}']))
-    expect(Object.keys(api.components.schemas).some((s) => s.startsWith('XCourse'))).toBe(true)
+    expect(Object.keys(api.paths)).toEqual(expect.arrayContaining(['/api/content/custom_course', '/api/content/custom_course/{slug}']))
+    expect(Object.keys(api.components.schemas).some((s) => s.startsWith('CustomCourse'))).toBe(true)
   })
 
   it('finds an entry in the site search, the admin search and the sitemap', async () => {
-    const found = await until('the site search to find the course', async () => (await get(t.a, `/api/content/_search?q=${WORD.a}`)).body?.items ?? [], (items: any[]) => items.some((i) => i.entity === 'x_course'), 10_000)
-    expect(found.filter((i: any) => i.entity === 'x_course').map((i: any) => i.path)).toEqual(['/kurzy/python'])
-    const admin = await until('the admin search to find the course', async () => (await adminA.get(`/api/cms/_search?q=${WORD.a}`)).body?.items ?? [], (items: any[]) => items.some((i) => i.entity === 'x_course'), 10_000)
+    const found = await until('the site search to find the course', async () => (await get(t.a, `/api/content/_search?q=${WORD.a}`)).body?.items ?? [], (items: any[]) => items.some((i) => i.entity === 'custom_course'), 10_000)
+    expect(found.filter((i: any) => i.entity === 'custom_course').map((i: any) => i.path)).toEqual(['/kurzy/python'])
+    const admin = await until('the admin search to find the course', async () => (await adminA.get(`/api/cms/_search?q=${WORD.a}`)).body?.items ?? [], (items: any[]) => items.some((i) => i.entity === 'custom_course'), 10_000)
     // The admin sees the draft too, the site does not.
-    expect(admin.filter((i: any) => i.entity === 'x_course').map((i: any) => i.id).sort()).toEqual([course.id, courseDraft.id].sort())
+    expect(admin.filter((i: any) => i.entity === 'custom_course').map((i: any) => i.id).sort()).toEqual([course.id, courseDraft.id].sort())
 
     const sitemap = await get(t.a, '/sitemap.xml')
     expect(sitemap.status).toBe(200)
@@ -329,7 +329,7 @@ describe('a type of one site does not exist on the other', () => {
   }
 
   it('finds the routes (the sweep is generated from the files, so it must not quietly find none)', () => {
-    const sources = adminTypeRoutes('x_course').map((r) => `${r.method} ${r.source}`).sort()
+    const sources = adminTypeRoutes('custom_course').map((r) => `${r.method} ${r.source}`).sort()
     expect(sources).toEqual([
       'DELETE [id].delete.ts', 'GET [id].get.ts', 'GET [id]/revisions/[rev].get.ts', 'GET [id]/revisions/index.get.ts', 'GET _export.get.ts',
       'GET _tree.get.ts', 'GET index.get.ts', 'GET options.get.ts', 'PATCH [id].patch.ts', 'POST _move.post.ts', 'POST _order.post.ts', 'POST index.post.ts',
@@ -339,19 +339,19 @@ describe('a type of one site does not exist on the other', () => {
   })
 
   it('A\'s types are 404 on B in every admin and content route, called as B\'s own administrator', async () => {
-    const { failures, calls } = await sweep(t.b, adminB, ['x_course', 'x_event'])
+    const { failures, calls } = await sweep(t.b, adminB, ['custom_course', 'custom_event'])
     expect(failures).toEqual([])
     expect(calls).toBeGreaterThan(30)
   })
 
   it('B\'s type is 404 on A in every admin and content route, called as A\'s own administrator', async () => {
-    const { failures, calls } = await sweep(t.a, adminA, ['x_recipe'])
+    const { failures, calls } = await sweep(t.a, adminA, ['custom_recipe'])
     expect(failures).toEqual([])
     expect(calls).toBeGreaterThan(15)
   })
 
   it('the same routes answer for the types a site has (so the 404 above is the model\'s, not the route\'s)', async () => {
-    for (const [site, admin, own] of [[t.a, adminA, 'x_course'], [t.b, adminB, 'x_recipe']] as const) {
+    for (const [site, admin, own] of [[t.a, adminA, 'custom_course'], [t.b, adminB, 'custom_recipe']] as const) {
       expect((await admin.get(`/api/cms/${own}`)).status, `${site.id} list`).toBe(200)
       expect((await admin.get(`/api/cms/${own}/options`)).status, `${site.id} options`).toBe(200)
       expect((await admin.get(`/api/cms/${own}/${UUID_NOWHERE}`)).status, `${site.id} one`).toBe(404) // an entry that is not there: 404 for another reason
@@ -361,34 +361,34 @@ describe('a type of one site does not exist on the other', () => {
 
   it('B\'s graph, generated types, API description, search and sitemap name nothing of A\'s, and the other way round', async () => {
     const namesOf = (g: any[]) => g.map((e) => e.name as string)
-    expect(namesOf(await graph(adminB))).not.toEqual(expect.arrayContaining(['x_course']))
-    expect(namesOf(await graph(adminB)).filter((n) => n.startsWith('x_'))).toEqual(['x_recipe'])
-    expect(namesOf(await graph(adminA)).filter((n) => n.startsWith('x_')).sort()).toEqual(['x_course', 'x_event'])
+    expect(namesOf(await graph(adminB))).not.toEqual(expect.arrayContaining(['custom_course']))
+    expect(namesOf(await graph(adminB)).filter((n) => n.startsWith('custom_'))).toEqual(['custom_recipe'])
+    expect(namesOf(await graph(adminA)).filter((n) => n.startsWith('custom_')).sort()).toEqual(['custom_course', 'custom_event'])
 
     const typesA = (await get(t.a, '/api/content-types.ts')).text
     const typesB = (await get(t.b, '/api/content-types.ts')).text
-    expect(typesB).toMatch(/\bXRecipe\b/)
-    expect(typesB).not.toMatch(/XCourse|XEvent|x_course|x_event|teacher/)
-    expect(typesA).not.toMatch(/XRecipe|x_recipe|minutes/)
+    expect(typesB).toMatch(/\bCustomRecipe\b/)
+    expect(typesB).not.toMatch(/CustomCourse|CustomEvent|custom_course|custom_event|teacher/)
+    expect(typesA).not.toMatch(/CustomRecipe|custom_recipe|minutes/)
 
     const apiA = JSON.stringify((await get(t.a, '/api/openapi.json')).body)
     const apiB = JSON.stringify((await get(t.b, '/api/openapi.json')).body)
-    expect(apiB).toContain('x_recipe')
-    expect(apiB).not.toMatch(/x_course|x_event|XCourse|XEvent/)
-    expect(apiA).not.toMatch(/x_recipe|XRecipe/)
+    expect(apiB).toContain('custom_recipe')
+    expect(apiB).not.toMatch(/custom_course|custom_event|CustomCourse|CustomEvent/)
+    expect(apiA).not.toMatch(/custom_recipe|CustomRecipe/)
 
     // Search: each site's word is found at home and never on the other.
     await until('B\'s search to find the recipe', async () => (await get(t.b, `/api/content/_search?q=${WORD.b}`)).body?.items ?? [], (items: any[]) => items.length > 0, 10_000)
-    expect((await get(t.b, `/api/content/_search?q=${WORD.b}`)).body.items.map((i: any) => [i.entity, i.path])).toEqual([['x_recipe', `/recepty/${recipe.slug}`]])
-    expect((await adminB.get(`/api/cms/_search?q=${WORD.b}`)).body.items.map((i: any) => [i.entity, i.id])).toEqual([['x_recipe', recipe.id]])
+    expect((await get(t.b, `/api/content/_search?q=${WORD.b}`)).body.items.map((i: any) => [i.entity, i.path])).toEqual([['custom_recipe', `/recepty/${recipe.slug}`]])
+    expect((await adminB.get(`/api/cms/_search?q=${WORD.b}`)).body.items.map((i: any) => [i.entity, i.id])).toEqual([['custom_recipe', recipe.id]])
     expect((await get(t.a, `/api/content/_search?q=${WORD.b}`)).body.items).toEqual([])
     expect((await adminA.get(`/api/cms/_search?q=${WORD.b}`)).body.items).toEqual([])
     expect((await get(t.b, `/api/content/_search?q=${WORD.a}`)).body.items).toEqual([])
     expect((await adminB.get(`/api/cms/_search?q=${WORD.a}`)).body.items).toEqual([])
-    expect((await get(t.a, `/api/content/_search?q=${WORD.b}&entity=x_recipe`)).body.items).toEqual([])
+    expect((await get(t.a, `/api/content/_search?q=${WORD.b}&entity=custom_recipe`)).body.items).toEqual([])
     const entities = async (site: TenantSite) => (await siteQuery(site, 'select distinct entity from cms_search order by entity')).map((r) => r.entity as string)
-    expect((await entities(t.b)).filter((e) => e.startsWith('x_'))).toEqual(['x_recipe'])
-    expect((await entities(t.a)).filter((e) => e.startsWith('x_'))).toEqual(['x_course'])
+    expect((await entities(t.b)).filter((e) => e.startsWith('custom_'))).toEqual(['custom_recipe'])
+    expect((await entities(t.a)).filter((e) => e.startsWith('custom_'))).toEqual(['custom_course'])
 
     // Sitemap: B lists the recipe and nothing of A, A the course and nothing of B.
     const b = await get(t.b, '/sitemap.xml')
@@ -402,59 +402,59 @@ describe('a type of one site does not exist on the other', () => {
   })
 
   it('each database holds only its own custom tables and its own model versions, and B had no versions until it changed its structure', async () => {
-    const x = (all: string[]) => all.filter((n) => n.startsWith('x_'))
+    const x = (all: string[]) => all.filter((n) => n.startsWith('custom_'))
     const a = x(await tablesOf(t.a))
     const b = x(await tablesOf(t.b))
     expect(a.length).toBeGreaterThan(0)
     expect(b.length).toBeGreaterThan(0)
-    for (const name of a) expect(name, `A's table ${name}`).toMatch(/^x_(course|event)(_|$)/)
-    for (const name of b) expect(name, `B's table ${name}`).toMatch(/^x_recipe(_|$)/)
-    expect(a).toEqual(expect.arrayContaining(['x_course', 'x_event']))
-    expect(b).toContain('x_recipe')
+    for (const name of a) expect(name, `A's table ${name}`).toMatch(/^custom_(course|event)(_|$)/)
+    for (const name of b) expect(name, `B's table ${name}`).toMatch(/^custom_recipe(_|$)/)
+    expect(a).toEqual(expect.arrayContaining(['custom_course', 'custom_event']))
+    expect(b).toContain('custom_recipe')
 
     const docsOf = async (site: TenantSite) => (await siteQuery(site, 'select version, doc from cms_model order by version')).map((r) => ({ version: r.version as number, types: (r.doc.types as any[]).map((x) => x.name as string) }))
     const docsA = await docsOf(t.a)
     const docsB = await docsOf(t.b)
     expect(docsB.map((d) => d.version)).toEqual([1, 2])
-    for (const d of docsB) expect(d.types).toEqual(['x_recipe'])
-    for (const d of docsA) for (const name of d.types) expect(name).toMatch(/^x_(course|event)$/)
-    expect(docsA.at(-1)!.types).toEqual(['x_course', 'x_event'])
+    for (const d of docsB) expect(d.types).toEqual(['custom_recipe'])
+    for (const d of docsA) for (const name of d.types) expect(name).toMatch(/^custom_(course|event)$/)
+    expect(docsA.at(-1)!.types).toEqual(['custom_course', 'custom_event'])
     // The design's own tables are the same on both: nothing of the other site's came in.
-    expect(await columnsOf(t.b, 'x_recipe')).toEqual(expect.arrayContaining(['id', 'title', 'slug', 'status', 'minutes']))
-    expect(await columnsOf(t.b, 'x_recipe')).not.toContain('teacher')
-    expect(await columnsOf(t.a, 'x_course')).toEqual(expect.arrayContaining(['id', 'title', 'slug', 'status', 'level', 'teacher']))
-    expect(await columnsOf(t.a, 'x_course')).not.toContain('minutes')
-    expect(await siteQuery(t.b, `select 1 from information_schema.tables where table_name = 'x_course'`)).toEqual([])
+    expect(await columnsOf(t.b, 'custom_recipe')).toEqual(expect.arrayContaining(['id', 'title', 'slug', 'status', 'minutes']))
+    expect(await columnsOf(t.b, 'custom_recipe')).not.toContain('teacher')
+    expect(await columnsOf(t.a, 'custom_course')).toEqual(expect.arrayContaining(['id', 'title', 'slug', 'status', 'level', 'teacher']))
+    expect(await columnsOf(t.a, 'custom_course')).not.toContain('minutes')
+    expect(await siteQuery(t.b, `select 1 from information_schema.tables where table_name = 'custom_course'`)).toEqual([])
   })
 })
 
 describe('a change on one site leaves the other alone', () => {
   it('keeps B\'s instance when A changes (a request to B and to A in between), while A has a new one', async () => {
-    expect((await get(t.b, '/api/content/x_recipe')).status).toBe(200)
-    expect((await get(t.a, '/api/content/x_course')).status).toBe(200)
+    expect((await get(t.b, '/api/content/custom_recipe')).status).toBe(200)
+    expect((await get(t.a, '/api/content/custom_course')).status).toBe(200)
     const before = { a: await seen(t.ipUrl, 'site-a'), b: await seen(t.ipUrl, 'site-b') }
     expect(before.a.loaded).toBe(true)
     expect(before.b.loaded).toBe(true)
 
     const started = performance.now()
-    await mustChange(adminA, [{ op: 'field.add', type: 'x_event', field: textField('place') }])
+    await mustChange(adminA, [{ op: 'field.add', type: 'custom_event', field: textField('place') }])
     console.info(`[timing] a structure change on A while B is loaded: ${(performance.now() - started).toFixed(0)} ms (version read and change)`)
     // B answers during and after it, from the instance it had.
-    expect((await get(t.b, '/api/content/x_recipe')).status).toBe(200)
-    expect((await adminB.get('/api/cms/x_recipe')).status).toBe(200)
+    expect((await get(t.b, '/api/content/custom_recipe')).status).toBe(200)
+    expect((await adminB.get('/api/cms/custom_recipe')).status).toBe(200)
     const mid = await seen(t.ipUrl, 'site-b')
     expect(mid.loads).toBe(before.b.loads)
     expect(mid.loaded).toBe(true)
 
     // A's next request makes its new instance, with the new field.
-    expect(await fieldKeys(adminA, 'x_event')).toContain('place')
+    expect(await fieldKeys(adminA, 'custom_event')).toContain('place')
     const after = { a: await seen(t.ipUrl, 'site-a'), b: await seen(t.ipUrl, 'site-b') }
     expect(after.b.loads).toBe(before.b.loads)
     expect(after.a.loads).toBe(before.a.loads + 1)
     expect(after.b.model).toEqual(before.b.model)
     expect(after.a.model!.version).toBe(before.a.model!.version + 1)
     // B's model is as it was.
-    expect(await fieldKeys(adminB, 'x_recipe')).not.toContain('place')
+    expect(await fieldKeys(adminB, 'custom_recipe')).not.toContain('place')
   })
 })
 
@@ -465,15 +465,15 @@ describe('a request under way while the structure changes', () => {
     let pending: Promise<{ status: number; body: any }> | undefined
     try {
       await db.query('begin')
-      await db.query('select id from x_course where id = $1 for update', [course.id])
+      await db.query('select id from custom_course where id = $1 for update', [course.id])
       let settled = false
-      pending = adminA.patch(`/api/cms/x_course/${course.id}`, { title: `Kurz ${WORD.a} (změněno)` })
+      pending = adminA.patch(`/api/cms/custom_course/${course.id}`, { title: `Kurz ${WORD.a} (změněno)` })
       void pending.then(() => { settled = true }, () => { settled = true })
       await sleep(300)
       expect(settled, 'the update waits for the row the test holds').toBe(false)
 
       // The structure of ANOTHER type changes while the update waits.
-      const res = await change(adminA, [{ op: 'field.add', type: 'x_event', field: textField('city') }])
+      const res = await change(adminA, [{ op: 'field.add', type: 'custom_event', field: textField('city') }])
       expect(res.status, JSON.stringify(res.body)).toBe(200)
       expect(settled, 'the update is still waiting after the change').toBe(false)
       await db.query('commit')
@@ -485,11 +485,11 @@ describe('a request under way while the structure changes', () => {
     const done = await pending!
     expect(done.status, JSON.stringify(done.body)).toBe(200)
     expect(done.body.row.title).toBe(`Kurz ${WORD.a} (změněno)`)
-    expect((await siteQuery(t.a, 'select title from x_course where id = $1', [course.id]))[0].title).toBe(`Kurz ${WORD.a} (změněno)`)
-    await adminA.patch(`/api/cms/x_course/${course.id}`, { title: `Kurz ${WORD.a}` })
+    expect((await siteQuery(t.a, 'select title from custom_course where id = $1', [course.id]))[0].title).toBe(`Kurz ${WORD.a} (změněno)`)
+    await adminA.patch(`/api/cms/custom_course/${course.id}`, { title: `Kurz ${WORD.a}` })
     // The new request is served by the new model.
-    expect(await fieldKeys(adminA, 'x_event')).toContain('city')
-    expect((await get(t.a, '/api/content/x_course/python')).status).toBe(200)
+    expect(await fieldKeys(adminA, 'custom_event')).toContain('city')
+    expect((await get(t.a, '/api/content/custom_course/python')).status).toBe(200)
   })
 
   it('refuses a change of the type itself while its row is locked (busy, within about 2 s), and the site answers normally afterwards', async () => {
@@ -498,9 +498,9 @@ describe('a request under way while the structure changes', () => {
     await db.connect()
     try {
       await db.query('begin')
-      await db.query('select id from x_course where id = $1 for update', [course.id])
+      await db.query('select id from custom_course where id = $1 for update', [course.id])
       const started = performance.now()
-      const res = await adminA.post('/api/cms/_model', { baseVersion: before.version, ops: [{ op: 'field.add', type: 'x_course', field: textField('notes') }] })
+      const res = await adminA.post('/api/cms/_model', { baseVersion: before.version, ops: [{ op: 'field.add', type: 'custom_course', field: textField('notes') }] })
       const took = performance.now() - started
       console.info(`[timing] a change that meets a locked table is refused as busy after ${took.toFixed(0)} ms`)
       expect(res.status, JSON.stringify(res.body)).toBe(503)
@@ -515,12 +515,12 @@ describe('a request under way while the structure changes', () => {
     // Nothing was changed, and the site serves.
     const after = await model(adminA)
     expect(after.version).toBe(before.version)
-    expect(await columnsOf(t.a, 'x_course')).not.toContain('notes')
-    expect((await get(t.a, '/api/content/x_course/python')).status).toBe(200)
-    expect((await adminA.patch(`/api/cms/x_course/${course.id}`, { teacher: 'Ada' })).status).toBe(200)
+    expect(await columnsOf(t.a, 'custom_course')).not.toContain('notes')
+    expect((await get(t.a, '/api/content/custom_course/python')).status).toBe(200)
+    expect((await adminA.patch(`/api/cms/custom_course/${course.id}`, { teacher: 'Ada' })).status).toBe(200)
     // And the same change goes through once the lock is gone.
-    expect((await change(adminA, [{ op: 'field.add', type: 'x_course', field: textField('notes') }])).status).toBe(200)
-    expect(await columnsOf(t.a, 'x_course')).toContain('notes')
+    expect((await change(adminA, [{ op: 'field.add', type: 'custom_course', field: textField('notes') }])).status).toBe(200)
+    expect(await columnsOf(t.a, 'custom_course')).toContain('notes')
   })
 })
 
@@ -536,17 +536,17 @@ describe('a fresh instance of a site', () => {
       await db.query('lock table cms_model in access exclusive mode')
       extra = await t.startInstance()
       let settled = false
-      pending = get({ url: `http://${t.a.host}:${extra.port}` }, '/api/content/x_course/python')
+      pending = get({ url: `http://${t.a.host}:${extra.port}` }, '/api/content/custom_course/python')
       void pending.then(() => { settled = true }, () => { settled = true })
       await sleep(500)
-      // It neither answers without the types (a 404 for x_course) nor fails: it waits.
+      // It neither answers without the types (a 404 for custom_course) nor fails: it waits.
       expect(settled, 'the first request waits for the site\'s own types').toBe(false)
       await db.query('commit')
       const res = await pending
       expect(res.status, JSON.stringify(res.body)).toBe(200)
       expect(res.body.item.teacher).toBe('Ada')
       // B, which has its own types too, is served by the same process.
-      expect((await get({ url: `http://${t.b.host}:${extra.port}` }, `/api/content/x_recipe/${recipe.slug}`)).status).toBe(200)
+      expect((await get({ url: `http://${t.b.host}:${extra.port}` }, `/api/content/custom_recipe/${recipe.slug}`)).status).toBe(200)
     }
     finally {
       await db.query('rollback').catch(() => {})
@@ -563,13 +563,13 @@ describe('the function', () => {
     const m = await model(adminA)
     expect(m.version).toBeGreaterThan(1)
     const tables = await tablesOf(t.a)
-    const res = await adminA.post('/api/cms/_model', { baseVersion: m.version - 1, ops: [{ op: 'type.add', name: 'x_stale', label: text('Stale') }] })
+    const res = await adminA.post('/api/cms/_model', { baseVersion: m.version - 1, ops: [{ op: 'type.add', name: 'custom_stale', label: text('Stale') }] })
     expect(res.status, JSON.stringify(res.body)).toBe(409)
     expect(res.body.data).toMatchObject({ code: 'stale-version', version: m.version })
     expect((await model(adminA)).version).toBe(m.version)
     expect(await tablesOf(t.a)).toEqual(tables)
     // A version that was never made is stale too.
-    const ahead = await adminA.post('/api/cms/_model', { baseVersion: m.version + 5, ops: [{ op: 'type.add', name: 'x_stale', label: text('Stale') }] })
+    const ahead = await adminA.post('/api/cms/_model', { baseVersion: m.version + 5, ops: [{ op: 'type.add', name: 'custom_stale', label: text('Stale') }] })
     expect(ahead.status).toBe(409)
     expect(ahead.body.data.code).toBe('stale-version')
   })
@@ -579,20 +579,20 @@ describe('the function', () => {
     const tables = await tablesOf(t.a)
     const history = (await adminA.get('/api/cms/_model/history')).body.length
     const res = await adminA.post('/api/cms/_model', { baseVersion: m.version, dryRun: true, ops: [
-      { op: 'type.add', name: 'x_ghost', label: text('Ghosts'), page: { prefix: 'duchove' } },
-      { op: 'field.add', type: 'x_course', field: textField('ghostly') },
+      { op: 'type.add', name: 'custom_ghost', label: text('Ghosts'), page: { prefix: 'duchove' } },
+      { op: 'field.add', type: 'custom_course', field: textField('ghostly') },
     ] })
     expect(res.status, JSON.stringify(res.body)).toBe(200)
     expect(res.body.dryRun).toBe(true)
     expect(res.body.statements).toBeGreaterThan(0)
-    expect(res.body.doc.types.map((x: any) => x.name)).toContain('x_ghost')
+    expect(res.body.doc.types.map((x: any) => x.name)).toContain('custom_ghost')
     const after = await model(adminA)
     expect(after.version).toBe(m.version)
-    expect(after.doc.types.map((x: any) => x.name)).not.toContain('x_ghost')
+    expect(after.doc.types.map((x: any) => x.name)).not.toContain('custom_ghost')
     expect(await tablesOf(t.a)).toEqual(tables)
-    expect(await columnsOf(t.a, 'x_course')).not.toContain('ghostly')
+    expect(await columnsOf(t.a, 'custom_course')).not.toContain('ghostly')
     expect((await adminA.get('/api/cms/_model/history')).body).toHaveLength(history)
-    expect((await get(t.a, '/api/content/x_ghost')).status).toBe(404)
+    expect((await get(t.a, '/api/content/custom_ghost')).status).toBe(404)
     // A dry run that would be refused says so, as the real one does.
     const refused = await adminA.post('/api/cms/_model', { baseVersion: m.version, dryRun: true, ops: [{ op: 'type.add', name: 'post', label: text('Posts') }] })
     expect(refused.status).toBe(422)
@@ -604,11 +604,11 @@ describe('the function', () => {
       await until('B to use its limit', async () => (await adminB.get('/api/cms/_model')).body?.limits, (l: any) => l?.types === 1, 8000)
       const m = await model(adminB)
       expect(m.used).toEqual({ types: 1 })
-      const res = await adminB.post('/api/cms/_model', { baseVersion: m.version, ops: [{ op: 'type.add', name: 'x_second', label: text('Second') }] })
+      const res = await adminB.post('/api/cms/_model', { baseVersion: m.version, ops: [{ op: 'type.add', name: 'custom_second', label: text('Second') }] })
       expect(res.status, JSON.stringify(res.body)).toBe(422)
       expect(res.body.data.code).toBe('limit-types')
       expect(res.body.data.op).toBe(0)
-      expect(await tablesOf(t.b)).not.toContain('x_second')
+      expect(await tablesOf(t.b)).not.toContain('custom_second')
       // A's limit is the default, whatever B's row says.
       expect((await model(adminA)).limits.types).toBe(12)
     }
@@ -616,7 +616,7 @@ describe('the function', () => {
       await t.writeDirectory(t.rows)
     }
     await until('B to use the default limit again', async () => (await adminB.get('/api/cms/_model')).body?.limits, (l: any) => l?.types === 12, 8000)
-    const lifted = await change(adminB, [{ op: 'type.add', name: 'x_second', label: text('Second') }], { dryRun: true })
+    const lifted = await change(adminB, [{ op: 'type.add', name: 'custom_second', label: text('Second') }], { dryRun: true })
     expect(lifted.status, JSON.stringify(lifted.body)).toBe(200)
   })
 
@@ -625,8 +625,8 @@ describe('the function', () => {
     const author = siteClient(t.a, 'author')
     const anonymous = siteClient(t.a)
     const m = await model(adminA)
-    const body = { baseVersion: m.version, ops: [{ op: 'type.add', name: 'x_nope', label: text('Nope') }] }
-    for (const path of ['/api/cms/_model', '/api/cms/_model/history', '/api/cms/_model/usage?type=x_course', '/api/cms/_model/attention']) {
+    const body = { baseVersion: m.version, ops: [{ op: 'type.add', name: 'custom_nope', label: text('Nope') }] }
+    for (const path of ['/api/cms/_model', '/api/cms/_model/history', '/api/cms/_model/usage?type=custom_course', '/api/cms/_model/attention']) {
       expect((await editor.get(path)).status, `editor GET ${path}`).toBe(403)
       expect((await author.get(path)).status, `author GET ${path}`).toBe(403)
       expect((await anonymous.get(path)).status, `anonymous GET ${path}`).toBe(401)
@@ -636,7 +636,7 @@ describe('the function', () => {
     expect((await anonymous.post('/api/cms/_model', body)).status).toBe(401)
     // An administrator of the other site is not one here.
     expect((await siteClient(t.b, { cookie: t.a.cookies.admin }).get('/api/cms/_model')).status).toBe(401)
-    expect(await tablesOf(t.a)).not.toContain('x_nope')
+    expect(await tablesOf(t.a)).not.toContain('custom_nope')
     expect((await model(adminA)).version).toBe(m.version)
   })
 
@@ -647,36 +647,36 @@ describe('the function', () => {
       await t.writeDirectory([t.rows[0], { ...t.rows[1], config: { ...t.rows[1].config, customTypes: { enabled: false } } }])
       await until('B\'s model to go', async () => (await adminB.get('/api/cms/_model')).status, (s) => s === 404, 8000)
       expect((await adminB.get('/api/cms/_model')).status).toBe(404)
-      expect((await adminB.post('/api/cms/_model', { baseVersion: versions.at(-1), ops: [{ op: 'type.add', name: 'x_off', label: text('Off') }] })).status).toBe(404)
+      expect((await adminB.post('/api/cms/_model', { baseVersion: versions.at(-1), ops: [{ op: 'type.add', name: 'custom_off', label: text('Off') }] })).status).toBe(404)
       expect((await adminB.get('/api/cms/_model/history')).status).toBe(404)
-      expect((await adminB.get('/api/cms/_model/usage?type=x_recipe')).status).toBe(404)
+      expect((await adminB.get('/api/cms/_model/usage?type=custom_recipe')).status).toBe(404)
       expect((await adminB.get('/api/cms/_model/attention')).status).toBe(404)
       // The website's list of types is there for every site, and empty here; the block picker does not offer the blocks of a type.
       expect((await get(t.b, '/api/content/_types')).body).toEqual({ types: [] })
       const sectionsOff = ((await graph(adminB)).find((e) => e.name === 'page').fields as any[]).find((x) => x.key === 'sections')
-      expect(Object.keys(sectionsOff.meta.blocks)).not.toContain('x_entries')
+      expect(Object.keys(sectionsOff.meta.blocks)).not.toContain('custom_entries')
       // The menu has no row for it, and is the menu of a site without the feature.
       const menuOff = (await adminB.get('/api/cms/_menu')).body
       expect(menuKeys(menuOff)).not.toContain('@model')
       expect(menuOff.settings.slice(-3)).toEqual(['@team', '@privacy', '@about'])
-      expect((await adminB.get('/api/cms/x_recipe')).status).toBe(404)
-      expect((await get(t.b, '/api/content/x_recipe')).status).toBe(404)
-      expect((await get(t.b, '/api/content/x_recipe/polevka')).status).toBe(404)
-      expect((await graph(adminB)).map((e) => e.name)).not.toContain('x_recipe')
-      expect((await get(t.b, '/api/content-types.ts')).text).not.toMatch(/XRecipe/)
+      expect((await adminB.get('/api/cms/custom_recipe')).status).toBe(404)
+      expect((await get(t.b, '/api/content/custom_recipe')).status).toBe(404)
+      expect((await get(t.b, '/api/content/custom_recipe/polevka')).status).toBe(404)
+      expect((await graph(adminB)).map((e) => e.name)).not.toContain('custom_recipe')
+      expect((await get(t.b, '/api/content-types.ts')).text).not.toMatch(/CustomRecipe/)
       // A is not touched.
       expect((await adminA.get('/api/cms/_model')).status).toBe(200)
-      expect((await get(t.a, '/api/content/x_course')).status).toBe(200)
+      expect((await get(t.a, '/api/content/custom_course')).status).toBe(200)
       expect(await tablesOf(t.b)).toEqual(tables)
       expect((await siteQuery(t.b, 'select version from cms_model order by version')).map((r) => r.version)).toEqual(versions)
     }
     finally {
       await t.writeDirectory(t.rows)
     }
-    await until('B to serve its type again', async () => (await get(t.b, '/api/content/x_recipe')).status, (s) => s === 200, 8000)
+    await until('B to serve its type again', async () => (await get(t.b, '/api/content/custom_recipe')).status, (s) => s === 200, 8000)
     expect((await adminB.get('/api/cms/_model')).status).toBe(200)
-    expect((await get(t.b, '/api/content/x_recipe/polevka')).body.item.title).toBe(`Polévka ${WORD.b}`)
-    expect((await adminB.get('/api/cms/x_recipe')).status).toBe(200)
+    expect((await get(t.b, '/api/content/custom_recipe/polevka')).body.item.title).toBe(`Polévka ${WORD.b}`)
+    expect((await adminB.get('/api/cms/custom_recipe')).status).toBe(200)
   })
 
   it('keeps a history of the versions, newest first, with who made them', async () => {
@@ -694,12 +694,12 @@ describe('the function', () => {
     expect(history.body[0].by.name).not.toBe('')
     const first = history.body.at(-1)
     expect(first.version).toBe(1)
-    expect(first.ops[0]).toMatchObject({ op: 'type.add', name: 'x_course' })
+    expect(first.ops[0]).toMatchObject({ op: 'type.add', name: 'custom_course' })
     // B's history is B's own.
     const b = (await adminB.get('/api/cms/_model/history')).body
     expect(b.map((h: any) => h.version)).toEqual([2, 1])
-    expect(JSON.stringify(b)).not.toContain('x_course')
-    expect(b[0].ops[0]).toMatchObject({ op: 'field.add', type: 'x_recipe' })
+    expect(JSON.stringify(b)).not.toContain('custom_course')
+    expect(b[0].ops[0]).toMatchObject({ op: 'field.add', type: 'custom_recipe' })
   })
 })
 
@@ -707,33 +707,33 @@ describe('what the function refuses', () => {
   it('lets nothing reach the database that part 1 refuses: the tables, the columns and the version stay as they were', async () => {
     const m = await model(adminA)
     const tables = await tablesOf(t.a)
-    const columns = { course: await columnsOf(t.a, 'x_course'), event: await columnsOf(t.a, 'x_event'), post: await columnsOf(t.a, 'post'), users: await columnsOf(t.a, 'cms_users') }
+    const columns = { course: await columnsOf(t.a, 'custom_course'), event: await columnsOf(t.a, 'custom_event'), post: await columnsOf(t.a, 'post'), users: await columnsOf(t.a, 'cms_users') }
     const refusals: [string, unknown[], string?][] = [
-      ['a changed kind', [{ op: 'field.update', type: 'x_course', key: 'teacher', kind: 'number' }], 'not-changeable'],
-      ['a changed field type', [{ op: 'field.update', type: 'x_course', key: 'teacher', fieldType: 'number' }], 'not-changeable'],
-      ['a changed target', [{ op: 'field.update', type: 'x_course', key: 'author', to: 'post' }], 'not-changeable'],
-      ['a renamed type', [{ op: 'type.update', type: 'x_course', name: 'x_class' }], 'not-changeable'],
-      ['a changed publish', [{ op: 'type.update', type: 'x_course', publish: false }], 'not-changeable'],
-      ['pages switched off', [{ op: 'type.update', type: 'x_course', page: null }], 'not-changeable'],
-      ['a changed address', [{ op: 'type.update', type: 'x_course', page: { prefix: 'classes' } }], 'not-changeable'],
+      ['a changed kind', [{ op: 'field.update', type: 'custom_course', key: 'teacher', kind: 'number' }], 'not-changeable'],
+      ['a changed field type', [{ op: 'field.update', type: 'custom_course', key: 'teacher', fieldType: 'number' }], 'not-changeable'],
+      ['a changed target', [{ op: 'field.update', type: 'custom_course', key: 'author', to: 'post' }], 'not-changeable'],
+      ['a renamed type', [{ op: 'type.update', type: 'custom_course', name: 'custom_class' }], 'not-changeable'],
+      ['a changed publish', [{ op: 'type.update', type: 'custom_course', publish: false }], 'not-changeable'],
+      ['pages switched off', [{ op: 'type.update', type: 'custom_course', page: null }], 'not-changeable'],
+      ['a changed address', [{ op: 'type.update', type: 'custom_course', page: { prefix: 'classes' } }], 'not-changeable'],
       ['a name of the design', [{ op: 'type.add', name: 'post', label: text('Posts') }]],
       ['a name without the prefix', [{ op: 'type.add', name: 'courses', label: text('Courses') }], 'invalid-name'],
-      ['a name that is a statement', [{ op: 'type.add', name: 'x_a"; drop table post; --', label: text('Drop') }], 'invalid-name'],
+      ['a name that is a statement', [{ op: 'type.add', name: 'custom_a"; drop table post; --', label: text('Drop') }], 'invalid-name'],
       ['a name of a table of tinyzoo', [{ op: 'type.add', name: 'cms_users', label: text('Users') }], 'invalid-name'],
-      ['a name taken', [{ op: 'type.add', name: 'x_course', label: text('Again') }], 'name-taken'],
-      ['an address taken', [{ op: 'type.add', name: 'x_other', label: text('Other'), page: { prefix: 'kurzy' } }], 'prefix-taken'],
-      ['an operation of the server only', [{ op: 'purge', types: ['x_course'] }], 'internal-only'],
+      ['a name taken', [{ op: 'type.add', name: 'custom_course', label: text('Again') }], 'name-taken'],
+      ['an address taken', [{ op: 'type.add', name: 'custom_other', label: text('Other'), page: { prefix: 'kurzy' } }], 'prefix-taken'],
+      ['an operation of the server only', [{ op: 'purge', types: ['custom_course'] }], 'internal-only'],
       ['an unknown operation', [{ op: 'drop.table', type: 'post' }], 'invalid-op'],
       ['a type of the design', [{ op: 'field.add', type: 'post', field: textField('extra') }]],
       ['a type of the design removed', [{ op: 'type.remove', type: 'post' }]],
       ['a field of the design removed', [{ op: 'field.remove', type: 'post', key: 'title' }]],
-      ['a field that is made by tinyzoo', [{ op: 'field.remove', type: 'x_course', key: 'slug' }], 'system-field'],
-      ['the title removed', [{ op: 'field.remove', type: 'x_course', key: 'title' }], 'title-field'],
-      ['a required field with entries', [{ op: 'field.add', type: 'x_course', field: textField('must', { required: true }) }], 'needs-optional'],
-      ['a field made required with entries missing', [{ op: 'field.update', type: 'x_course', key: 'notes', required: true }], 'has-missing-values'],
-      ['a field twice', [{ op: 'field.add', type: 'x_course', field: textField('teacher') }]],
-      ['a relation to a type that is not there', [{ op: 'field.add', type: 'x_course', field: { key: 'friend', type: 'relation', to: 'x_nowhere', label: text('Friend') } }]],
-      ['a good change followed by a bad one', [{ op: 'field.add', type: 'x_course', field: textField('half') }, { op: 'field.update', type: 'x_course', key: 'teacher', kind: 'number' }], 'not-changeable'],
+      ['a field that is made by tinyzoo', [{ op: 'field.remove', type: 'custom_course', key: 'slug' }], 'system-field'],
+      ['the title removed', [{ op: 'field.remove', type: 'custom_course', key: 'title' }], 'title-field'],
+      ['a required field with entries', [{ op: 'field.add', type: 'custom_course', field: textField('must', { required: true }) }], 'needs-optional'],
+      ['a field made required with entries missing', [{ op: 'field.update', type: 'custom_course', key: 'notes', required: true }], 'has-missing-values'],
+      ['a field twice', [{ op: 'field.add', type: 'custom_course', field: textField('teacher') }]],
+      ['a relation to a type that is not there', [{ op: 'field.add', type: 'custom_course', field: { key: 'friend', type: 'relation', to: 'custom_nowhere', label: text('Friend') } }]],
+      ['a good change followed by a bad one', [{ op: 'field.add', type: 'custom_course', field: textField('half') }, { op: 'field.update', type: 'custom_course', key: 'teacher', kind: 'number' }], 'not-changeable'],
     ]
     for (const [what, ops, code] of refusals) {
       const res = await adminA.post('/api/cms/_model', { baseVersion: m.version, ops })
@@ -741,139 +741,139 @@ describe('what the function refuses', () => {
       if (code) expect(res.body.data.code, what).toBe(code)
     }
     // A request that is not an operation at all.
-    for (const body of [{ baseVersion: m.version, ops: [] }, { baseVersion: m.version, ops: ['drop table post'] }, { baseVersion: 'x', ops: [] }, { ops: [{ op: 'type.remove', type: 'x_course' }] }, { baseVersion: m.version, ops: [{ op: 'type.remove', type: 'x_course' }], extra: 1 }]) {
+    for (const body of [{ baseVersion: m.version, ops: [] }, { baseVersion: m.version, ops: ['drop table post'] }, { baseVersion: 'x', ops: [] }, { ops: [{ op: 'type.remove', type: 'custom_course' }] }, { baseVersion: m.version, ops: [{ op: 'type.remove', type: 'custom_course' }], extra: 1 }]) {
       const res = await adminA.post('/api/cms/_model', body)
       expect([400, 422], JSON.stringify(body)).toContain(res.status)
     }
 
     expect((await model(adminA)).version).toBe(m.version)
     expect(await tablesOf(t.a)).toEqual(tables)
-    expect(await columnsOf(t.a, 'x_course')).toEqual(columns.course)
-    expect(await columnsOf(t.a, 'x_event')).toEqual(columns.event)
+    expect(await columnsOf(t.a, 'custom_course')).toEqual(columns.course)
+    expect(await columnsOf(t.a, 'custom_event')).toEqual(columns.event)
     expect(await columnsOf(t.a, 'post')).toEqual(columns.post)
     expect(await columnsOf(t.a, 'cms_users')).toEqual(columns.users)
     expect((await siteQuery(t.a, 'select count(*)::int n from cms_model'))[0].n).toBe(m.version)
     // The site serves as before.
-    expect((await get(t.a, '/api/content/x_course/python')).body.item.teacher).toBe('Ada')
+    expect((await get(t.a, '/api/content/custom_course/python')).body.item.teacher).toBe('Ada')
   })
 })
 
 describe('hiding and restoring', () => {
   it('hides a field from the graph, the content API and the generated types while its column keeps the values, and restore brings them back', async () => {
-    const hid = await change(adminA, [{ op: 'field.remove', type: 'x_course', key: 'level' }])
+    const hid = await change(adminA, [{ op: 'field.remove', type: 'custom_course', key: 'level' }])
     expect(hid.status, JSON.stringify(hid.body)).toBe(200)
     try {
-      expect(await fieldKeys(adminA, 'x_course')).not.toContain('level')
-      const item = (await get(t.a, '/api/content/x_course/python')).body.item
+      expect(await fieldKeys(adminA, 'custom_course')).not.toContain('level')
+      const item = (await get(t.a, '/api/content/custom_course/python')).body.item
       expect(item).not.toHaveProperty('level')
       expect(item.teacher).toBe('Ada')
-      expect(/export interface XCourse \{[^]*?\n\}/.exec((await get(t.a, '/api/content-types.ts')).text)?.[0]).not.toContain('level')
-      expect(JSON.stringify((await get(t.a, '/api/openapi.json')).body.components.schemas.XCourse)).not.toContain('level')
+      expect(/export interface CustomCourse \{[^]*?\n\}/.exec((await get(t.a, '/api/content-types.ts')).text)?.[0]).not.toContain('level')
+      expect(JSON.stringify((await get(t.a, '/api/openapi.json')).body.components.schemas.CustomCourse)).not.toContain('level')
       // The column and its value are in the database; the model says it is removed.
-      expect((await siteQuery(t.a, `select level from x_course where slug = 'python'`))[0].level).toBe('beginner')
+      expect((await siteQuery(t.a, `select level from custom_course where slug = 'python'`))[0].level).toBe('beginner')
       const m = await model(adminA)
-      expect(m.doc.types.find((x: any) => x.name === 'x_course').fields.find((f: any) => f.key === 'level').removedAt).toBeTruthy()
+      expect(m.doc.types.find((x: any) => x.name === 'custom_course').fields.find((f: any) => f.key === 'level').removedAt).toBeTruthy()
       // A write that no longer knows the field leaves its value alone, and the field cannot be sent.
-      expect((await adminA.patch(`/api/cms/x_course/${course.id}`, { teacher: 'Ada' })).status).toBe(200)
-      expect((await siteQuery(t.a, `select level from x_course where slug = 'python'`))[0].level).toBe('beginner')
+      expect((await adminA.patch(`/api/cms/custom_course/${course.id}`, { teacher: 'Ada' })).status).toBe(200)
+      expect((await siteQuery(t.a, `select level from custom_course where slug = 'python'`))[0].level).toBe('beginner')
       // Its name is still taken.
-      expect((await change(adminA, [{ op: 'field.add', type: 'x_course', field: textField('level') }])).status).toBe(422)
+      expect((await change(adminA, [{ op: 'field.add', type: 'custom_course', field: textField('level') }])).status).toBe(422)
     }
     finally {
-      const back = await change(adminA, [{ op: 'field.restore', type: 'x_course', key: 'level' }])
+      const back = await change(adminA, [{ op: 'field.restore', type: 'custom_course', key: 'level' }])
       expect(back.status, JSON.stringify(back.body)).toBe(200)
     }
-    expect(await fieldKeys(adminA, 'x_course')).toContain('level')
-    expect((await get(t.a, '/api/content/x_course/python')).body.item.level).toBe('beginner')
-    expect((await adminA.get(`/api/cms/x_course/${course.id}`)).body.row.level).toBe('beginner')
-    expect(/export interface XCourse \{[^]*?\n\}/.exec((await get(t.a, '/api/content-types.ts')).text)?.[0]).toContain('level')
+    expect(await fieldKeys(adminA, 'custom_course')).toContain('level')
+    expect((await get(t.a, '/api/content/custom_course/python')).body.item.level).toBe('beginner')
+    expect((await adminA.get(`/api/cms/custom_course/${course.id}`)).body.row.level).toBe('beginner')
+    expect(/export interface CustomCourse \{[^]*?\n\}/.exec((await get(t.a, '/api/content-types.ts')).text)?.[0]).toContain('level')
   })
 
   it('lets a new entry be saved without a required text field that is hidden, and brings it back optional when entries lack it', async () => {
-    const hid = await change(adminA, [{ op: 'field.remove', type: 'x_course', key: 'teacher' }])
+    const hid = await change(adminA, [{ op: 'field.remove', type: 'custom_course', key: 'teacher' }])
     expect(hid.status, JSON.stringify(hid.body)).toBe(200)
     let extra: string | undefined
     try {
-      const made = await adminA.post('/api/cms/x_course', { title: 'Bez učitele', slug: 'bez-ucitele', status: 'draft' })
+      const made = await adminA.post('/api/cms/custom_course', { title: 'Bez učitele', slug: 'bez-ucitele', status: 'draft' })
       expect(made.status, JSON.stringify(made.body)).toBe(201)
       extra = made.body.row.id
-      expect((await siteQuery(t.a, 'select teacher from x_course where id = $1', [extra]))[0].teacher).toBeNull()
-      expect((await siteQuery(t.a, `select teacher from x_course where slug = 'python'`))[0].teacher).toBe('Ada')
+      expect((await siteQuery(t.a, 'select teacher from custom_course where id = $1', [extra]))[0].teacher).toBeNull()
+      expect((await siteQuery(t.a, `select teacher from custom_course where slug = 'python'`))[0].teacher).toBe('Ada')
     }
     finally {
-      const back = await change(adminA, [{ op: 'field.restore', type: 'x_course', key: 'teacher' }])
+      const back = await change(adminA, [{ op: 'field.restore', type: 'custom_course', key: 'teacher' }])
       expect(back.status, JSON.stringify(back.body)).toBe(200)
       expect(back.body.notes.map((n: any) => n.code)).toContain('restored-optional')
     }
-    const teacher = (await graphEntity(adminA, 'x_course')).fields.find((f: any) => f.key === 'teacher')
+    const teacher = (await graphEntity(adminA, 'custom_course')).fields.find((f: any) => f.key === 'teacher')
     expect(teacher.required).toBeFalsy()
-    expect((await get(t.a, '/api/content/x_course/python')).body.item.teacher).toBe('Ada')
+    expect((await get(t.a, '/api/content/custom_course/python')).body.item.teacher).toBe('Ada')
     // Clean up: the entry without a teacher goes, and the field can be required again.
-    expect((await adminA.delete(`/api/cms/x_course/${extra}`)).status).toBe(200)
-    expect((await change(adminA, [{ op: 'field.update', type: 'x_course', key: 'teacher', required: true }])).status).toBe(200)
-    expect((await adminA.post('/api/cms/x_course', { title: 'Zase bez', slug: 'zase-bez' })).status).toBe(422)
+    expect((await adminA.delete(`/api/cms/custom_course/${extra}`)).status).toBe(200)
+    expect((await change(adminA, [{ op: 'field.update', type: 'custom_course', key: 'teacher', required: true }])).status).toBe(200)
+    expect((await adminA.post('/api/cms/custom_course', { title: 'Zase bez', slug: 'zase-bez' })).status).toBe(422)
   })
 
   it('does not remove a type that another type\'s field points at, and says which field', async () => {
     await mustChange(adminA, [
-      { op: 'type.add', name: 'x_lesson', label: text('Lessons'), labelSingular: text('Lesson') },
-      { op: 'field.add', type: 'x_lesson', field: { key: 'course', type: 'relation', to: 'x_course', label: text('Course') } },
+      { op: 'type.add', name: 'custom_lesson', label: text('Lessons'), labelSingular: text('Lesson') },
+      { op: 'field.add', type: 'custom_lesson', field: { key: 'course', type: 'relation', to: 'custom_course', label: text('Course') } },
     ])
     const m = await model(adminA)
-    const res = await adminA.post('/api/cms/_model', { baseVersion: m.version, ops: [{ op: 'type.remove', type: 'x_course' }] })
+    const res = await adminA.post('/api/cms/_model', { baseVersion: m.version, ops: [{ op: 'type.remove', type: 'custom_course' }] })
     expect(res.status, JSON.stringify(res.body)).toBe(422)
     expect(res.body.data.code).toBe('points-at-type')
-    expect(res.body.data.details.fields).toEqual([{ type: 'x_lesson', key: 'course' }])
+    expect(res.body.data.details.fields).toEqual([{ type: 'custom_lesson', key: 'course' }])
     expect(res.body.data.op).toBe(0)
     expect(res.body.data.message).toContain('course')
     expect((await model(adminA)).version).toBe(m.version)
-    expect((await get(t.a, '/api/content/x_course/python')).status).toBe(200)
+    expect((await get(t.a, '/api/content/custom_course/python')).status).toBe(200)
     // The lesson itself can point at a course.
-    const lesson = await adminA.post('/api/cms/x_lesson', { title: 'První hodina', course: course.id })
+    const lesson = await adminA.post('/api/cms/custom_lesson', { title: 'První hodina', course: course.id })
     expect(lesson.status, JSON.stringify(lesson.body)).toBe(201)
-    expect((await adminA.delete(`/api/cms/x_lesson/${lesson.body.row.id}`)).status).toBe(200)
+    expect((await adminA.delete(`/api/cms/custom_lesson/${lesson.body.row.id}`)).status).toBe(200)
   })
 
   it('does not remove a type that content links to, names the entry that links, and removes it once the link is gone', async () => {
-    await mustChange(adminA, [{ op: 'type.add', name: 'x_note', label: text('Notes'), labelSingular: text('Note') }])
-    const note = await adminA.post('/api/cms/x_note', { title: 'Poznámka' })
+    await mustChange(adminA, [{ op: 'type.add', name: 'custom_note', label: text('Notes'), labelSingular: text('Note') }])
+    const note = await adminA.post('/api/cms/custom_note', { title: 'Poznámka' })
     expect(note.status, JSON.stringify(note.body)).toBe(201)
-    const link = (id: string) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Viz poznámku', marks: [{ type: 'link', attrs: { href: `cms:x_note/${id}` } }] }] }] })
+    const link = (id: string) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Viz poznámku', marks: [{ type: 'link', attrs: { href: `cms:custom_note/${id}` } }] }] }] })
     const linker = await createAuthor(adminA, { name: 'Autor s odkazem', bio: link(note.body.row.id) })
-    expect(JSON.stringify((await adminA.get(`/api/cms/author/${linker.id}`)).body.row.bio)).toContain(`cms:x_note/${note.body.row.id}`)
+    expect(JSON.stringify((await adminA.get(`/api/cms/author/${linker.id}`)).body.row.bio)).toContain(`cms:custom_note/${note.body.row.id}`)
 
-    const usage = await adminA.get('/api/cms/_model/usage?type=x_note')
+    const usage = await adminA.get('/api/cms/_model/usage?type=custom_note')
     expect(usage.status).toBe(200)
     expect(usage.body.places).toEqual([expect.objectContaining({ entity: 'author', id: linker.id, title: 'Autor s odkazem', field: 'bio' })])
 
     const m = await model(adminA)
-    const res = await adminA.post('/api/cms/_model', { baseVersion: m.version, ops: [{ op: 'type.remove', type: 'x_note' }] })
+    const res = await adminA.post('/api/cms/_model', { baseVersion: m.version, ops: [{ op: 'type.remove', type: 'custom_note' }] })
     expect(res.status, JSON.stringify(res.body)).toBe(409)
     expect(res.body.data.code).toBe('in-use')
     expect(res.body.data.places).toEqual([expect.objectContaining({ entity: 'author', id: linker.id, field: 'bio', admin: `/admin/author/${linker.id}` })])
     expect((await model(adminA)).version).toBe(m.version)
-    expect((await get(t.a, '/api/content/x_course')).status).toBe(200)
+    expect((await get(t.a, '/api/content/custom_course')).status).toBe(200)
 
     // Without the link the type can go (and comes back).
     expect((await adminA.patch(`/api/cms/author/${linker.id}`, { bio: doc('Bez odkazu') })).status).toBe(200)
-    expect((await adminA.get('/api/cms/_model/usage?type=x_note')).body.places).toEqual([])
-    expect((await change(adminA, [{ op: 'type.remove', type: 'x_note' }])).status).toBe(200)
-    expect((await adminA.get('/api/cms/x_note')).status).toBe(404)
-    expect((await graph(adminA)).map((e) => e.name)).not.toContain('x_note')
-    expect((await siteQuery(t.a, 'select title from x_note')).map((r) => r.title)).toEqual(['Poznámka'])
-    expect((await change(adminA, [{ op: 'type.restore', type: 'x_note' }])).status).toBe(200)
-    expect((await adminA.get('/api/cms/x_note')).body.rows.map((r: any) => r.title)).toEqual(['Poznámka'])
+    expect((await adminA.get('/api/cms/_model/usage?type=custom_note')).body.places).toEqual([])
+    expect((await change(adminA, [{ op: 'type.remove', type: 'custom_note' }])).status).toBe(200)
+    expect((await adminA.get('/api/cms/custom_note')).status).toBe(404)
+    expect((await graph(adminA)).map((e) => e.name)).not.toContain('custom_note')
+    expect((await siteQuery(t.a, 'select title from custom_note')).map((r) => r.title)).toEqual(['Poznámka'])
+    expect((await change(adminA, [{ op: 'type.restore', type: 'custom_note' }])).status).toBe(200)
+    expect((await adminA.get('/api/cms/custom_note')).body.rows.map((r: any) => r.title)).toEqual(['Poznámka'])
   })
 })
 
 describe('blocks that show a type of the site', () => {
-  // x_entries and x_chosen are blocks of the playground's pages; their `source` is a binding, kept as data in the page's `sections`.
+  // custom_entries and custom_chosen are blocks of the playground's pages; their `source` is a binding, kept as data in the page's `sections`.
   const pages: { client: Client; id: string }[] = []
   let page: { id: string; slug: string }
   let bPage: { id: string; slug: string }
-  const LIST = { id: 'blk-list', type: 'x_entries', heading: 'Our courses', text: '', layout: 'cards', source: { type: 'x_course', show: { image: 'cover', text: 'perex' }, order: { by: 'startsAt', dir: 'asc' }, limit: 3 } }
-  const CHOSEN = { id: 'blk-chosen', type: 'x_chosen', heading: '', text: '', layout: 'rows', source: { type: 'x_course', entries: [] as string[] } }
-  const EVENTS = { id: 'blk-events', type: 'x_entries', heading: 'Events', text: '', layout: 'cards', source: { type: 'x_event', limit: 2 } }
+  const LIST = { id: 'blk-list', type: 'custom_entries', heading: 'Our courses', text: '', layout: 'cards', source: { type: 'custom_course', show: { image: 'cover', text: 'perex' }, order: { by: 'startsAt', dir: 'asc' }, limit: 3 } }
+  const CHOSEN = { id: 'blk-chosen', type: 'custom_chosen', heading: '', text: '', layout: 'rows', source: { type: 'custom_course', entries: [] as string[] } }
+  const EVENTS = { id: 'blk-events', type: 'custom_entries', heading: 'Events', text: '', layout: 'cards', source: { type: 'custom_event', limit: 2 } }
   const ordinary = { id: 'blk-text', type: 'text', heading: 'Hello' }
 
   async function makePage(client: Client, slug: string, sections: unknown[]) {
@@ -889,8 +889,8 @@ describe('blocks that show a type of the site', () => {
 
   beforeAll(async () => {
     await mustChange(adminA, [
-      { op: 'field.add', type: 'x_course', field: { key: 'startsAt', type: 'datetime', label: text('Starts at') } },
-      { op: 'field.add', type: 'x_course', field: { key: 'perex', type: 'text', long: true, label: text('Perex') } },
+      { op: 'field.add', type: 'custom_course', field: { key: 'startsAt', type: 'datetime', label: text('Starts at') } },
+      { op: 'field.add', type: 'custom_course', field: { key: 'perex', type: 'text', long: true, label: text('Perex') } },
     ])
     CHOSEN.source.entries = [course.id, courseDraft.id]
   }, 30_000)
@@ -909,27 +909,27 @@ describe('blocks that show a type of the site', () => {
     expect((await sectionsOf(adminA, page.id)).map((b) => b.id)).toEqual(['blk-list', 'blk-chosen', 'blk-text'])
 
     const bad = (source: unknown) => adminA.post('/api/cms/page', { title: 'Zlá', slug: `zla-${Math.random().toString(36).slice(2, 8)}`, sections: [{ ...LIST, id: 'bad', source }] })
-    expect((await bad({ type: 'x_course', show: { image: 'cover', colour: 'red' } })).status).toBe(422)
-    expect((await bad({ type: 'x_course', whatever: true })).status).toBe(422)
+    expect((await bad({ type: 'custom_course', show: { image: 'cover', colour: 'red' } })).status).toBe(422)
+    expect((await bad({ type: 'custom_course', whatever: true })).status).toBe(422)
     expect((await bad({ type: 'course' })).status).toBe(422)
-    expect((await bad({ type: 'x_course', limit: 49 })).status).toBe(422)
+    expect((await bad({ type: 'custom_course', limit: 49 })).status).toBe(422)
     const thirteen = Array.from({ length: 13 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`)
-    expect((await bad({ type: 'x_course', entries: thirteen })).status).toBe(422)
-    const twelve = await bad({ type: 'x_course', entries: thirteen.slice(0, 12) })
+    expect((await bad({ type: 'custom_course', entries: thirteen })).status).toBe(422)
+    const twelve = await bad({ type: 'custom_course', entries: thirteen.slice(0, 12) })
     expect(twelve.status, JSON.stringify(twelve.body)).toBe(201)
     await adminA.delete(`/api/cms/page/${twelve.body.row.id}`)
-    expect((await bad({ type: 'x_course', entries: ['not-an-id'] })).status).toBe(422)
+    expect((await bad({ type: 'custom_course', entries: ['not-an-id'] })).status).toBe(422)
     // The ones that were refused are not there.
     expect((await siteQuery(t.a, `select slug from page where slug like 'zla-%'`))).toEqual([])
   })
 
   it('says where a type and its fields are shown, in a language of the page too', async () => {
-    const field = async (key: string) => (await adminA.get(`/api/cms/_model/usage?type=x_course&field=${key}`)).body
+    const field = async (key: string) => (await adminA.get(`/api/cms/_model/usage?type=custom_course&field=${key}`)).body
     for (const key of ['cover', 'perex', 'startsAt']) {
-      const res = await adminA.get(`/api/cms/_model/usage?type=x_course&field=${key}`)
+      const res = await adminA.get(`/api/cms/_model/usage?type=custom_course&field=${key}`)
       expect(res.status, key).toBe(200)
       expect(Object.keys(res.body)).toEqual(['places'])
-      expect(res.body.places.map(placeOf), key).toEqual([{ entity: 'page', id: page.id, title: `Stránka ${page.slug}`, field: 'sections', admin: `/admin/page/${page.id}`, block: { id: 'blk-list', type: 'x_entries', heading: 'Our courses' } }])
+      expect(res.body.places.map(placeOf), key).toEqual([{ entity: 'page', id: page.id, title: `Stránka ${page.slug}`, field: 'sections', admin: `/admin/page/${page.id}`, block: { id: 'blk-list', type: 'custom_entries', heading: 'Our courses' } }])
       expect(res.body.places[0].locale).toBeNull()
       expect(res.body.places[0].block.label).toEqual(expect.objectContaining({ en: 'Entries' }))
     }
@@ -938,21 +938,21 @@ describe('blocks that show a type of the site', () => {
     expect((await field('level')).places).toEqual([])
 
     // Without a field: the blocks that show the type, and how many entries use each field.
-    const all = await adminA.get('/api/cms/_model/usage?type=x_course')
+    const all = await adminA.get('/api/cms/_model/usage?type=custom_course')
     expect(all.status).toBe(200)
     expect(all.body.places.map(placeOf)).toEqual([
-      { entity: 'page', id: page.id, title: `Stránka ${page.slug}`, field: 'sections', admin: `/admin/page/${page.id}`, block: { id: 'blk-list', type: 'x_entries', heading: 'Our courses' } },
-      { entity: 'page', id: page.id, title: `Stránka ${page.slug}`, field: 'sections', admin: `/admin/page/${page.id}`, block: { id: 'blk-chosen', type: 'x_chosen', heading: null } },
+      { entity: 'page', id: page.id, title: `Stránka ${page.slug}`, field: 'sections', admin: `/admin/page/${page.id}`, block: { id: 'blk-list', type: 'custom_entries', heading: 'Our courses' } },
+      { entity: 'page', id: page.id, title: `Stránka ${page.slug}`, field: 'sections', admin: `/admin/page/${page.id}`, block: { id: 'blk-chosen', type: 'custom_chosen', heading: null } },
     ])
     expect(all.body.fields).toEqual({ cover: 1, perex: 1, startsAt: 1 })
 
     // A translation is read too: its block is listed with its language, and the entry is counted once.
-    await siteQuery(t.a, `insert into page_locales (parent_id, locale, sections) values ($1, 'en', $2::jsonb)`, [page.id, JSON.stringify([{ id: 'blk-en', type: 'x_chosen', heading: 'Chosen', layout: 'rows', source: { type: 'x_course', show: { label: 'level', more: ['perex'] }, entries: [course.id] } }])])
+    await siteQuery(t.a, `insert into page_locales (parent_id, locale, sections) values ($1, 'en', $2::jsonb)`, [page.id, JSON.stringify([{ id: 'blk-en', type: 'custom_chosen', heading: 'Chosen', layout: 'rows', source: { type: 'custom_course', show: { label: 'level', more: ['perex'] }, entries: [course.id] } }])])
     try {
       const level = (await field('level')).places
       expect(level.map((p: any) => [p.id, p.locale, p.block.id])).toEqual([[page.id, 'en', 'blk-en']])
       expect(level[0].title).toBe(`Stránka ${page.slug}`)
-      const again = (await adminA.get('/api/cms/_model/usage?type=x_course')).body
+      const again = (await adminA.get('/api/cms/_model/usage?type=custom_course')).body
       expect(again.fields).toEqual({ cover: 1, perex: 1, startsAt: 1, level: 1 })
     }
     finally {
@@ -960,12 +960,12 @@ describe('blocks that show a type of the site', () => {
     }
     expect((await field('level')).places).toEqual([])
     // Nobody else's: B's type has no blocks, and a field that does not exist is not found.
-    expect((await adminA.get('/api/cms/_model/usage?type=x_course&field=nope')).status).toBe(404)
-    expect((await adminA.get('/api/cms/_model/usage?type=x_recipe')).status).toBe(404)
+    expect((await adminA.get('/api/cms/_model/usage?type=custom_course&field=nope')).status).toBe(404)
+    expect((await adminA.get('/api/cms/_model/usage?type=custom_recipe')).status).toBe(404)
   })
 
   it('refuses to hide what a block shows or orders by, names the page and the block, and allows it once the block no longer uses it', async () => {
-    await mustChange(adminA, [{ op: 'field.add', type: 'x_course', field: textField('scratch') }])
+    await mustChange(adminA, [{ op: 'field.add', type: 'custom_course', field: textField('scratch') }])
     const m = await model(adminA)
     const refuse = async (op: unknown) => {
       const res = await adminA.post('/api/cms/_model', { baseVersion: m.version, ops: [op] })
@@ -974,47 +974,47 @@ describe('blocks that show a type of the site', () => {
       expect(res.body.data.op).toBe(0)
       return res.body.data
     }
-    const named = { entity: 'page', id: page.id, title: `Stránka ${page.slug}`, field: 'sections', admin: `/admin/page/${page.id}`, block: { id: 'blk-list', type: 'x_entries', heading: 'Our courses' } }
+    const named = { entity: 'page', id: page.id, title: `Stránka ${page.slug}`, field: 'sections', admin: `/admin/page/${page.id}`, block: { id: 'blk-list', type: 'custom_entries', heading: 'Our courses' } }
     // A field a block shows, and the one it orders by (the order is not shown anywhere).
     for (const key of ['perex', 'cover', 'startsAt']) {
-      const data = await refuse({ op: 'field.remove', type: 'x_course', key })
+      const data = await refuse({ op: 'field.remove', type: 'custom_course', key })
       expect(data.places.map(placeOf), key).toEqual([named])
       expect(data.message).toMatch(/shown or used to order a list/)
     }
     expect((await model(adminA)).version).toBe(m.version)
-    expect(await fieldKeys(adminA, 'x_course')).toEqual(expect.arrayContaining(['perex', 'cover', 'startsAt']))
+    expect(await fieldKeys(adminA, 'custom_course')).toEqual(expect.arrayContaining(['perex', 'cover', 'startsAt']))
 
     // A field no block uses can be hidden.
-    expect((await change(adminA, [{ op: 'field.remove', type: 'x_course', key: 'scratch' }])).status).toBe(200)
-    expect((await change(adminA, [{ op: 'field.restore', type: 'x_course', key: 'scratch' }])).status).toBe(200)
+    expect((await change(adminA, [{ op: 'field.remove', type: 'custom_course', key: 'scratch' }])).status).toBe(200)
+    expect((await change(adminA, [{ op: 'field.restore', type: 'custom_course', key: 'scratch' }])).status).toBe(200)
 
     // A type with a block of its own is refused, and goes once the block is gone.
     await adminA.patch(`/api/cms/page/${page.id}`, { sections: [LIST, CHOSEN, EVENTS, ordinary] })
-    const ev = await adminA.post('/api/cms/_model', { baseVersion: (await model(adminA)).version, ops: [{ op: 'type.remove', type: 'x_event' }] })
+    const ev = await adminA.post('/api/cms/_model', { baseVersion: (await model(adminA)).version, ops: [{ op: 'type.remove', type: 'custom_event' }] })
     expect(ev.status, JSON.stringify(ev.body)).toBe(409)
     expect(ev.body.data.code).toBe('in-use')
     expect(ev.body.data.message).toMatch(/blocks on pages show its entries/)
-    expect(ev.body.data.places.map(placeOf)).toEqual([{ ...named, block: { id: 'blk-events', type: 'x_entries', heading: 'Events' } }])
+    expect(ev.body.data.places.map(placeOf)).toEqual([{ ...named, block: { id: 'blk-events', type: 'custom_entries', heading: 'Events' } }])
     await adminA.patch(`/api/cms/page/${page.id}`, { sections: [LIST, CHOSEN, ordinary] })
-    expect((await change(adminA, [{ op: 'type.remove', type: 'x_event' }])).status).toBe(200)
+    expect((await change(adminA, [{ op: 'type.remove', type: 'custom_event' }])).status).toBe(200)
     try {
-      expect((await get(t.a, '/api/content/_types')).body.types.map((x: any) => x.name)).not.toContain('x_event')
+      expect((await get(t.a, '/api/content/_types')).body.types.map((x: any) => x.name)).not.toContain('custom_event')
     }
     finally {
-      expect((await change(adminA, [{ op: 'type.restore', type: 'x_event' }])).status).toBe(200)
+      expect((await change(adminA, [{ op: 'type.restore', type: 'custom_event' }])).status).toBe(200)
     }
-    expect((await get(t.a, '/api/content/_types')).body.types.map((x: any) => x.name)).toContain('x_event')
+    expect((await get(t.a, '/api/content/_types')).body.types.map((x: any) => x.name)).toContain('custom_event')
 
     // Changed so that it does not use the fields, the block lets them go.
-    const calm = { ...LIST, source: { type: 'x_course', show: { image: 'cover' }, order: { by: 'level', dir: 'desc' } } }
+    const calm = { ...LIST, source: { type: 'custom_course', show: { image: 'cover' }, order: { by: 'level', dir: 'desc' } } }
     expect((await adminA.patch(`/api/cms/page/${page.id}`, { sections: [calm, CHOSEN, ordinary] })).status).toBe(200)
-    const hid = await change(adminA, [{ op: 'field.remove', type: 'x_course', key: 'perex' }, { op: 'field.remove', type: 'x_course', key: 'startsAt' }])
+    const hid = await change(adminA, [{ op: 'field.remove', type: 'custom_course', key: 'perex' }, { op: 'field.remove', type: 'custom_course', key: 'startsAt' }])
     expect(hid.status, JSON.stringify(hid.body)).toBe(200)
-    expect((await change(adminA, [{ op: 'field.remove', type: 'x_course', key: 'cover' }])).status).toBe(409)
+    expect((await change(adminA, [{ op: 'field.remove', type: 'custom_course', key: 'cover' }])).status).toBe(409)
     // Removed from the page, the last one goes too; all come back.
     expect((await adminA.patch(`/api/cms/page/${page.id}`, { sections: [CHOSEN, ordinary] })).status).toBe(200)
-    expect((await change(adminA, [{ op: 'field.remove', type: 'x_course', key: 'cover' }])).status).toBe(200)
-    const back = await change(adminA, [{ op: 'field.restore', type: 'x_course', key: 'perex' }, { op: 'field.restore', type: 'x_course', key: 'startsAt' }, { op: 'field.restore', type: 'x_course', key: 'cover' }])
+    expect((await change(adminA, [{ op: 'field.remove', type: 'custom_course', key: 'cover' }])).status).toBe(200)
+    const back = await change(adminA, [{ op: 'field.restore', type: 'custom_course', key: 'perex' }, { op: 'field.restore', type: 'custom_course', key: 'startsAt' }, { op: 'field.restore', type: 'custom_course', key: 'cover' }])
     expect(back.status, JSON.stringify(back.body)).toBe(200)
     expect((await adminA.patch(`/api/cms/page/${page.id}`, { sections: [LIST, CHOSEN, ordinary] })).status).toBe(200)
   })
@@ -1022,9 +1022,9 @@ describe('blocks that show a type of the site', () => {
   it('lists on `attention` the blocks that name a type or a field the site does not have, and the page still answers', async () => {
     expect((await adminB.get('/api/cms/_model/attention')).body).toEqual({ places: [] })
     expect((await adminA.get('/api/cms/_model/attention')).body).toEqual({ places: [] })
-    const good = { id: 'b-good', type: 'x_entries', heading: 'Recipes', layout: 'cards', source: { type: 'x_recipe', show: { more: ['minutes', 'createdAt'] }, order: { by: 'minutes', dir: 'asc' } } }
-    const noField = { id: 'b-field', type: 'x_entries', heading: 'Slow', layout: 'cards', source: { type: 'x_recipe', show: { text: 'calories' }, order: { by: 'minutes', dir: 'asc' } } }
-    const noType = { id: 'b-type', type: 'x_chosen', heading: '', layout: 'rows', source: { type: 'x_nothing', entries: [] } }
+    const good = { id: 'b-good', type: 'custom_entries', heading: 'Recipes', layout: 'cards', source: { type: 'custom_recipe', show: { more: ['minutes', 'createdAt'] }, order: { by: 'minutes', dir: 'asc' } } }
+    const noField = { id: 'b-field', type: 'custom_entries', heading: 'Slow', layout: 'cards', source: { type: 'custom_recipe', show: { text: 'calories' }, order: { by: 'minutes', dir: 'asc' } } }
+    const noType = { id: 'b-type', type: 'custom_chosen', heading: '', layout: 'rows', source: { type: 'custom_nothing', entries: [] } }
     const b = bPage = await makePage(adminB, 'recepty-na-webu', [good])
     // Broken behind the admin's back: a field was hidden, a type taken away.
     await siteQuery(t.b, 'update page set sections = $1::jsonb where id = $2', [JSON.stringify([good, noField, noType]), b.id])
@@ -1033,8 +1033,8 @@ describe('blocks that show a type of the site', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('no-store')
     expect(res.body.places.map((p: any) => ({ ...placeOf(p), locale: p.locale, missing: p.missing }))).toEqual([
-      { entity: 'page', id: b.id, title: `Stránka ${b.slug}`, field: 'sections', admin: `/admin/page/${b.id}`, locale: null, block: { id: 'b-field', type: 'x_entries', heading: 'Slow' }, missing: { fields: ['calories'] } },
-      { entity: 'page', id: b.id, title: `Stránka ${b.slug}`, field: 'sections', admin: `/admin/page/${b.id}`, locale: null, block: { id: 'b-type', type: 'x_chosen', heading: null }, missing: { type: 'x_nothing' } },
+      { entity: 'page', id: b.id, title: `Stránka ${b.slug}`, field: 'sections', admin: `/admin/page/${b.id}`, locale: null, block: { id: 'b-field', type: 'custom_entries', heading: 'Slow' }, missing: { fields: ['calories'] } },
+      { entity: 'page', id: b.id, title: `Stránka ${b.slug}`, field: 'sections', admin: `/admin/page/${b.id}`, locale: null, block: { id: 'b-type', type: 'custom_chosen', heading: null }, missing: { type: 'custom_nothing' } },
     ])
     expect(res.body.places[1].block.label).toEqual(expect.objectContaining({ en: 'Chosen entries' }))
     // The page is served as it is stored.
@@ -1046,7 +1046,7 @@ describe('blocks that show a type of the site', () => {
   })
 
   it('names a type of the other site as missing, and gives nothing of one site to the other', async () => {
-    const foreign = { id: 'b-foreign', type: 'x_entries', heading: 'Recipes', layout: 'cards', source: { type: 'x_recipe', show: { more: ['minutes'] } } }
+    const foreign = { id: 'b-foreign', type: 'custom_entries', heading: 'Recipes', layout: 'cards', source: { type: 'custom_recipe', show: { more: ['minutes'] } } }
     const a = await makePage(adminA, 'cizi-recepty', [foreign])
     // Only the shape of a binding is checked on saving, so it is accepted and delivered as data.
     const served = await get(t.a, `/api/content/page/${a.slug}`)
@@ -1054,14 +1054,14 @@ describe('blocks that show a type of the site', () => {
     expect(served.body.item.sections[0].source).toEqual(foreign.source)
 
     const attention = (await adminA.get('/api/cms/_model/attention')).body
-    expect(attention.places.map((p: any) => [p.id, p.block.id, p.missing])).toEqual([[a.id, 'b-foreign', { type: 'x_recipe' }]])
+    expect(attention.places.map((p: any) => [p.id, p.block.id, p.missing])).toEqual([[a.id, 'b-foreign', { type: 'custom_recipe' }]])
     // B names none of A's: not the page, not the type, not A's field names.
     const ofB = JSON.stringify((await adminB.get('/api/cms/_model/attention')).body)
     expect(ofB).not.toContain(a.id)
-    expect(ofB).not.toMatch(/x_course|perex|startsAt|cizi-recepty/)
+    expect(ofB).not.toMatch(/custom_course|perex|startsAt|cizi-recepty/)
     // Each site's usage walk reads its own pages: B's blocks of its type are B's, and none of them is A's page.
-    expect((await adminB.get('/api/cms/_model/usage?type=x_recipe')).body.places.map((p: any) => p.id)).toEqual([bPage.id, bPage.id])
-    expect((await adminA.get('/api/cms/_model/usage?type=x_course')).body.places.map((p: any) => p.id)).not.toContain(a.id)
+    expect((await adminB.get('/api/cms/_model/usage?type=custom_recipe')).body.places.map((p: any) => p.id)).toEqual([bPage.id, bPage.id])
+    expect((await adminA.get('/api/cms/_model/usage?type=custom_course')).body.places.map((p: any) => p.id)).not.toContain(a.id)
   })
 
   it('offers the two blocks to the editor of a site with a type of its own, and to no other', async () => {
@@ -1069,7 +1069,7 @@ describe('blocks that show a type of the site', () => {
       const sections = ((await graph(c)).find((e) => e.name === 'page')?.fields ?? []).find((x: any) => x.key === 'sections')
       return Object.keys(sections?.meta?.blocks ?? {})
     }
-    const withBlocks = ['hero', 'text', 'x_entries', 'x_chosen']
+    const withBlocks = ['hero', 'text', 'custom_entries', 'custom_chosen']
     expect(await offered(adminA)).toEqual(expect.arrayContaining(withBlocks))
     expect(await offered(adminB)).toEqual(expect.arrayContaining(withBlocks))
     // Offered to an editor of A too: the graph is shaped per person, not per role of the feature.
@@ -1085,8 +1085,8 @@ describe('blocks that show a type of the site', () => {
       const adminC = siteClient(c, { cookie: made.cookie })
       const keys = await offered(adminC)
       expect(keys).toEqual(expect.arrayContaining(['hero', 'text']))
-      expect(keys).not.toContain('x_entries')
-      expect(keys).not.toContain('x_chosen')
+      expect(keys).not.toContain('custom_entries')
+      expect(keys).not.toContain('custom_chosen')
       // It can still save a page: ordinary blocks, and a block of these two kinds that was stored elsewhere.
       const ok = await adminC.post('/api/cms/page', { title: 'C', slug: 'c-home', sections: [ordinary] })
       expect(ok.status, JSON.stringify(ok.body)).toBe(201)
@@ -1095,9 +1095,9 @@ describe('blocks that show a type of the site', () => {
       expect((await adminC.patch(`/api/cms/page/${ok.body.row.id}`, { title: 'C again', sections: (await sectionsOf(adminC, ok.body.row.id)) })).status).toBe(200)
       expect((await sectionsOf(adminC, ok.body.row.id)).map((x) => x.id)).toEqual(['blk-text', 'blk-list'])
       // The block stored there names a type the site does not have, and the site says so.
-      expect((await adminC.get('/api/cms/_model/attention')).body.places.map((p: any) => [p.block.id, p.missing])).toEqual([['blk-list', { type: 'x_course' }]])
+      expect((await adminC.get('/api/cms/_model/attention')).body.places.map((p: any) => [p.block.id, p.missing])).toEqual([['blk-list', { type: 'custom_course' }]])
       // The others still offer them.
-      expect(await offered(adminA)).toContain('x_entries')
+      expect(await offered(adminA)).toContain('custom_entries')
     }
     finally {
       await t.writeDirectory(t.rows)
@@ -1108,8 +1108,8 @@ describe('blocks that show a type of the site', () => {
     const single = await signIn('admin')
     const sections = (((await single.get('/api/cms/_graph')).body as any[]).find((e) => e.name === 'page').fields as any[]).find((x) => x.key === 'sections')
     expect(Object.keys(sections.meta.blocks)).toEqual(expect.arrayContaining(['hero', 'text']))
-    expect(Object.keys(sections.meta.blocks)).not.toContain('x_entries')
-    expect(Object.keys(sections.meta.blocks)).not.toContain('x_chosen')
+    expect(Object.keys(sections.meta.blocks)).not.toContain('custom_entries')
+    expect(Object.keys(sections.meta.blocks)).not.toContain('custom_chosen')
     const slug = `single-${Math.random().toString(36).slice(2, 8)}`
     const made = await single.post('/api/cms/page', { title: 'Single', slug, sections: [ordinary] })
     expect(made.status, JSON.stringify(made.body)).toBe(201)
@@ -1126,8 +1126,8 @@ describe('blocks that show a type of the site', () => {
   it('describes the visible types of a site for the website, and the other site\'s not at all', async () => {
     const typesOf = async (site: TenantSite) => (await get(site, '/api/content/_types')).body.types as any[]
     const a = await typesOf(t.a)
-    expect(a.map((x) => x.name)).toEqual(expect.arrayContaining(['x_course', 'x_event']))
-    const c = a.find((x) => x.name === 'x_course')
+    expect(a.map((x) => x.name)).toEqual(expect.arrayContaining(['custom_course', 'custom_event']))
+    const c = a.find((x) => x.name === 'custom_course')
     expect(c).toMatchObject({ label: text('Courses'), labelSingular: text('Course'), titleField: 'title', path: '/kurzy/:slug', prefix: 'kurzy', publish: true, page: { image: null, summary: null } })
     const by = Object.fromEntries(c.fields.map((x: any) => [x.key, x]))
     expect(Object.keys(by)).toEqual(expect.arrayContaining(['title', 'level', 'cover', 'author', 'teacher', 'startsAt', 'perex']))
@@ -1135,26 +1135,26 @@ describe('blocks that show a type of the site', () => {
     expect(by.level).toEqual({ key: 'level', type: 'select', label: text('Level'), options: [{ value: 'beginner', label: text('Beginner') }, { value: 'advanced', label: text('Advanced') }] })
     expect(by.author).toMatchObject({ type: 'relation', to: 'author' })
     // B's type is B's.
-    expect(JSON.stringify(a)).not.toMatch(/x_recipe|recepty|minutes/)
+    expect(JSON.stringify(a)).not.toMatch(/custom_recipe|recepty|minutes/)
     const b = await typesOf(t.b)
-    expect(b.map((x) => x.name)).toEqual(['x_recipe'])
+    expect(b.map((x) => x.name)).toEqual(['custom_recipe'])
     expect(b[0].path).toBe('/recepty/:slug')
     expect(b[0].fields.map((x: any) => x.key)).toContain('minutes')
-    expect(JSON.stringify(b)).not.toMatch(/x_course|kurzy|teacher/)
+    expect(JSON.stringify(b)).not.toMatch(/custom_course|kurzy|teacher/)
 
     // A hidden field is not in it; a removed choice is, marked.
-    const hid = await change(adminA, [{ op: 'field.remove', type: 'x_course', key: 'scratch' }, { op: 'field.update', type: 'x_course', key: 'level', removeOptions: ['advanced'] }])
+    const hid = await change(adminA, [{ op: 'field.remove', type: 'custom_course', key: 'scratch' }, { op: 'field.update', type: 'custom_course', key: 'level', removeOptions: ['advanced'] }])
     expect(hid.status, JSON.stringify(hid.body)).toBe(200)
     try {
-      const now = (await typesOf(t.a)).find((x) => x.name === 'x_course')
+      const now = (await typesOf(t.a)).find((x) => x.name === 'custom_course')
       expect(now.fields.map((x: any) => x.key)).not.toContain('scratch')
       expect(now.fields.find((x: any) => x.key === 'level').options).toEqual([{ value: 'beginner', label: text('Beginner') }, { value: 'advanced', label: text('Advanced'), removed: true }])
     }
     finally {
-      const back = await change(adminA, [{ op: 'field.restore', type: 'x_course', key: 'scratch' }, { op: 'field.update', type: 'x_course', key: 'level', restoreOptions: ['advanced'] }])
+      const back = await change(adminA, [{ op: 'field.restore', type: 'custom_course', key: 'scratch' }, { op: 'field.update', type: 'custom_course', key: 'level', restoreOptions: ['advanced'] }])
       expect(back.status, JSON.stringify(back.body)).toBe(200)
     }
-    const after = (await typesOf(t.a)).find((x) => x.name === 'x_course')
+    const after = (await typesOf(t.a)).find((x) => x.name === 'custom_course')
     expect(after.fields.map((x: any) => x.key)).toContain('scratch')
     expect(after.fields.find((x: any) => x.key === 'level').options.every((o: any) => !o.removed)).toBe(true)
 
@@ -1168,53 +1168,53 @@ describe('blocks that show a type of the site', () => {
 
 describe('the later deletion', () => {
   it('deletes an empty hidden field after the short time and one with content after the longer one, then frees the name', async () => {
-    await mustChange(adminA, [{ op: 'field.add', type: 'x_course', field: textField('tmpEmpty') }, { op: 'field.add', type: 'x_course', field: textField('tmpFull') }])
-    expect((await adminA.patch(`/api/cms/x_course/${course.id}`, { tmpFull: 'keep me' })).status).toBe(200)
-    expect(await columnsOf(t.a, 'x_course')).toEqual(expect.arrayContaining(['tmp_empty', 'tmp_full']))
+    await mustChange(adminA, [{ op: 'field.add', type: 'custom_course', field: textField('tmpEmpty') }, { op: 'field.add', type: 'custom_course', field: textField('tmpFull') }])
+    expect((await adminA.patch(`/api/cms/custom_course/${course.id}`, { tmpFull: 'keep me' })).status).toBe(200)
+    expect(await columnsOf(t.a, 'custom_course')).toEqual(expect.arrayContaining(['tmp_empty', 'tmp_full']))
 
-    const hid = await change(adminA, [{ op: 'field.remove', type: 'x_course', key: 'tmpEmpty' }, { op: 'field.remove', type: 'x_course', key: 'tmpFull' }])
+    const hid = await change(adminA, [{ op: 'field.remove', type: 'custom_course', key: 'tmpEmpty' }, { op: 'field.remove', type: 'custom_course', key: 'tmpFull' }])
     expect(hid.status, JSON.stringify(hid.body)).toBe(200)
     const hiddenAt = performance.now()
-    expect(await columnsOf(t.a, 'x_course')).toEqual(expect.arrayContaining(['tmp_empty', 'tmp_full']))
+    expect(await columnsOf(t.a, 'custom_course')).toEqual(expect.arrayContaining(['tmp_empty', 'tmp_full']))
 
     // The empty one goes after the short time; requests meanwhile keep a loaded instance there to look.
     let emptyGoneAfter = 0
-    await until('the empty hidden column to be deleted', async () => { await adminA.get('/api/cms/_model'); return columnsOf(t.a, 'x_course') }, (cols) => !cols.includes('tmp_empty'), PURGE_MS)
+    await until('the empty hidden column to be deleted', async () => { await adminA.get('/api/cms/_model'); return columnsOf(t.a, 'custom_course') }, (cols) => !cols.includes('tmp_empty'), PURGE_MS)
     emptyGoneAfter = performance.now() - hiddenAt
     expect(emptyGoneAfter).toBeGreaterThanOrEqual(PURGE_EMPTY_MS - 500)
     // The one with content is still there, with its value.
-    expect(await columnsOf(t.a, 'x_course')).toContain('tmp_full')
-    expect((await siteQuery(t.a, 'select tmp_full from x_course where id = $1', [course.id]))[0].tmp_full).toBe('keep me')
+    expect(await columnsOf(t.a, 'custom_course')).toContain('tmp_full')
+    expect((await siteQuery(t.a, 'select tmp_full from custom_course where id = $1', [course.id]))[0].tmp_full).toBe('keep me')
     let m = await model(adminA)
-    expect(m.doc.types.find((x: any) => x.name === 'x_course').fields.map((f: any) => f.key)).not.toContain('tmpEmpty')
-    expect(m.doc.types.find((x: any) => x.name === 'x_course').fields.map((f: any) => f.key)).toContain('tmpFull')
+    expect(m.doc.types.find((x: any) => x.name === 'custom_course').fields.map((f: any) => f.key)).not.toContain('tmpEmpty')
+    expect(m.doc.types.find((x: any) => x.name === 'custom_course').fields.map((f: any) => f.key)).toContain('tmpFull')
 
     // It goes after the longer one.
-    await until('the hidden column with content to be deleted', async () => { await adminA.get('/api/cms/_model'); return columnsOf(t.a, 'x_course') }, (cols) => !cols.includes('tmp_full'), PURGE_MS + 8000)
+    await until('the hidden column with content to be deleted', async () => { await adminA.get('/api/cms/_model'); return columnsOf(t.a, 'custom_course') }, (cols) => !cols.includes('tmp_full'), PURGE_MS + 8000)
     const fullGoneAfter = performance.now() - hiddenAt
     expect(fullGoneAfter).toBeGreaterThanOrEqual(PURGE_MS - 500)
     console.info(`[timing] later deletion (test knobs ${PURGE_EMPTY_MS} ms / ${PURGE_MS} ms): the empty field went after ${emptyGoneAfter.toFixed(0)} ms, the one with content after ${fullGoneAfter.toFixed(0)} ms`)
     m = await model(adminA)
-    expect(m.doc.types.find((x: any) => x.name === 'x_course').fields.map((f: any) => f.key)).not.toContain('tmpFull')
-    expect(await columnsOf(t.a, 'x_course')).toEqual(expect.arrayContaining(['id', 'title', 'slug', 'status', 'level', 'teacher']))
+    expect(m.doc.types.find((x: any) => x.name === 'custom_course').fields.map((f: any) => f.key)).not.toContain('tmpFull')
+    expect(await columnsOf(t.a, 'custom_course')).toEqual(expect.arrayContaining(['id', 'title', 'slug', 'status', 'level', 'teacher']))
 
     // The name is free again.
-    expect((await change(adminA, [{ op: 'field.add', type: 'x_course', field: textField('tmpEmpty') }, { op: 'field.add', type: 'x_course', field: textField('tmpFull') }])).status).toBe(200)
-    expect(await columnsOf(t.a, 'x_course')).toEqual(expect.arrayContaining(['tmp_empty', 'tmp_full']))
-    expect((await siteQuery(t.a, 'select tmp_full from x_course where id = $1', [course.id]))[0].tmp_full).toBeNull()
+    expect((await change(adminA, [{ op: 'field.add', type: 'custom_course', field: textField('tmpEmpty') }, { op: 'field.add', type: 'custom_course', field: textField('tmpFull') }])).status).toBe(200)
+    expect(await columnsOf(t.a, 'custom_course')).toEqual(expect.arrayContaining(['tmp_empty', 'tmp_full']))
+    expect((await siteQuery(t.a, 'select tmp_full from custom_course where id = $1', [course.id]))[0].tmp_full).toBeNull()
     // The sweep is the server's own: B was not touched by it.
     expect((await model(adminB)).doc.types[0].fields.every((f: any) => !f.removedAt)).toBe(true)
   }, 60_000)
 
   it('deletes a hidden type with its table once it is due, and only when nothing points at it', async () => {
-    await mustChange(adminA, [{ op: 'type.add', name: 'x_tmp', label: text('Temporary') }])
-    expect(await tablesOf(t.a)).toContain('x_tmp')
-    const hid = await change(adminA, [{ op: 'type.remove', type: 'x_tmp' }])
+    await mustChange(adminA, [{ op: 'type.add', name: 'custom_tmp', label: text('Temporary') }])
+    expect(await tablesOf(t.a)).toContain('custom_tmp')
+    const hid = await change(adminA, [{ op: 'type.remove', type: 'custom_tmp' }])
     expect(hid.status, JSON.stringify(hid.body)).toBe(200)
-    await until('the hidden type to be deleted', async () => { await adminA.get('/api/cms/_model'); return tablesOf(t.a) }, (tables) => !tables.includes('x_tmp'), PURGE_MS)
-    expect((await model(adminA)).doc.types.map((x: any) => x.name)).not.toContain('x_tmp')
-    expect((await change(adminA, [{ op: 'type.add', name: 'x_tmp', label: text('Temporary') }, { op: 'type.remove', type: 'x_tmp' }])).status).toBe(200)
-    await until('the second hidden type to be deleted', async () => { await adminA.get('/api/cms/_model'); return tablesOf(t.a) }, (tables) => !tables.includes('x_tmp'), PURGE_MS)
+    await until('the hidden type to be deleted', async () => { await adminA.get('/api/cms/_model'); return tablesOf(t.a) }, (tables) => !tables.includes('custom_tmp'), PURGE_MS)
+    expect((await model(adminA)).doc.types.map((x: any) => x.name)).not.toContain('custom_tmp')
+    expect((await change(adminA, [{ op: 'type.add', name: 'custom_tmp', label: text('Temporary') }, { op: 'type.remove', type: 'custom_tmp' }])).status).toBe(200)
+    await until('the second hidden type to be deleted', async () => { await adminA.get('/api/cms/_model'); return tablesOf(t.a) }, (tables) => !tables.includes('custom_tmp'), PURGE_MS)
   }, 60_000)
 })
 
@@ -1225,19 +1225,19 @@ describe('timings', () => {
     for (let n = 1; n <= 5; n++) {
       const m = await model(adminA)
       const started = performance.now()
-      const res = await adminA.post('/api/cms/_model', { baseVersion: m.version, ops: [{ op: 'field.add', type: 'x_event', field: textField(`sample${n}`) }] })
+      const res = await adminA.post('/api/cms/_model', { baseVersion: m.version, ops: [{ op: 'field.add', type: 'custom_event', field: textField(`sample${n}`) }] })
       changes.push(performance.now() - started)
       expect(res.status, JSON.stringify(res.body)).toBe(200)
       const first = performance.now()
-      expect((await adminA.get('/api/cms/x_event')).status).toBe(200)
+      expect((await adminA.get('/api/cms/custom_event')).status).toBe(200)
       firsts.push(performance.now() - first)
-      expect(await fieldKeys(adminA, 'x_event')).toContain(`sample${n}`)
+      expect(await fieldKeys(adminA, 'custom_event')).toContain(`sample${n}`)
     }
     const line = (xs: number[]) => `${xs.map((x) => x.toFixed(0)).join(', ')} ms (median ${[...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!.toFixed(0)} ms)`
     console.info(`[timing] structure change over HTTP, 5 samples (a field added): ${line(changes)}`)
     console.info(`[timing] first request after a change (the admin list of the type, which makes the new instance): ${line(firsts)}`)
     const warm = performance.now()
-    await adminA.get('/api/cms/x_event')
+    await adminA.get('/api/cms/custom_event')
     console.info(`[timing] the same request once the instance is warm: ${(performance.now() - warm).toFixed(0)} ms`)
   })
 })
@@ -1248,12 +1248,12 @@ describe('the model stays over an idle unload, a restart and a second process', 
     const ip = `http://127.0.0.1:${one.port}`
     const siteOn = (site: TenantSite, port: number): TenantSite => ({ ...site, url: `http://${site.host}:${port}` })
     const clientOne = siteClient(siteOn(t.a, one.port), 'admin')
-    const keys = async (c: Client) => (await fieldKeys(c, 'x_course')).slice().sort()
-    const expected = (await fieldKeys(adminA, 'x_course')).slice().sort()
+    const keys = async (c: Client) => (await fieldKeys(c, 'custom_course')).slice().sort()
+    const expected = (await fieldKeys(adminA, 'custom_course')).slice().sort()
     expect(expected).toEqual(expect.arrayContaining(['title', 'slug', 'status', 'level', 'cover', 'author', 'teacher']))
 
     expect(await keys(clientOne)).toEqual(expected)
-    expect((await get(siteOn(t.a, one.port), '/api/content/x_course/python')).status).toBe(200)
+    expect((await get(siteOn(t.a, one.port), '/api/content/custom_course/python')).status).toBe(200)
     expect((await seen(ip, 'site-a')).loaded).toBe(true)
     const loads = (await seen(ip, 'site-a')).loads
 
@@ -1263,7 +1263,7 @@ describe('the model stays over an idle unload, a restart and a second process', 
 
     // The next request makes it again, with the same types.
     expect(await keys(clientOne)).toEqual(expected)
-    const item = await get(siteOn(t.a, one.port), '/api/content/x_course/python')
+    const item = await get(siteOn(t.a, one.port), '/api/content/custom_course/python')
     expect(item.status).toBe(200)
     expect(item.body.item).toMatchObject({ teacher: 'Ada', level: 'beginner' })
     const again = await seen(ip, 'site-a')
@@ -1275,9 +1275,9 @@ describe('the model stays over an idle unload, a restart and a second process', 
     const two = await t.startInstance()
     const clientTwo = siteClient(siteOn(t.a, two.port), 'admin')
     expect(await keys(clientTwo)).toEqual(expected)
-    expect((await get(siteOn(t.a, two.port), '/api/content/x_course/python')).body.item.teacher).toBe('Ada')
-    expect((await get(siteOn(t.b, two.port), '/api/content/x_recipe/polevka')).status).toBe(200)
-    expect((await get(siteOn(t.b, two.port), '/api/content/x_course')).status).toBe(404)
+    expect((await get(siteOn(t.a, two.port), '/api/content/custom_course/python')).body.item.teacher).toBe('Ada')
+    expect((await get(siteOn(t.b, two.port), '/api/content/custom_recipe/polevka')).status).toBe(200)
+    expect((await get(siteOn(t.b, two.port), '/api/content/custom_course')).status).toBe(404)
     expect((await seen(`http://127.0.0.1:${two.port}`, 'site-a')).model!.version).toBe((await model(adminA)).version)
     await two.server.stop()
     expectNoSiteErrors(one)
@@ -1295,17 +1295,17 @@ describe.skipIf(!process.env.TEST_REDIS_URL)('two instances of one app', () => {
     const b2 = siteClient(siteOn(t.b), 'admin')
     try {
       // A and B are loaded on instance two.
-      expect(await fieldKeys(a2, 'x_event')).not.toContain('fromOne')
-      expect((await b2.get('/api/cms/x_recipe')).status).toBe(200)
+      expect(await fieldKeys(a2, 'custom_event')).not.toContain('fromOne')
+      expect((await b2.get('/api/cms/custom_recipe')).status).toBe(200)
       const before = { a: await seen(ip, 'site-a'), b: await seen(ip, 'site-b') }
       expect(before.a.loaded).toBe(true)
       expect(before.b.loaded).toBe(true)
 
       // A change on instance one is served by instance two within about a second.
-      const first = await change(adminA, [{ op: 'field.add', type: 'x_event', field: textField('fromOne') }])
+      const first = await change(adminA, [{ op: 'field.add', type: 'custom_event', field: textField('fromOne') }])
       expect(first.status, JSON.stringify(first.body)).toBe(200)
       const madeAt = performance.now()
-      await until('instance two to serve the change', () => fieldKeys(a2, 'x_event'), (keys: string[]) => keys.includes('fromOne'), 1500)
+      await until('instance two to serve the change', () => fieldKeys(a2, 'custom_event'), (keys: string[]) => keys.includes('fromOne'), 1500)
       console.info(`[timing] a change made on instance one is served by instance two after ${(performance.now() - madeAt).toFixed(0)} ms`)
       const mid = { a: await seen(ip, 'site-a'), b: await seen(ip, 'site-b') }
       expect(mid.b.loads).toBe(before.b.loads)
@@ -1317,16 +1317,16 @@ describe.skipIf(!process.env.TEST_REDIS_URL)('two instances of one app', () => {
       const known = await a2.get('/api/cms/_model')
       expect(known.status).toBe(200)
       expect(known.body.version).toBe(first.body.version)
-      const second = await a2.post('/api/cms/_model', { baseVersion: known.body.version, ops: [{ op: 'field.add', type: 'x_event', field: textField('fromTwo') }] })
+      const second = await a2.post('/api/cms/_model', { baseVersion: known.body.version, ops: [{ op: 'field.add', type: 'custom_event', field: textField('fromTwo') }] })
       expect(second.status, JSON.stringify(second.body)).toBe(200)
       expect(second.body.version).toBe(known.body.version + 1)
-      await until('instance one to serve the second change', () => fieldKeys(adminA, 'x_event'), (keys: string[]) => keys.includes('fromTwo'), 1500)
-      expect(await fieldKeys(adminA, 'x_event')).toEqual(expect.arrayContaining(['fromOne', 'fromTwo']))
+      await until('instance one to serve the second change', () => fieldKeys(adminA, 'custom_event'), (keys: string[]) => keys.includes('fromTwo'), 1500)
+      expect(await fieldKeys(adminA, 'custom_event')).toEqual(expect.arrayContaining(['fromOne', 'fromTwo']))
       expect((await model(adminA)).version).toBe(second.body.version)
       // B was left alone on both instances.
       expect((await seen(ip, 'site-b')).loads).toBe(before.b.loads)
       expect((await seen(t.ipUrl, 'site-b')).model).toEqual(before.b.model)
-      expect(await fieldKeys(adminB, 'x_recipe')).not.toContain('fromTwo')
+      expect(await fieldKeys(adminB, 'custom_recipe')).not.toContain('fromTwo')
     }
     finally {
       await two.server.stop()

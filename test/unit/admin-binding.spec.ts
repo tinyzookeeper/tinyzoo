@@ -7,13 +7,13 @@ import {
 
 const f = (key: string, type: string, meta: Record<string, any> = {}, extra: Record<string, any> = {}) => ({ key, type, optional: true, required: false, ui: {}, meta: { label: key, ...meta }, ...extra })
 const course = {
-  name: 'x_course', label: 'Courses', titleField: 'title',
+  name: 'custom_course', label: 'Courses', titleField: 'title',
   fields: [
     f('title', 'text'), f('slug', 'slug'), f('status', 'status'), f('position', 'number'),
     f('cover', 'media'), f('brochure', 'media', { file: true }),
     f('intro', 'text', { multiline: true }), f('summary', 'text'), f('mail', 'text', { format: 'email' }), f('tint', 'text', { format: 'color' }),
     f('body', 'richtext'), f('startsAt', 'datetime'), f('price', 'number'), f('level', 'select'), f('open', 'boolean'),
-    f('teacher', 'relation', { kind: 'many-to-one' }, { relation: { to: 'x_teacher' } }), f('photos', 'gallery'),
+    f('teacher', 'relation', { kind: 'many-to-one' }, { relation: { to: 'custom_teacher' } }), f('photos', 'gallery'),
   ],
 }
 const graph = [{ name: 'page', label: 'Pages', titleField: 'title', fields: [] }, course]
@@ -23,7 +23,7 @@ const keys = (list: { key: string }[]) => list.map((x) => x.key)
 
 describe('binding: what the site offers', () => {
   it('takes only the types of its own', () => {
-    expect(types.map((x) => x.name)).toEqual(['x_course'])
+    expect(types.map((x) => x.name)).toEqual(['custom_course'])
     expect(cmsBindingTypes(null)).toEqual([])
   })
 
@@ -61,31 +61,31 @@ describe('binding: what is missing', () => {
   })
 
   it('names a type the site does not have', () => {
-    expect(cmsBindingMissing({ type: 'x_recipe', show: { date: 'startsAt' } }, types)).toEqual({ type: true, fields: [] })
+    expect(cmsBindingMissing({ type: 'custom_recipe', show: { date: 'startsAt' } }, types)).toEqual({ type: true, fields: [] })
   })
 
   it('names the places that hold a field the type does not have', () => {
-    const value = { type: 'x_course', show: { date: 'startsAt', label: 'gone', more: ['price', 'old'] }, order: { by: 'rank', dir: 'asc' } }
+    const value = { type: 'custom_course', show: { date: 'startsAt', label: 'gone', more: ['price', 'old'] }, order: { by: 'rank', dir: 'asc' } }
     expect(cmsBindingMissing(value, types)).toEqual({
       type: false, fields: [{ place: 'label', key: 'gone' }, { place: 'more', key: 'old' }, { place: 'order', key: 'rank' }],
     })
-    expect(cmsBindingMissing({ type: 'x_course', order: { by: 'createdAt', dir: 'desc' } }, types).fields).toEqual([])
+    expect(cmsBindingMissing({ type: 'custom_course', order: { by: 'createdAt', dir: 'desc' } }, types).fields).toEqual([])
   })
 
   it('tolerates junk inside', () => {
-    expect(cmsBindingMissing({ type: 'x_course', show: 'x', order: 5, entries: 'a' }, types)).toEqual({ type: false, fields: [] })
-    expect(cmsBindingMissing({ type: 'x_course', show: { more: [1, null, 'price'] } }, types).fields).toEqual([])
+    expect(cmsBindingMissing({ type: 'custom_course', show: 'x', order: 5, entries: 'a' }, types)).toEqual({ type: false, fields: [] })
+    expect(cmsBindingMissing({ type: 'custom_course', show: { more: [1, null, 'price'] } }, types).fields).toEqual([])
   })
 })
 
 describe('binding: setters', () => {
-  const full = { type: 'x_course', show: { image: 'cover', date: 'startsAt', more: ['price'] }, order: { by: 'price', dir: 'asc' as const }, limit: 9, entries: ['a'] }
+  const full = { type: 'custom_course', show: { image: 'cover', date: 'startsAt', more: ['price'] }, order: { by: 'price', dir: 'asc' as const }, limit: 9, entries: ['a'] }
 
   it('empties the value for no type, and starts a new one with the limit only', () => {
     expect(cmsBindingSetType(full, null)).toBeNull()
-    expect(cmsBindingSetType(full, 'x_recipe')).toEqual({ type: 'x_recipe', limit: 9 })
-    expect(cmsBindingSetType(null, 'x_course')).toEqual({ type: 'x_course' })
-    expect(cmsBindingSetType(full, 'x_course')).toEqual(full)
+    expect(cmsBindingSetType(full, 'custom_recipe')).toEqual({ type: 'custom_recipe', limit: 9 })
+    expect(cmsBindingSetType(null, 'custom_course')).toEqual({ type: 'custom_course' })
+    expect(cmsBindingSetType(full, 'custom_course')).toEqual(full)
   })
 
   it('never changes what it is given', () => {
@@ -99,43 +99,43 @@ describe('binding: setters', () => {
   })
 
   it('sets and clears a place, and drops what became empty', () => {
-    expect(cmsBindingSetPlace({ type: 'x_course' }, 'date', 'startsAt')).toEqual({ type: 'x_course', show: { date: 'startsAt' } })
-    expect(cmsBindingSetPlace({ type: 'x_course', show: { date: 'startsAt' } }, 'date', null)).toEqual({ type: 'x_course' })
+    expect(cmsBindingSetPlace({ type: 'custom_course' }, 'date', 'startsAt')).toEqual({ type: 'custom_course', show: { date: 'startsAt' } })
+    expect(cmsBindingSetPlace({ type: 'custom_course', show: { date: 'startsAt' } }, 'date', null)).toEqual({ type: 'custom_course' })
     expect(cmsBindingSetPlace(null, 'date', 'startsAt')).toBeNull()
   })
 
   it('ticks at most six more details', () => {
-    let v: any = { type: 'x_course' }
+    let v: any = { type: 'custom_course' }
     for (const k of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) v = cmsBindingToggleMore(v, k, true)
     expect(v.show.more).toEqual(['a', 'b', 'c', 'd', 'e', 'f'])
     v = cmsBindingToggleMore(v, 'a', false)
     expect(v.show.more).toEqual(['b', 'c', 'd', 'e', 'f'])
     for (const k of ['b', 'c', 'd', 'e', 'f']) v = cmsBindingToggleMore(v, k, false)
-    expect(v).toEqual({ type: 'x_course' })
+    expect(v).toEqual({ type: 'custom_course' })
   })
 
   it('sets the order and the limit, and leaves them out when empty', () => {
-    expect(cmsBindingSetOrder({ type: 'x_course' }, { by: 'createdAt', dir: 'desc' })).toEqual({ type: 'x_course', order: { by: 'createdAt', dir: 'desc' } })
+    expect(cmsBindingSetOrder({ type: 'custom_course' }, { by: 'createdAt', dir: 'desc' })).toEqual({ type: 'custom_course', order: { by: 'createdAt', dir: 'desc' } })
     expect(cmsBindingSetOrder(full, null)).not.toHaveProperty('order')
-    expect(cmsBindingSetLimit({ type: 'x_course' }, 12)).toEqual({ type: 'x_course', limit: 12 })
-    expect(cmsBindingSetLimit({ type: 'x_course' }, 99)).toEqual({ type: 'x_course', limit: 48 })
-    expect(cmsBindingSetLimit({ type: 'x_course' }, 0)).toEqual({ type: 'x_course', limit: 1 })
+    expect(cmsBindingSetLimit({ type: 'custom_course' }, 12)).toEqual({ type: 'custom_course', limit: 12 })
+    expect(cmsBindingSetLimit({ type: 'custom_course' }, 99)).toEqual({ type: 'custom_course', limit: 48 })
+    expect(cmsBindingSetLimit({ type: 'custom_course' }, 0)).toEqual({ type: 'custom_course', limit: 1 })
     expect(cmsBindingSetLimit(full, null)).not.toHaveProperty('limit')
     expect(cmsBindingSetLimit(full, Number.NaN)).not.toHaveProperty('limit')
   })
 
   it('keeps chosen entries in order, once each, at most twelve', () => {
     const ids = Array.from({ length: 14 }, (_, i) => `id${i}`)
-    expect(cmsBindingSetEntries({ type: 'x_course' }, ['b', 'a', 'b'])).toEqual({ type: 'x_course', entries: ['b', 'a'] })
-    expect(cmsBindingSetEntries({ type: 'x_course' }, ids)!.entries).toHaveLength(12)
+    expect(cmsBindingSetEntries({ type: 'custom_course' }, ['b', 'a', 'b'])).toEqual({ type: 'custom_course', entries: ['b', 'a'] })
+    expect(cmsBindingSetEntries({ type: 'custom_course' }, ids)!.entries).toHaveLength(12)
     expect(cmsBindingSetEntries(full, [])).not.toHaveProperty('entries')
     expect(cmsBindingMoveEntry(['a', 'b', 'c'], 1, -1)).toEqual(['b', 'a', 'c'])
     expect(cmsBindingMoveEntry(['a', 'b', 'c'], 2, 1)).toEqual(['a', 'b', 'c'])
   })
 
   it('writes no key the schema does not know', () => {
-    const read = cmsBindingRead({ type: 'x_course', extra: 1, show: { image: 'cover', junk: 1, more: ['p', 3] }, order: { by: 'p', dir: 'up' }, limit: 2.5 })
-    expect(read).toEqual({ type: 'x_course', show: { image: 'cover', more: ['p'] } })
+    const read = cmsBindingRead({ type: 'custom_course', extra: 1, show: { image: 'cover', junk: 1, more: ['p', 3] }, order: { by: 'p', dir: 'up' }, limit: 2.5 })
+    expect(read).toEqual({ type: 'custom_course', show: { image: 'cover', more: ['p'] } })
     expect(cmsBindingRead({ show: {} })).toBeNull()
   })
 })

@@ -27,7 +27,7 @@ const title = (): ModelField => ({ key: 'title', type: 'text', label: { en: 'Tit
 const doc = (...types: ModelType[]): ModelDoc => ({ format: 1, types })
 
 const courseDoc: ModelType = {
-  name: 'x_course',
+  name: 'custom_course',
   label: { cs: 'Kurzy', en: 'Courses' },
   labelSingular: { cs: 'Kurz', en: 'Course' },
   description: { en: 'What we teach.' },
@@ -61,17 +61,17 @@ const courseDoc: ModelType = {
     { key: 'photos', type: 'gallery', label: { cs: 'Fotky', en: 'Photos' } },
     { key: 'accent', type: 'color', required: true, label: { cs: 'Barva', en: 'Colour' } },
     { key: 'category', type: 'relation', to: 'category', label: { cs: 'Kategorie', en: 'Category' } },
-    { key: 'teacher', type: 'relation', to: 'x_teacher', label: { cs: 'Lektor', en: 'Teacher' } },
+    { key: 'teacher', type: 'relation', to: 'custom_teacher', label: { cs: 'Lektor', en: 'Teacher' } },
   ],
 }
 const teacherDoc: ModelType = {
-  name: 'x_teacher',
+  name: 'custom_teacher',
   label: { en: 'Teachers' },
   titleField: 'title',
   listColumns: null,
   fields: [
     title(),
-    { key: 'mentor', type: 'relation', to: 'x_teacher', label: { en: 'Mentor' } },
+    { key: 'mentor', type: 'relation', to: 'custom_teacher', label: { en: 'Mentor' } },
     { key: 'bio', type: 'richtext', label: { en: 'Bio' } },
     { key: 'photo', type: 'media', label: { en: 'Photo' } },
     { key: 'gallery', type: 'gallery', label: { en: 'Gallery' } },
@@ -81,7 +81,7 @@ const teacherDoc: ModelType = {
 }
 
 function byHand() {
-  const course: any = defineEntity('x_course', {
+  const course: any = defineEntity('custom_course', {
     label: { cs: 'Kurzy', en: 'Courses' },
     labelSingular: { cs: 'Kurz', en: 'Course' },
     description: { en: 'What we teach.' },
@@ -118,7 +118,7 @@ function byHand() {
     content: { public: true, slug: 'slug', path: '/kurzy/:slug', published: (t: any) => eq(t.status, 'published') },
     publish: { field: 'status', publishedValue: 'published', draftValue: 'draft', preview: '/kurzy/:slug' },
   } as any)
-  const teacher: any = defineEntity('x_teacher', {
+  const teacher: any = defineEntity('custom_teacher', {
     label: { en: 'Teachers' },
     titleField: 'title',
     fields: {
@@ -133,7 +133,7 @@ function byHand() {
     admin: { list: { columns: ['title', 'mentor', 'photo', 'since'] } },
     content: { public: true },
   } as any)
-  return { x_course: course, x_teacher: teacher }
+  return { custom_course: course, custom_teacher: teacher }
 }
 
 // The first place two JSON values differ, as a path: a short message where a whole diff is long.
@@ -166,19 +166,19 @@ describe('the same types written in a document and in code', () => {
 
   it('builds both types without a problem', () => {
     expect(problems).toEqual([])
-    expect(Object.keys(entities)).toEqual(['x_course', 'x_teacher'])
+    expect(Object.keys(entities)).toEqual(['custom_course', 'custom_teacher'])
   })
 
   it('gives the same admin graph', () => {
     const a = graphOf({ ...design, ...entities })
     const b = graphOf({ ...design, ...hand })
     expect(a).toEqual(b)
-    const course = a.find((e: any) => e.name === 'x_course')
+    const course = a.find((e: any) => e.name === 'custom_course')
     expect(course.fields.map((x: any) => x.key)).toContain('teacher')
   })
 
   it('gives tables with the same columns', () => {
-    for (const name of ['x_course', 'x_teacher']) {
+    for (const name of ['custom_course', 'custom_teacher']) {
       expect(columnsOf(mine.schema[name])).toEqual(columnsOf(theirs.schema[name]))
     }
   })
@@ -195,36 +195,36 @@ describe('the columns of the admin list', () => {
     { key: 'c', type: 'boolean', label: { en: 'C' } },
     { key: 'd', type: 'text', label: { en: 'D' } },
   ]
-  const columnsFor = (t: ModelType) => modelEntities(doc(t), designOf()).entities.x_item?.admin?.list?.columns
+  const columnsFor = (t: ModelType) => modelEntities(doc(t), designOf()).entities.custom_item?.admin?.list?.columns
 
   it('is the title and the first three fields that read well in a list', () => {
-    expect(columnsFor(type('x_item', fields))).toEqual(['title', 'a', 'b', 'c'])
-    expect(columnsFor(type('x_item', fields, { listColumns: [] }))).toEqual(['title', 'a', 'b', 'c'])
+    expect(columnsFor(type('custom_item', fields))).toEqual(['title', 'a', 'b', 'c'])
+    expect(columnsFor(type('custom_item', fields, { listColumns: [] }))).toEqual(['title', 'a', 'b', 'c'])
   })
 
   it('is what the document lists', () => {
-    expect(columnsFor(type('x_item', fields, { listColumns: ['d', 'title'] }))).toEqual(['d', 'title'])
+    expect(columnsFor(type('custom_item', fields, { listColumns: ['d', 'title'] }))).toEqual(['d', 'title'])
   })
 
   it('leaves out a column that is not a field', () => {
-    expect(columnsFor(type('x_item', fields, { listColumns: ['title', 'gone', 'b'] }))).toEqual(['title', 'b'])
+    expect(columnsFor(type('custom_item', fields, { listColumns: ['title', 'gone', 'b'] }))).toEqual(['title', 'b'])
   })
 
   it('leaves out a column that is a hidden field', () => {
     const hidden: ModelField = { key: 'old', type: 'text', label: { en: 'Old' }, removedAt: '2026-11-24T10:00:00.000Z' }
-    expect(columnsFor(type('x_item', [...fields, hidden], { listColumns: ['title', 'old', 'a'] }))).toEqual(['title', 'a'])
+    expect(columnsFor(type('custom_item', [...fields, hidden], { listColumns: ['title', 'old', 'a'] }))).toEqual(['title', 'a'])
   })
 })
 
 describe('what the mapper decides by itself', () => {
   it('builds a picture, a file and a relation as optional, so none holds on to its target', () => {
-    const { entities } = modelEntities(doc(type('x_item', [
+    const { entities } = modelEntities(doc(type('custom_item', [
       title(),
       { key: 'cover', type: 'media', label: { en: 'Cover' } },
       { key: 'paper', type: 'file', label: { en: 'Paper' } },
       { key: 'category', type: 'relation', to: 'category', label: { en: 'Category' } },
     ])), designOf())
-    const item = entities.x_item!
+    const item = entities.custom_item!
     for (const key of ['cover', 'paper', 'category']) {
       expect(item.fields[key]!.isOptional, key).toBe(true)
       expect(item.fields[key]!.spec!.reference!.onDelete, key).toBe('set null')
@@ -232,7 +232,7 @@ describe('what the mapper decides by itself', () => {
   })
 
   it('keeps a removed choice as a value and names it for the admin', () => {
-    const { entities } = modelEntities(doc(type('x_item', [
+    const { entities } = modelEntities(doc(type('custom_item', [
       title(),
       { key: 'level', type: 'select', label: { en: 'Level' }, options: [
         { value: 'a', label: { en: 'A' } },
@@ -240,14 +240,14 @@ describe('what the mapper decides by itself', () => {
       ] },
       { key: 'plain', type: 'select', label: { en: 'Plain' }, options: [{ value: 'a', label: { en: 'A' } }] },
     ])), designOf())
-    const item = entities.x_item!
+    const item = entities.custom_item!
     expect(item.fields.level!.meta.options).toEqual(['a', 'old'])
     // The column keeps the value too, as the database keeps its values.
     expect((item.fields.level as any).spec.base.values).toEqual(['a', 'old'])
     expect(item.fields.level!.meta.removedOptions).toEqual(['old'])
     expect(item.fields.level!.zod('create').safeParse('old').success).toBe(true)
     expect(item.fields.plain!.meta.removedOptions).toBeUndefined()
-    const graph = buildRegistry({ ...designOf(), ...entities }).graph.find((g: any) => g.name === 'x_item')
+    const graph = buildRegistry({ ...designOf(), ...entities }).graph.find((g: any) => g.name === 'custom_item')
     expect(graph.fields.find((x: any) => x.key === 'level').meta.removedOptions).toEqual(['old'])
   })
 })
@@ -261,26 +261,26 @@ describe('hidden types and fields', () => {
     { key: 'hiddenMedia', type: 'media', label: { en: 'Hidden media' }, removedAt },
     { key: 'hiddenRelation', type: 'relation', to: 'category', label: { en: 'Hidden relation' }, removedAt },
   ]
-  const hiddenType = type('x_old', [title()], { removedAt })
-  const pointing = type('x_point', [title(), { key: 'old', type: 'relation', to: 'x_old', label: { en: 'Old' } }])
-  const documentWith = doc(type('x_item', fields), hiddenType, pointing)
+  const hiddenType = type('custom_old', [title()], { removedAt })
+  const pointing = type('custom_point', [title(), { key: 'old', type: 'relation', to: 'custom_old', label: { en: 'Old' } }])
+  const documentWith = doc(type('custom_item', fields), hiddenType, pointing)
 
   it('leaves them out by default, and reports a relation to a hidden type', () => {
     const { entities, problems } = modelEntities(documentWith, designOf())
-    expect(Object.keys(entities)).toEqual(['x_item', 'x_point'])
-    expect(Object.keys(entities.x_item!.fields)).toEqual(['title', 'visibleRequired'])
-    expect(Object.keys(entities.x_point!.fields)).toEqual(['title'])
+    expect(Object.keys(entities)).toEqual(['custom_item', 'custom_point'])
+    expect(Object.keys(entities.custom_item!.fields)).toEqual(['title', 'visibleRequired'])
+    expect(Object.keys(entities.custom_point!.fields)).toEqual(['title'])
     expect(problems).toHaveLength(1)
-    expect(problems[0]).toMatchObject({ type: 'x_point', field: 'old' })
+    expect(problems[0]).toMatchObject({ type: 'custom_point', field: 'old' })
   })
 
   it('builds them with withHidden, and the hidden fields are optional', () => {
     const { entities, problems } = modelEntities(documentWith, designOf(), { withHidden: true })
     expect(problems).toEqual([])
-    expect(Object.keys(entities)).toEqual(['x_item', 'x_old', 'x_point'])
-    expect(Object.keys(entities.x_point!.fields)).toEqual(['title', 'old'])
-    const item = entities.x_item!
-    const columns = columnsOf(buildRegistry({ ...designOf(), ...entities }).schema.x_item)
+    expect(Object.keys(entities)).toEqual(['custom_item', 'custom_old', 'custom_point'])
+    expect(Object.keys(entities.custom_point!.fields)).toEqual(['title', 'old'])
+    const item = entities.custom_item!
+    const columns = columnsOf(buildRegistry({ ...designOf(), ...entities }).schema.custom_item)
     const notNull = (name: string) => columns.find((c: any) => c.name === name)!.notNull
     expect(item.fields.visibleRequired!.isOptional).toBe(false)
     expect(notNull('visible_required')).toBe(true)
@@ -291,89 +291,89 @@ describe('hidden types and fields', () => {
   })
 
   it('does not make the fields of a hidden type optional', () => {
-    const { entities } = modelEntities(doc(type('x_old', [title()], { removedAt })), designOf(), { withHidden: true })
-    expect(entities.x_old!.fields.title!.isOptional).toBe(false)
+    const { entities } = modelEntities(doc(type('custom_old', [title()], { removedAt })), designOf(), { withHidden: true })
+    expect(entities.custom_old!.fields.title!.isOptional).toBe(false)
   })
 })
 
 describe('a document that is wrong never stops the site', () => {
   it('leaves out a relation to a design collection that is gone', () => {
-    const { entities, problems } = modelEntities(doc(type('x_item', [title(), { key: 'gone', type: 'relation', to: 'ghost', label: { en: 'Gone' } }])), designOf())
-    expect(Object.keys(entities.x_item!.fields)).toEqual(['title'])
-    expect(problems).toEqual([expect.objectContaining({ type: 'x_item', field: 'gone' })])
+    const { entities, problems } = modelEntities(doc(type('custom_item', [title(), { key: 'gone', type: 'relation', to: 'ghost', label: { en: 'Gone' } }])), designOf())
+    expect(Object.keys(entities.custom_item!.fields)).toEqual(['title'])
+    expect(problems).toEqual([expect.objectContaining({ type: 'custom_item', field: 'gone' })])
   })
 
   it('leaves out a relation to a single page of the design', () => {
-    const { entities, problems } = modelEntities(doc(type('x_item', [title(), { key: 'where', type: 'relation', to: 'settings', label: { en: 'Where' } }])), designOf())
-    expect(Object.keys(entities.x_item!.fields)).toEqual(['title'])
-    expect(problems).toEqual([expect.objectContaining({ type: 'x_item', field: 'where' })])
+    const { entities, problems } = modelEntities(doc(type('custom_item', [title(), { key: 'where', type: 'relation', to: 'settings', label: { en: 'Where' } }])), designOf())
+    expect(Object.keys(entities.custom_item!.fields)).toEqual(['title'])
+    expect(problems).toEqual([expect.objectContaining({ type: 'custom_item', field: 'where' })])
   })
 
   it('leaves out a type whose name the design took', () => {
-    const design = { ...designOf(), Course: defineEntity('x_course', { label: 'Mine', titleField: 'name', fields: { name: f.text({ required: true }) } }) }
-    const { entities, problems } = modelEntities(doc(type('x_course', [title()]), type('x_other', [title()])), design)
-    expect(Object.keys(entities)).toEqual(['x_other'])
-    expect(problems).toEqual([expect.objectContaining({ type: 'x_course' })])
+    const design = { ...designOf(), Course: defineEntity('custom_course', { label: 'Mine', titleField: 'name', fields: { name: f.text({ required: true }) } }) }
+    const { entities, problems } = modelEntities(doc(type('custom_course', [title()]), type('custom_other', [title()])), design)
+    expect(Object.keys(entities)).toEqual(['custom_other'])
+    expect(problems).toEqual([expect.objectContaining({ type: 'custom_course' })])
   })
 
   it('leaves out a type that would clash in the schema with a design entity', () => {
-    const design = { ...designOf(), clash: defineEntity('xCourse', { label: 'Mine', titleField: 'name', fields: { name: f.text({ required: true }) } }) }
-    const { entities, problems } = modelEntities(doc(type('x_course', [title()]), type('x_other', [title()])), design)
-    expect(Object.keys(entities)).toEqual(['x_other'])
-    expect(problems).toEqual([expect.objectContaining({ type: 'x_course' })])
+    const design = { ...designOf(), clash: defineEntity('customCourse', { label: 'Mine', titleField: 'name', fields: { name: f.text({ required: true }) } }) }
+    const { entities, problems } = modelEntities(doc(type('custom_course', [title()]), type('custom_other', [title()])), design)
+    expect(Object.keys(entities)).toEqual(['custom_other'])
+    expect(problems).toEqual([expect.objectContaining({ type: 'custom_course' })])
   })
 
   it('leaves out a choice that would clash with a design table', () => {
-    // x_course + level = x_course_level, which the design already has as a table.
-    const design = { ...designOf(), clash: defineEntity('x_course_level', { label: 'Mine', titleField: 'name', fields: { name: f.text({ required: true }) } }) }
+    // custom_course + level = custom_course_level, which the design already has as a table.
+    const design = { ...designOf(), clash: defineEntity('custom_course_level', { label: 'Mine', titleField: 'name', fields: { name: f.text({ required: true }) } }) }
     const select: ModelField = { key: 'level', type: 'select', label: { en: 'Level' }, options: [{ value: 'a', label: { en: 'A' } }] }
-    const { entities, problems } = modelEntities(doc(type('x_course', [title(), select])), design)
+    const { entities, problems } = modelEntities(doc(type('custom_course', [title(), select])), design)
     expect(entities).toEqual({})
-    expect(problems).toEqual([expect.objectContaining({ type: 'x_course' })])
+    expect(problems).toEqual([expect.objectContaining({ type: 'custom_course' })])
   })
 
   it('leaves out a name without the prefix', () => {
-    const { entities, problems } = modelEntities(doc(type('course', [title()]), type('x_ok', [title()])), designOf())
-    expect(Object.keys(entities)).toEqual(['x_ok'])
+    const { entities, problems } = modelEntities(doc(type('course', [title()]), type('custom_ok', [title()])), designOf())
+    expect(Object.keys(entities)).toEqual(['custom_ok'])
     expect(problems).toEqual([expect.objectContaining({ type: 'course' })])
   })
 
   it('leaves out a type that defineEntity refuses, and keeps the other fields of a type that pointed at it', () => {
-    const bad = type('x_bad', [title(), { key: 'id', type: 'text', label: { en: 'Id' } }])
-    const next = type('x_next', [title(), { key: 'bad', type: 'relation', to: 'x_bad', label: { en: 'Bad' } }, { key: 'note', type: 'text', label: { en: 'Note' } }])
+    const bad = type('custom_bad', [title(), { key: 'id', type: 'text', label: { en: 'Id' } }])
+    const next = type('custom_next', [title(), { key: 'bad', type: 'relation', to: 'custom_bad', label: { en: 'Bad' } }, { key: 'note', type: 'text', label: { en: 'Note' } }])
     const { entities, problems } = modelEntities(doc(bad, next), designOf())
-    expect(Object.keys(entities)).toEqual(['x_next'])
-    expect(Object.keys(entities.x_next!.fields)).toEqual(['title', 'note'])
-    expect(problems.map((p) => [p.type, p.field])).toEqual([['x_bad', undefined], ['x_next', 'bad']])
+    expect(Object.keys(entities)).toEqual(['custom_next'])
+    expect(Object.keys(entities.custom_next!.fields)).toEqual(['title', 'note'])
+    expect(problems.map((p) => [p.type, p.field])).toEqual([['custom_bad', undefined], ['custom_next', 'bad']])
     expect(problems[0]!.message).toContain('id')
   })
 
   it('leaves out a field of a kind it does not know', () => {
     const rating = { key: 'rating', type: 'rating', label: { en: 'Rating' } } as unknown as ModelField
-    const { entities, problems } = modelEntities(doc(type('x_item', [title(), rating, { key: 'note', type: 'text', label: { en: 'Note' } }])), designOf())
-    expect(Object.keys(entities.x_item!.fields)).toEqual(['title', 'note'])
-    expect(problems).toEqual([expect.objectContaining({ type: 'x_item', field: 'rating' })])
+    const { entities, problems } = modelEntities(doc(type('custom_item', [title(), rating, { key: 'note', type: 'text', label: { en: 'Note' } }])), designOf())
+    expect(Object.keys(entities.custom_item!.fields)).toEqual(['title', 'note'])
+    expect(problems).toEqual([expect.objectContaining({ type: 'custom_item', field: 'rating' })])
   })
 
   it('leaves out a type whose title field is missing', () => {
-    const { entities, problems } = modelEntities(doc(type('x_item', [{ key: 'note', type: 'text', label: { en: 'Note' } }])), designOf())
+    const { entities, problems } = modelEntities(doc(type('custom_item', [{ key: 'note', type: 'text', label: { en: 'Note' } }])), designOf())
     expect(entities).toEqual({})
-    expect(problems).toEqual([expect.objectContaining({ type: 'x_item' })])
+    expect(problems).toEqual([expect.objectContaining({ type: 'custom_item' })])
   })
 
   it('loads no type when the design itself is broken', () => {
     const one = () => defineEntity('dup', { label: 'Dup', titleField: 'name', fields: { name: f.text({ required: true }) } })
-    const { entities, problems } = modelEntities(doc(type('x_a', [title()]), type('x_b', [title()])), { first: one(), second: one() })
+    const { entities, problems } = modelEntities(doc(type('custom_a', [title()]), type('custom_b', [title()])), { first: one(), second: one() })
     expect(entities).toEqual({})
-    expect(problems.map((p) => p.type)).toEqual(['x_a', 'x_b'])
+    expect(problems.map((p) => p.type)).toEqual(['custom_a', 'custom_b'])
   })
 
   it('leaves out the second of two types whose names would meet in the schema', () => {
-    // x_a with the choice b makes x_a_b in the database: the name of the second type.
+    // custom_a with the choice b makes custom_a_b in the database: the name of the second type.
     const select: ModelField = { key: 'b', type: 'select', label: { en: 'B' }, options: [{ value: 'a', label: { en: 'A' } }] }
-    const { entities, problems } = modelEntities(doc(type('x_a', [title(), select]), type('x_a_b', [title()])), designOf())
-    expect(Object.keys(entities)).toEqual(['x_a'])
-    expect(problems).toEqual([expect.objectContaining({ type: 'x_a_b' })])
+    const { entities, problems } = modelEntities(doc(type('custom_a', [title(), select]), type('custom_a_b', [title()])), designOf())
+    expect(Object.keys(entities)).toEqual(['custom_a'])
+    expect(problems).toEqual([expect.objectContaining({ type: 'custom_a_b' })])
   })
 
   it('does not throw on a document that is not one', () => {
@@ -384,14 +384,14 @@ describe('a document that is wrong never stops the site', () => {
 
 describe('what the content API sees', () => {
   it('makes every custom type public', () => {
-    const { entities } = modelEntities(doc(type('x_plain', [title()]), type('x_paged', [title()], { page: { prefix: 'kurzy' } })), designOf())
-    expect(entities.x_plain!.content).toEqual({ public: true })
-    expect(entities.x_paged!.content!.public).toBe(true)
+    const { entities } = modelEntities(doc(type('custom_plain', [title()]), type('custom_paged', [title()], { page: { prefix: 'kurzy' } })), designOf())
+    expect(entities.custom_plain!.content).toEqual({ public: true })
+    expect(entities.custom_paged!.content!.public).toBe(true)
   })
 
   it('gives a page type its address and the same address for the preview', () => {
-    const { entities } = modelEntities(doc(type('x_paged', [title()], { page: { prefix: 'kurzy' }, publish: true })), designOf())
-    const e = entities.x_paged!
+    const { entities } = modelEntities(doc(type('custom_paged', [title()], { page: { prefix: 'kurzy' }, publish: true })), designOf())
+    const e = entities.custom_paged!
     expect(e.content!.path).toBe('/kurzy/:slug')
     expect(e.content!.slug).toBe('slug')
     expect(e.publish!.preview).toBe('/kurzy/:slug')
@@ -399,7 +399,7 @@ describe('what the content API sees', () => {
   })
 
   it('has no publishing and no address without them', () => {
-    const e = modelEntities(doc(type('x_plain', [title()])), designOf()).entities.x_plain!
+    const e = modelEntities(doc(type('custom_plain', [title()])), designOf()).entities.custom_plain!
     expect(e.publish).toBeUndefined()
     expect(Object.keys(e.fields)).toEqual(['title'])
   })

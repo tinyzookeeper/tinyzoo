@@ -96,40 +96,40 @@ describe('the chain from a document to the statements', () => {
   const planningReg = (doc: ReturnType<typeof emptyModelDoc>) => modelPlanningBuild(doc, design)
 
   const { doc: doc1 } = apply(emptyModelDoc(), [
-    { op: 'type.add', name: 'x_course', label: { cs: 'Kurzy' } },
-    { op: 'field.add', type: 'x_course', field: { key: 'teacher', type: 'text', label: { cs: 'Lektor' } } },
-    { op: 'field.add', type: 'x_course', field: { key: 'level', type: 'select', label: { cs: 'Úroveň' }, options: [{ label: { cs: 'Začátečníci' } }, { label: { cs: 'Pokročilí' } }] } },
-    { op: 'field.add', type: 'x_course', field: { key: 'cover', type: 'media', label: { cs: 'Obrázek' } } },
-    { op: 'field.add', type: 'x_course', field: { key: 'author', type: 'relation', to: 'category', label: { cs: 'Autor' } } },
-  ], { counts: { entries: { x_course: 0 } } })
+    { op: 'type.add', name: 'custom_course', label: { cs: 'Kurzy' } },
+    { op: 'field.add', type: 'custom_course', field: { key: 'teacher', type: 'text', label: { cs: 'Lektor' } } },
+    { op: 'field.add', type: 'custom_course', field: { key: 'level', type: 'select', label: { cs: 'Úroveň' }, options: [{ label: { cs: 'Začátečníci' } }, { label: { cs: 'Pokročilí' } }] } },
+    { op: 'field.add', type: 'custom_course', field: { key: 'cover', type: 'media', label: { cs: 'Obrázek' } } },
+    { op: 'field.add', type: 'custom_course', field: { key: 'author', type: 'relation', to: 'category', label: { cs: 'Autor' } } },
+  ], { counts: { entries: { custom_course: 0 } } })
   const entities1 = entitiesOf(doc1)
 
   describe('modelCountQueries', () => {
     it('counts the entries of the type, and the values and gaps of a field the operation names', () => {
-      const out = modelCountQueries(entities1, [{ op: 'field.update', type: 'x_course', key: 'teacher', required: true }])
+      const out = modelCountQueries(entities1, [{ op: 'field.update', type: 'custom_course', key: 'teacher', required: true }])
       expect(out).toEqual([
-        { kind: 'entries', key: 'x_course', text: 'select count(*)::int as n from "x_course"' },
-        { kind: 'values', key: 'x_course.teacher', text: 'select count(*)::int as n from "x_course" where "teacher" is not null' },
-        { kind: 'missing', key: 'x_course.teacher', text: 'select count(*)::int as n from "x_course" where "teacher" is null' },
+        { kind: 'entries', key: 'custom_course', text: 'select count(*)::int as n from "custom_course"' },
+        { kind: 'values', key: 'custom_course.teacher', text: 'select count(*)::int as n from "custom_course" where "teacher" is not null' },
+        { kind: 'missing', key: 'custom_course.teacher', text: 'select count(*)::int as n from "custom_course" where "teacher" is null' },
       ])
     })
 
     it('uses the column of a picture, which ends in _id', () => {
-      const out = modelCountQueries(entities1, [{ op: 'field.update', type: 'x_course', key: 'cover', label: { cs: 'Titulka' } }])
+      const out = modelCountQueries(entities1, [{ op: 'field.update', type: 'custom_course', key: 'cover', label: { cs: 'Titulka' } }])
       expect(out.find((q) => q.kind === 'values')!.text).toContain('"cover_id" is not null')
       expect(out.find((q) => q.kind === 'missing')!.text).toContain('"cover_id" is null')
     })
 
     it('makes no query for a type or a field that does not exist', () => {
-      expect(modelCountQueries(entities1, [{ op: 'field.update', type: 'x_nothing', key: 'teacher', required: true }])).toEqual([])
-      const out = modelCountQueries(entities1, [{ op: 'field.update', type: 'x_course', key: 'nothing', required: true }])
+      expect(modelCountQueries(entities1, [{ op: 'field.update', type: 'custom_nothing', key: 'teacher', required: true }])).toEqual([])
+      const out = modelCountQueries(entities1, [{ op: 'field.update', type: 'custom_course', key: 'nothing', required: true }])
       expect(out.map((q) => q.kind)).toEqual(['entries'])
     })
 
     it('never lets the text of a request reach the SQL', () => {
       const evil = [
-        { op: 'field.update', type: 'x_course', key: 'teacher"; drop table "cms_users"; --', required: true },
-        { op: 'field.update', type: 'x_course" where 1=1; --', key: 'teacher', required: true },
+        { op: 'field.update', type: 'custom_course', key: 'teacher"; drop table "cms_users"; --', required: true },
+        { op: 'field.update', type: 'custom_course" where 1=1; --', key: 'teacher', required: true },
       ] as unknown as ModelOp[]
       const out = modelCountQueries(entities1, evil)
       expect(out.map((q) => q.kind)).toEqual(['entries'])
@@ -141,97 +141,97 @@ describe('the chain from a document to the statements', () => {
         expect(modelCountQueries(entities1, [{ op: 'field.update', type, key: 'teacher', required: true } as unknown as ModelOp]), type).toEqual([])
       }
       for (const key of ['__proto__', 'constructor', 'toString']) {
-        expect(modelCountQueries(entities1, [{ op: 'field.update', type: 'x_course', key, required: true } as unknown as ModelOp]).map((q) => q.kind), key).toEqual(['entries'])
+        expect(modelCountQueries(entities1, [{ op: 'field.update', type: 'custom_course', key, required: true } as unknown as ModelOp]).map((q) => q.kind), key).toEqual(['entries'])
       }
     })
 
     it('makes none for a new type or a purge', () => {
-      expect(modelCountQueries(entities1, [{ op: 'type.add', name: 'x_other', label: { cs: 'Jiné' } }])).toEqual([])
-      expect(modelCountQueries({}, [{ op: 'purge', types: ['x_course'] }, { op: 'purge', fields: [{ type: 'x_course', key: 'teacher' }] }])).toEqual([])
+      expect(modelCountQueries(entities1, [{ op: 'type.add', name: 'custom_other', label: { cs: 'Jiné' } }])).toEqual([])
+      expect(modelCountQueries({}, [{ op: 'purge', types: ['custom_course'] }, { op: 'purge', fields: [{ type: 'custom_course', key: 'teacher' }] }])).toEqual([])
     })
   })
 
   describe('modelDdlAllow', () => {
     it('allows SET NOT NULL for a field made required', () => {
-      const { doc: after } = apply(doc1, [{ op: 'field.update', type: 'x_course', key: 'teacher', required: true }], { counts: { missing: { 'x_course.teacher': 0 } } })
-      const allow = modelDdlAllow(doc1, after, [{ op: 'field.update', type: 'x_course', key: 'teacher', required: true }], entities1, planningReg(doc1).reg)
-      expect(allow.setNotNull).toEqual(['x_course.teacher'])
+      const { doc: after } = apply(doc1, [{ op: 'field.update', type: 'custom_course', key: 'teacher', required: true }], { counts: { missing: { 'custom_course.teacher': 0 } } })
+      const allow = modelDdlAllow(doc1, after, [{ op: 'field.update', type: 'custom_course', key: 'teacher', required: true }], entities1, planningReg(doc1).reg)
+      expect(allow.setNotNull).toEqual(['custom_course.teacher'])
     })
 
     it('allows SET NOT NULL for a restored field that stays required', () => {
-      const { doc: required } = apply(doc1, [{ op: 'field.update', type: 'x_course', key: 'teacher', required: true }], { counts: { missing: { 'x_course.teacher': 0 } } })
-      const { doc: hidden } = apply(required, [{ op: 'field.remove', type: 'x_course', key: 'teacher' }])
-      const restore: ModelOp[] = [{ op: 'field.restore', type: 'x_course', key: 'teacher' }]
-      const back = apply(hidden, restore, { counts: { missing: { 'x_course.teacher': 0 } } })
+      const { doc: required } = apply(doc1, [{ op: 'field.update', type: 'custom_course', key: 'teacher', required: true }], { counts: { missing: { 'custom_course.teacher': 0 } } })
+      const { doc: hidden } = apply(required, [{ op: 'field.remove', type: 'custom_course', key: 'teacher' }])
+      const restore: ModelOp[] = [{ op: 'field.restore', type: 'custom_course', key: 'teacher' }]
+      const back = apply(hidden, restore, { counts: { missing: { 'custom_course.teacher': 0 } } })
       expect(back.notes).toEqual([])
-      expect(modelDdlAllow(hidden, back.doc, restore, entitiesOf(hidden), planningReg(hidden).reg).setNotNull).toEqual(['x_course.teacher'])
+      expect(modelDdlAllow(hidden, back.doc, restore, entitiesOf(hidden), planningReg(hidden).reg).setNotNull).toEqual(['custom_course.teacher'])
     })
 
     it('allows nothing for a field restored as optional', () => {
-      const { doc: required } = apply(doc1, [{ op: 'field.update', type: 'x_course', key: 'teacher', required: true }], { counts: { missing: { 'x_course.teacher': 0 } } })
-      const { doc: hidden } = apply(required, [{ op: 'field.remove', type: 'x_course', key: 'teacher' }])
-      const restore: ModelOp[] = [{ op: 'field.restore', type: 'x_course', key: 'teacher' }]
-      const back = apply(hidden, restore, { counts: { missing: { 'x_course.teacher': 4 } } })
+      const { doc: required } = apply(doc1, [{ op: 'field.update', type: 'custom_course', key: 'teacher', required: true }], { counts: { missing: { 'custom_course.teacher': 0 } } })
+      const { doc: hidden } = apply(required, [{ op: 'field.remove', type: 'custom_course', key: 'teacher' }])
+      const restore: ModelOp[] = [{ op: 'field.restore', type: 'custom_course', key: 'teacher' }]
+      const back = apply(hidden, restore, { counts: { missing: { 'custom_course.teacher': 4 } } })
       expect(back.notes.map((n) => n.code)).toEqual(['restored-optional'])
       expect(modelDdlAllow(hidden, back.doc, restore, entitiesOf(hidden), planningReg(hidden).reg).setNotNull).toEqual([])
     })
 
     it('allows the drops of a purged type: its tables and its choice types', () => {
-      const { doc: hidden } = apply(doc1, [{ op: 'type.remove', type: 'x_course' }])
-      const purge: ModelOp[] = [{ op: 'purge', types: ['x_course'] }]
+      const { doc: hidden } = apply(doc1, [{ op: 'type.remove', type: 'custom_course' }])
+      const purge: ModelOp[] = [{ op: 'purge', types: ['custom_course'] }]
       const { doc: purged } = apply(hidden, purge, { now: later(31), internal: true })
       const b = planningReg(hidden)
       const allow = modelDdlAllow(hidden, purged, purge, b.entities, b.reg)
-      expect(allow.drop?.tables).toContain('x_course')
-      expect(allow.drop?.types).toContain('x_course_level')
+      expect(allow.drop?.tables).toContain('custom_course')
+      expect(allow.drop?.types).toContain('custom_course_level')
       expect(allow.setNotNull).toEqual([])
     })
 
     it('allows the drop of a purged select field: its column and its choice type', () => {
-      const { doc: hidden } = apply(doc1, [{ op: 'field.remove', type: 'x_course', key: 'level' }])
-      const purge: ModelOp[] = [{ op: 'purge', fields: [{ type: 'x_course', key: 'level' }] }]
+      const { doc: hidden } = apply(doc1, [{ op: 'field.remove', type: 'custom_course', key: 'level' }])
+      const purge: ModelOp[] = [{ op: 'purge', fields: [{ type: 'custom_course', key: 'level' }] }]
       const { doc: purged } = apply(hidden, purge, { now: later(31), internal: true })
       const b = planningReg(hidden)
       const allow = modelDdlAllow(hidden, purged, purge, b.entities, b.reg)
-      expect(allow.drop?.columns).toEqual(['x_course.level'])
-      expect(allow.drop?.types).toEqual(['x_course_level'])
+      expect(allow.drop?.columns).toEqual(['custom_course.level'])
+      expect(allow.drop?.types).toEqual(['custom_course_level'])
       expect(allow.drop?.tables).toEqual([])
     })
   })
 
   describe('planModelChange', () => {
     it('adds a required column to a type with no entries as optional first, then makes it required', () => {
-      const ops: ModelOp[] = [{ op: 'field.add', type: 'x_course', field: { key: 'room', type: 'text', required: true, label: { cs: 'Místnost' } } }]
-      const { doc: after } = apply(doc1, ops, { counts: { entries: { x_course: 0 } } })
+      const ops: ModelOp[] = [{ op: 'field.add', type: 'custom_course', field: { key: 'room', type: 'text', required: true, label: { cs: 'Místnost' } } }]
+      const { doc: after } = apply(doc1, ops, { counts: { entries: { custom_course: 0 } } })
       const out = planModelChange(doc1, after, design, ops)
       expect(out.refused).toEqual([])
       expect(out.statements).toHaveLength(2)
-      expect(out.statements[0]).toMatch(/^ALTER TABLE "x_course" ADD COLUMN "room" text$/)
-      expect(out.statements[1]).toBe('ALTER TABLE "x_course" ALTER COLUMN "room" SET NOT NULL')
+      expect(out.statements[0]).toMatch(/^ALTER TABLE "custom_course" ADD COLUMN "room" text$/)
+      expect(out.statements[1]).toBe('ALTER TABLE "custom_course" ALTER COLUMN "room" SET NOT NULL')
     })
 
     it('makes the tables of a new type', () => {
       const ops: ModelOp[] = [
-        { op: 'type.add', name: 'x_branch', label: { cs: 'Pobočky' } },
-        { op: 'field.add', type: 'x_branch', field: { key: 'city', type: 'text', required: true, label: { cs: 'Město' } } },
+        { op: 'type.add', name: 'custom_branch', label: { cs: 'Pobočky' } },
+        { op: 'field.add', type: 'custom_branch', field: { key: 'city', type: 'text', required: true, label: { cs: 'Město' } } },
       ]
-      const { doc: after } = apply(doc1, ops, { counts: { entries: { x_branch: 0 } } })
+      const { doc: after } = apply(doc1, ops, { counts: { entries: { custom_branch: 0 } } })
       const out = planModelChange(doc1, after, design, ops)
       expect(out.refused).toEqual([])
-      expect(out.statements.some((s) => s.startsWith('CREATE TABLE "x_branch"'))).toBe(true)
+      expect(out.statements.some((s) => s.startsWith('CREATE TABLE "custom_branch"'))).toBe(true)
     })
 
     it('hides a required field with one DROP NOT NULL', () => {
-      const { doc: required } = apply(doc1, [{ op: 'field.update', type: 'x_course', key: 'teacher', required: true }], { counts: { missing: { 'x_course.teacher': 0 } } })
-      const ops: ModelOp[] = [{ op: 'field.remove', type: 'x_course', key: 'teacher' }]
+      const { doc: required } = apply(doc1, [{ op: 'field.update', type: 'custom_course', key: 'teacher', required: true }], { counts: { missing: { 'custom_course.teacher': 0 } } })
+      const ops: ModelOp[] = [{ op: 'field.remove', type: 'custom_course', key: 'teacher' }]
       const { doc: after } = apply(required, ops)
-      expect(planModelChange(required, after, design, ops)).toEqual({ statements: ['ALTER TABLE "x_course" ALTER COLUMN "teacher" DROP NOT NULL'], refused: [] })
+      expect(planModelChange(required, after, design, ops)).toEqual({ statements: ['ALTER TABLE "custom_course" ALTER COLUMN "teacher" DROP NOT NULL'], refused: [] })
     })
 
     it('makes an existing optional field required with SET NOT NULL, as the function allows it', () => {
-      const ops: ModelOp[] = [{ op: 'field.update', type: 'x_course', key: 'teacher', required: true }]
-      const { doc: after } = apply(doc1, ops, { counts: { missing: { 'x_course.teacher': 0 } } })
-      expect(planModelChange(doc1, after, design, ops)).toEqual({ statements: ['ALTER TABLE "x_course" ALTER COLUMN "teacher" SET NOT NULL'], refused: [] })
+      const ops: ModelOp[] = [{ op: 'field.update', type: 'custom_course', key: 'teacher', required: true }]
+      const { doc: after } = apply(doc1, ops, { counts: { missing: { 'custom_course.teacher': 0 } } })
+      expect(planModelChange(doc1, after, design, ops)).toEqual({ statements: ['ALTER TABLE "custom_course" ALTER COLUMN "teacher" SET NOT NULL'], refused: [] })
     })
   })
 })
@@ -239,7 +239,7 @@ describe('the chain from a document to the statements', () => {
 describe('runModelStatements', () => {
   it('runs the allowed statements in order', async () => {
     const ran: string[] = []
-    const list = ['ALTER TABLE "x_a" ADD COLUMN "b" text', 'ALTER TABLE "x_a" ALTER COLUMN "b" SET NOT NULL', 'DROP TABLE "x_a"']
+    const list = ['ALTER TABLE "custom_a" ADD COLUMN "b" text', 'ALTER TABLE "custom_a" ALTER COLUMN "b" SET NOT NULL', 'DROP TABLE "custom_a"']
     await runModelStatements(async (text) => { ran.push(text) }, list)
     expect(ran).toEqual(list)
     for (const s of ran) expect(() => assertAllowedStatement(s), s).not.toThrow()
@@ -254,24 +254,24 @@ describe('runModelStatements', () => {
   it('refuses a statement that is not allowed (the change answers 422 not-allowed), and does not run it or the ones after it', async () => {
     const ran: string[] = []
     const exec = async (text: string) => { ran.push(text) }
-    const err: any = await runModelStatements(exec, ['ALTER TABLE "x_a" ADD COLUMN "b" text', 'DROP TABLE "cms_users"', 'DROP TABLE "x_a"']).then(() => null, (e) => e)
+    const err: any = await runModelStatements(exec, ['ALTER TABLE "custom_a" ADD COLUMN "b" text', 'DROP TABLE "cms_users"', 'DROP TABLE "custom_a"']).then(() => null, (e) => e)
     expect(err).toBeInstanceOf(ModelStatementRefused)
     expect(err.reason).toMatch(/not allowed/)
-    expect(ran).toEqual(['ALTER TABLE "x_a" ADD COLUMN "b" text'])
+    expect(ran).toEqual(['ALTER TABLE "custom_a" ADD COLUMN "b" text'])
   })
 
   it('refuses two statements joined in one text', async () => {
     const exec = vi.fn()
-    const err: any = await runModelStatements(exec, ['ALTER TABLE "x_a" ADD COLUMN "b" text; DROP TABLE "post"']).then(() => null, (e) => e)
+    const err: any = await runModelStatements(exec, ['ALTER TABLE "custom_a" ADD COLUMN "b" text; DROP TABLE "post"']).then(() => null, (e) => e)
     expect(err).toBeInstanceOf(ModelStatementRefused)
     expect(exec).not.toHaveBeenCalled()
   })
 
   it('only ever passes statements the allowed list accepts', async () => {
     const passed: string[] = []
-    const mixed = ['CREATE TYPE "x_a_k" AS ENUM(\'a\')', 'DROP TYPE "cms_role"', 'DROP TYPE "x_a_k"']
+    const mixed = ['CREATE TYPE "custom_a_k" AS ENUM(\'a\')', 'DROP TYPE "cms_role"', 'DROP TYPE "custom_a_k"']
     await runModelStatements(async (t) => { passed.push(t) }, mixed).catch(() => {})
-    expect(passed).toEqual(['CREATE TYPE "x_a_k" AS ENUM(\'a\')'])
+    expect(passed).toEqual(['CREATE TYPE "custom_a_k" AS ENUM(\'a\')'])
     for (const s of passed) expect(() => assertAllowedStatement(s)).not.toThrow()
   })
 })

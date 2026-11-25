@@ -70,7 +70,7 @@ function touched(ops: ModelOp[]): { types: Set<string>; fields: Map<string, Set<
 /**
  * The counting queries the operations need, read from the entities the mapper built (names never
  * come from the request: a name in an operation only picks an entity or a field that exists).
- * `entries` per type; `values` and `missing` per field (`'x_course.price'`).
+ * `entries` per type; `values` and `missing` per field (`'custom_course.price'`).
  */
 export function modelCountQueries(customEntities: Record<string, CmsEntity | Entity>, ops: ModelOp[]): { kind: 'entries' | 'values' | 'missing'; key: string; text: string }[] {
   const { types, fields } = touched(ops)

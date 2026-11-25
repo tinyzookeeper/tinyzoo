@@ -1683,7 +1683,7 @@
                     },
                     "type": {
                       "type": "string",
-                      "const": "x_entries"
+                      "const": "custom_entries"
                     },
                     "heading": {
                       "type": [
@@ -1737,7 +1737,7 @@
                     },
                     "type": {
                       "type": "string",
-                      "const": "x_chosen"
+                      "const": "custom_chosen"
                     },
                     "heading": {
                       "type": [

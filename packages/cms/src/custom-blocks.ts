@@ -42,7 +42,7 @@ type CustomTypeBlocks = Record<`${typeof CUSTOM_PREFIX}entries` | `${typeof CUST
  * Experimental: may change in a minor release.
  *
  * Two page blocks that show the entries of a content type the site made for itself (a custom
- * type): `x_entries`, a list of one type's entries, and `x_chosen`, entries picked by hand.
+ * type): `custom_entries`, a list of one type's entries, and `custom_chosen`, entries picked by hand.
  * Each block holds which type it shows and which of its fields go where. Add them to the
  * blocks of the pages:
  *

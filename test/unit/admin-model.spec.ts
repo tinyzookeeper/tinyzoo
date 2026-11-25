@@ -66,17 +66,17 @@ describe('kinds of field', () => {
 
 describe('reading the document', () => {
   const doc = apply(emptyModelDoc(), [
-    { op: 'type.add', name: 'x_a', label: { cs: 'A' } },
-    { op: 'type.add', name: 'x_b', label: { cs: 'B' } },
-    { op: 'field.add', type: 'x_a', field: { type: 'text', key: 'one', label: { cs: 'Jedna' } } },
-    { op: 'field.add', type: 'x_a', field: { type: 'text', key: 'two', label: { cs: 'Dvě' } } },
-    { op: 'field.remove', type: 'x_a', key: 'two' },
-    { op: 'type.remove', type: 'x_b' },
+    { op: 'type.add', name: 'custom_a', label: { cs: 'A' } },
+    { op: 'type.add', name: 'custom_b', label: { cs: 'B' } },
+    { op: 'field.add', type: 'custom_a', field: { type: 'text', key: 'one', label: { cs: 'Jedna' } } },
+    { op: 'field.add', type: 'custom_a', field: { type: 'text', key: 'two', label: { cs: 'Dvě' } } },
+    { op: 'field.remove', type: 'custom_a', key: 'two' },
+    { op: 'type.remove', type: 'custom_b' },
   ])
 
   it('splits visible and hidden types, and fields', () => {
-    expect(cmsModelVisibleTypes(doc).map((x) => x.name)).toEqual(['x_a'])
-    expect(cmsModelHiddenTypes(doc).map((x) => x.name)).toEqual(['x_b'])
+    expect(cmsModelVisibleTypes(doc).map((x) => x.name)).toEqual(['custom_a'])
+    expect(cmsModelHiddenTypes(doc).map((x) => x.name)).toEqual(['custom_b'])
     const a = doc.types[0]!
     expect(cmsModelFields(a).map((f) => f.key)).toEqual(['title', 'one'])
     expect(cmsModelHiddenFields(a).map((f) => f.key)).toEqual(['two'])
@@ -99,15 +99,15 @@ describe('when a hidden thing is deleted', () => {
 
 describe('names that are taken', () => {
   const doc = apply(emptyModelDoc(), [
-    { op: 'type.add', name: 'x_kurzy', label: { cs: 'Kurzy' }, page: { prefix: 'kurzy' } },
-    { op: 'field.add', type: 'x_kurzy', field: { type: 'select', key: 'level', label: { cs: 'Úroveň' }, options: [{ label: { cs: 'Základní' } }] } },
-    { op: 'type.add', name: 'x_old', label: { cs: 'Staré' }, page: { prefix: 'stare' } },
-    { op: 'type.remove', type: 'x_old' },
+    { op: 'type.add', name: 'custom_kurzy', label: { cs: 'Kurzy' }, page: { prefix: 'kurzy' } },
+    { op: 'field.add', type: 'custom_kurzy', field: { type: 'select', key: 'level', label: { cs: 'Úroveň' }, options: [{ label: { cs: 'Základní' } }] } },
+    { op: 'type.add', name: 'custom_old', label: { cs: 'Staré' }, page: { prefix: 'stare' } },
+    { op: 'type.remove', type: 'custom_old' },
   ])
 
   it('lists the types, hidden too, the design, and the database type of each choice', () => {
     const names = cmsModelTakenTypeNames(doc, [{ name: 'article' }])
-    expect(names).toEqual(expect.arrayContaining(['x_kurzy', 'x_old', 'article', 'x_kurzy_level']))
+    expect(names).toEqual(expect.arrayContaining(['custom_kurzy', 'custom_old', 'article', 'custom_kurzy_level']))
   })
 
   it('lists the page prefixes, hidden types too', () => {
@@ -120,35 +120,35 @@ describe('the operations of a new type', () => {
 
   it('makes a type with pages and drafts in the admin language, and the document accepts it', () => {
     const { name, ops } = cmsModelNewType(state(), ctxOf(empty))
-    expect(name).toBe('x_kurzy')
-    expect(ops).toEqual([{ op: 'type.add', name: 'x_kurzy', label: { cs: 'Kurzy' }, labelSingular: { cs: 'Kurz' }, icon: 'i-lucide-graduation-cap', page: { prefix: 'kurzy' }, publish: true }])
+    expect(name).toBe('custom_kurzy')
+    expect(ops).toEqual([{ op: 'type.add', name: 'custom_kurzy', label: { cs: 'Kurzy' }, labelSingular: { cs: 'Kurz' }, icon: 'i-lucide-graduation-cap', page: { prefix: 'kurzy' }, publish: true }])
     expect(apply(empty, ops).types[0]!.page?.prefix).toBe('kurzy')
   })
 
   it('takes a label with accents and a typed address', () => {
     const { name, ops } = cmsModelNewType(state({ plural: 'Školení a kurzy', prefix: 'skoleni' }), ctxOf(empty))
-    expect(name).toBe('x_skoleni_a_kurzy')
+    expect(name).toBe('custom_skoleni_a_kurzy')
     expect(ops[0]).toMatchObject({ label: { cs: 'Školení a kurzy' }, page: { prefix: 'skoleni' } })
   })
 
   it('leaves out the page, the singular and the icon when they are not given', () => {
     const { ops } = cmsModelNewType(state({ pages: false, singular: '  ', icon: null, drafts: false }), ctxOf(empty, [], 'en'))
-    expect(ops).toEqual([{ op: 'type.add', name: 'x_kurzy', label: { en: 'Kurzy' }, page: null, publish: false }])
+    expect(ops).toEqual([{ op: 'type.add', name: 'custom_kurzy', label: { en: 'Kurzy' }, page: null, publish: false }])
   })
 
   it('numbers a name and an address that are taken', () => {
-    const doc = apply(empty, [{ op: 'type.add', name: 'x_kurzy', label: { cs: 'Kurzy' }, page: { prefix: 'kurzy' } }])
-    const { name, ops } = cmsModelNewType(state(), ctxOf(doc, [{ name: 'x_kurzy2' }]))
-    expect(name).toBe('x_kurzy3')
+    const doc = apply(empty, [{ op: 'type.add', name: 'custom_kurzy', label: { cs: 'Kurzy' }, page: { prefix: 'kurzy' } }])
+    const { name, ops } = cmsModelNewType(state(), ctxOf(doc, [{ name: 'custom_kurzy2' }]))
+    expect(name).toBe('custom_kurzy3')
     expect(ops[0]).toMatchObject({ page: { prefix: 'kurzy-2' } })
   })
 
   it('does not take the name of a choice list', () => {
     const doc = apply(empty, [
-      { op: 'type.add', name: 'x_a', label: { cs: 'A' } },
-      { op: 'field.add', type: 'x_a', field: { type: 'select', key: 'b', label: { cs: 'B' }, options: [{ label: { cs: 'jedna' } }] } },
+      { op: 'type.add', name: 'custom_a', label: { cs: 'A' } },
+      { op: 'field.add', type: 'custom_a', field: { type: 'select', key: 'b', label: { cs: 'B' }, options: [{ label: { cs: 'jedna' } }] } },
     ])
-    expect(cmsModelNewType(state({ plural: 'A b' }), ctxOf(doc)).name).toBe('x_a_b2')
+    expect(cmsModelNewType(state({ plural: 'A b' }), ctxOf(doc)).name).toBe('custom_a_b2')
   })
 
   it('adds the starters as fields in all three languages and points the page at them', () => {
@@ -170,8 +170,8 @@ describe('the operations of a new type', () => {
   })
 
   it('updates the page only with what was ticked, and not at all without pages', () => {
-    expect(cmsModelNewType(state({ starters: ['picture'] }), ctxOf(empty)).ops.at(-1)).toEqual({ op: 'type.update', type: 'x_kurzy', page: { image: 'obrazek' } })
-    expect(cmsModelNewType(state({ starters: ['summary'] }), ctxOf(empty)).ops.at(-1)).toEqual({ op: 'type.update', type: 'x_kurzy', page: { summary: 'kratkyPopis' } })
+    expect(cmsModelNewType(state({ starters: ['picture'] }), ctxOf(empty)).ops.at(-1)).toEqual({ op: 'type.update', type: 'custom_kurzy', page: { image: 'obrazek' } })
+    expect(cmsModelNewType(state({ starters: ['summary'] }), ctxOf(empty)).ops.at(-1)).toEqual({ op: 'type.update', type: 'custom_kurzy', page: { summary: 'kratkyPopis' } })
     expect(cmsModelNewType(state({ starters: ['text', 'date'] }), ctxOf(empty)).ops.map((o) => o.op)).not.toContain('type.update')
     expect(cmsModelNewType(state({ pages: false, starters: ['picture', 'summary'] }), ctxOf(empty)).ops.map((o) => o.op)).toEqual(['type.add', 'field.add', 'field.add'])
   })
@@ -188,7 +188,7 @@ describe('the operations of a new type', () => {
 
 describe('a refusal in words', () => {
   const newType = cmsModelNewType(state({ starters: ['picture'] }), ctxOf(emptyModelDoc())).ops
-  const fieldOps: ModelOp[] = [{ op: 'field.add', type: 'x_a', field: { type: 'text', key: 'one', label: { cs: 'Jedna' } } }]
+  const fieldOps: ModelOp[] = [{ op: 'field.add', type: 'custom_a', field: { type: 'text', key: 'one', label: { cs: 'Jedna' } } }]
 
   it('names the form field a refusal is about', () => {
     const at = (code: string, ops: ModelOp[] = fieldOps, extra: Record<string, any> = {}) => cmsModelProblem(refusal(code, { op: 0, ...extra }), t, ops).at
@@ -239,7 +239,7 @@ describe('a refusal in words', () => {
   })
 
   it('hands over the fields that point at a type', () => {
-    const fields = [{ type: 'x_b', key: 'course' }]
+    const fields = [{ type: 'custom_b', key: 'course' }]
     expect(cmsModelProblem(refusal('points-at-type', { op: 0, details: { fields } }), t).fields).toEqual(fields)
   })
 
@@ -297,11 +297,11 @@ describe('what a change made safe', () => {
 const read = (label: any) => (label ? (Object.values(label)[0] as string) : '')
 const withEntries = (doc: ModelDoc, entries: Record<string, number>, ops: ModelOp[]) =>
   applyModelOps(doc, ops, { design: [], limits, now: new Date(), counts: { entries, values: {}, missing: {} } }).doc
-const base = () => apply(emptyModelDoc(), [{ op: 'type.add', name: 'x_kurzy', label: { cs: 'Kurzy' }, page: { prefix: 'kurzy' }, publish: true }])
+const base = () => apply(emptyModelDoc(), [{ op: 'type.add', name: 'custom_kurzy', label: { cs: 'Kurzy' }, page: { prefix: 'kurzy' }, publish: true }])
 const formOf = (kind: Parameters<typeof cmsModelBlankForm>[0], extra: Record<string, any> = {}) => ({ ...cmsModelBlankForm(kind), label: 'Cena', ...extra })
 const addField = (doc: ModelDoc, form: ReturnType<typeof formOf>, entries = 0) => {
-  const op = cmsModelFieldAddOp('x_kurzy', form, 'cs')
-  return withEntries(doc, { x_kurzy: entries }, [op]).types[0]!.fields.at(-1)!
+  const op = cmsModelFieldAddOp('custom_kurzy', form, 'cs')
+  return withEntries(doc, { custom_kurzy: entries }, [op]).types[0]!.fields.at(-1)!
 }
 
 describe('dates of a hidden thing', () => {
@@ -345,28 +345,28 @@ describe('arranging the fields', () => {
 
   it('makes an order the server accepts', () => {
     let doc = apply(base(), [
-      { op: 'field.add', type: 'x_kurzy', field: { type: 'text', key: 'one', label: { cs: 'Jedna' } } },
-      { op: 'field.add', type: 'x_kurzy', field: { type: 'text', key: 'two', label: { cs: 'Dvě' } } },
+      { op: 'field.add', type: 'custom_kurzy', field: { type: 'text', key: 'one', label: { cs: 'Jedna' } } },
+      { op: 'field.add', type: 'custom_kurzy', field: { type: 'text', key: 'two', label: { cs: 'Dvě' } } },
     ])
     const keys = cmsModelMoveKey(cmsModelFields(doc.types[0]!).map((f) => f.key), 2, -1)
-    doc = apply(doc, [cmsModelOrderOp('x_kurzy', keys)])
+    doc = apply(doc, [cmsModelOrderOp('custom_kurzy', keys)])
     expect(cmsModelFields(doc.types[0]!).map((f) => f.key)).toEqual(['title', 'two', 'one'])
   })
 })
 
 describe('what a field row says', () => {
-  const doc = withEntries(base(), { x_kurzy: 0, x_ucitele: 0 }, [
-    { op: 'type.add', name: 'x_ucitele', label: { cs: 'Učitelé' } },
-    { op: 'field.add', type: 'x_kurzy', field: { type: 'select', key: 'level', label: { cs: 'Úroveň' }, required: true, options: [{ label: { cs: 'A' } }, { label: { cs: 'B' } }, { label: { cs: 'C' } }] } },
-    { op: 'field.add', type: 'x_kurzy', field: { type: 'relation', key: 'teacher', label: { cs: 'Učitel' }, to: 'x_ucitele' } },
-    { op: 'field.update', type: 'x_kurzy', key: 'level', removeOptions: ['c'] },
+  const doc = withEntries(base(), { custom_kurzy: 0, custom_ucitele: 0 }, [
+    { op: 'type.add', name: 'custom_ucitele', label: { cs: 'Učitelé' } },
+    { op: 'field.add', type: 'custom_kurzy', field: { type: 'select', key: 'level', label: { cs: 'Úroveň' }, required: true, options: [{ label: { cs: 'A' } }, { label: { cs: 'B' } }, { label: { cs: 'C' } }] } },
+    { op: 'field.add', type: 'custom_kurzy', field: { type: 'relation', key: 'teacher', label: { cs: 'Učitel' }, to: 'custom_ucitele' } },
+    { op: 'field.update', type: 'custom_kurzy', key: 'level', removeOptions: ['c'] },
   ])
   const [title, level, teacher] = doc.types[0]!.fields as [any, any, any]
   const ctx = { t, isTitle: false, targetName: (to: string) => `«${to}»` }
 
   it('tells the kind, then what matters about it', () => {
     expect(cmsModelFieldParts(level, ctx)).toEqual(['model.kinds.select.name', 'model.field.requiredShort', 'model.field.choicesCount {"count":2}'])
-    expect(cmsModelFieldParts(teacher, ctx)).toEqual(['model.kinds.relation.name', 'model.field.linksTo {"name":"«x_ucitele»"}'])
+    expect(cmsModelFieldParts(teacher, ctx)).toEqual(['model.kinds.relation.name', 'model.field.linksTo {"name":"«custom_ucitele»"}'])
     expect(cmsModelFieldParts(teacher, { ...ctx, places: 2 }).at(-1)).toBe('model.field.shownOn {"count":2}')
     expect(cmsModelFieldParts(teacher, { ...ctx, places: 0 })).toHaveLength(2)
   })
@@ -392,10 +392,10 @@ describe('what a field row says', () => {
 describe('the operation that adds a field', () => {
   it('adds each of the twelve kinds, as the server takes it', () => {
     let doc = base()
-    const target = 'x_kurzy'
-    doc = apply(doc, [{ op: 'type.add', name: 'x_ucitele', label: { cs: 'Učitelé' } }])
+    const target = 'custom_kurzy'
+    doc = apply(doc, [{ op: 'type.add', name: 'custom_ucitele', label: { cs: 'Učitelé' } }])
     for (const k of CMS_MODEL_KINDS) {
-      const form = formOf(k.id, { key: `f${k.id}`, to: 'x_ucitele', options: cmsModelAddOptionRow([], 'Jedna') })
+      const form = formOf(k.id, { key: `f${k.id}`, to: 'custom_ucitele', options: cmsModelAddOptionRow([], 'Jedna') })
       const op = cmsModelFieldAddOp(target, form, 'cs')
       doc = apply(doc, [op])
       const field = doc.types[0]!.fields.at(-1)!
@@ -405,11 +405,11 @@ describe('the operation that adds a field', () => {
   })
 
   it('writes the label and the help in the admin’s language', () => {
-    const op = cmsModelFieldAddOp('x_kurzy', formOf('text', { help: ' Za celý kurz ' }), 'cs') as any
+    const op = cmsModelFieldAddOp('custom_kurzy', formOf('text', { help: ' Za celý kurz ' }), 'cs') as any
     expect(op.field.label).toEqual({ cs: 'Cena' })
     expect(op.field.help).toEqual({ cs: 'Za celý kurz' })
-    expect((cmsModelFieldAddOp('x_kurzy', formOf('text'), 'de') as any).field.label).toEqual({ de: 'Cena' })
-    expect((cmsModelFieldAddOp('x_kurzy', formOf('text'), 'cs') as any).field.help).toBeUndefined()
+    expect((cmsModelFieldAddOp('custom_kurzy', formOf('text'), 'de') as any).field.label).toEqual({ de: 'Cena' })
+    expect((cmsModelFieldAddOp('custom_kurzy', formOf('text'), 'cs') as any).field.help).toBeUndefined()
   })
 
   it('makes a long text and the formats of a short one', () => {
@@ -491,33 +491,33 @@ describe('checking the form of a field', () => {
 
 describe('the operation that changes a field', () => {
   const doc = apply(base(), [
-    { op: 'field.add', type: 'x_kurzy', field: { type: 'text', key: 'note', label: { cs: 'Poznámka' }, help: { cs: 'Stará' } } },
-    { op: 'field.add', type: 'x_kurzy', field: { type: 'number', key: 'price', label: { cs: 'Cena' }, min: 0 } },
-    { op: 'field.add', type: 'x_kurzy', field: { type: 'select', key: 'level', label: { cs: 'Úroveň' }, options: [{ label: { cs: 'A' } }, { label: { cs: 'B' } }, { label: { cs: 'C' } }], default: 'a' } },
-    { op: 'field.add', type: 'x_kurzy', field: { type: 'media', key: 'photo', label: { cs: 'Fotka' } } },
-    { op: 'field.update', type: 'x_kurzy', key: 'level', removeOptions: ['c'] },
+    { op: 'field.add', type: 'custom_kurzy', field: { type: 'text', key: 'note', label: { cs: 'Poznámka' }, help: { cs: 'Stará' } } },
+    { op: 'field.add', type: 'custom_kurzy', field: { type: 'number', key: 'price', label: { cs: 'Cena' }, min: 0 } },
+    { op: 'field.add', type: 'custom_kurzy', field: { type: 'select', key: 'level', label: { cs: 'Úroveň' }, options: [{ label: { cs: 'A' } }, { label: { cs: 'B' } }, { label: { cs: 'C' } }], default: 'a' } },
+    { op: 'field.add', type: 'custom_kurzy', field: { type: 'media', key: 'photo', label: { cs: 'Fotka' } } },
+    { op: 'field.update', type: 'custom_kurzy', key: 'level', removeOptions: ['c'] },
   ])
   const fieldOf = (key: string) => doc.types[0]!.fields.find((f) => f.key === key)!
   const update = (key: string, change: (form: any) => void) => {
     const field = fieldOf(key)
     const form = cmsModelFormOf(field, read)
     change(form)
-    return cmsModelFieldUpdateOp('x_kurzy', field, form, 'cs', read)
+    return cmsModelFieldUpdateOp('custom_kurzy', field, form, 'cs', read)
   }
-  const run = (op: ModelOp | null) => withEntries(doc, { x_kurzy: 0 }, op ? [op] : []).types[0]!
+  const run = (op: ModelOp | null) => withEntries(doc, { custom_kurzy: 0 }, op ? [op] : []).types[0]!
 
   it('sends nothing when nothing changed', () => {
     for (const key of ['note', 'price', 'level', 'photo', 'title']) expect(update(key, () => {}), key).toBeNull()
   })
 
   it('sends the label and help as the admin’s language, an empty help as null', () => {
-    expect(update('note', (f) => { f.label = ' Nový název ' })).toEqual({ op: 'field.update', type: 'x_kurzy', key: 'note', label: { cs: 'Nový název' } })
+    expect(update('note', (f) => { f.label = ' Nový název ' })).toEqual({ op: 'field.update', type: 'custom_kurzy', key: 'note', label: { cs: 'Nový název' } })
     expect(update('note', (f) => { f.help = '' })).toMatchObject({ help: null })
     expect(update('note', (f) => { f.help = 'Jiná' })).toMatchObject({ help: { cs: 'Jiná' } })
   })
 
   it('sends only what the kind lets change', () => {
-    expect(update('photo', (f) => { f.label = 'Obrázek' })).toEqual({ op: 'field.update', type: 'x_kurzy', key: 'photo', label: { cs: 'Obrázek' } })
+    expect(update('photo', (f) => { f.label = 'Obrázek' })).toEqual({ op: 'field.update', type: 'custom_kurzy', key: 'photo', label: { cs: 'Obrázek' } })
     expect(update('photo', (f) => { f.required = true })).toBeNull()
     expect(update('price', (f) => { f.decimal = true })).toBeNull()
     expect(update('price', (f) => { f.max = '99' })).toMatchObject({ max: 99 })
@@ -562,10 +562,10 @@ describe('the operation that changes a field', () => {
 
 describe('the settings of a type', () => {
   const doc = apply(base(), [
-    { op: 'field.add', type: 'x_kurzy', field: { type: 'media', key: 'photo', label: { cs: 'Fotka' } } },
-    { op: 'field.add', type: 'x_kurzy', field: { type: 'text', key: 'note', label: { cs: 'Poznámka' } } },
-    { op: 'field.add', type: 'x_kurzy', field: { type: 'number', key: 'price', label: { cs: 'Cena' } } },
-    { op: 'field.add', type: 'x_kurzy', field: { type: 'richtext', key: 'body', label: { cs: 'Text' } } },
+    { op: 'field.add', type: 'custom_kurzy', field: { type: 'media', key: 'photo', label: { cs: 'Fotka' } } },
+    { op: 'field.add', type: 'custom_kurzy', field: { type: 'text', key: 'note', label: { cs: 'Poznámka' } } },
+    { op: 'field.add', type: 'custom_kurzy', field: { type: 'number', key: 'price', label: { cs: 'Cena' } } },
+    { op: 'field.add', type: 'custom_kurzy', field: { type: 'richtext', key: 'body', label: { cs: 'Text' } } },
   ])
   const type = () => doc.types[0]!
   const change = (edit: (form: any) => void) => {
@@ -583,10 +583,10 @@ describe('the settings of a type', () => {
     const op = change((f) => { f.plural = ' Lekce '; f.singular = 'Lekce'; f.icon = 'i-lucide-music' }) as any
     expect(op).toMatchObject({ label: { cs: 'Lekce' }, labelSingular: { cs: 'Lekce' }, icon: 'i-lucide-music' })
     expect(run(op)).toMatchObject({ label: { cs: 'Lekce' }, icon: 'i-lucide-music' })
-    const typed = apply(doc, [{ op: 'type.update', type: 'x_kurzy', labelSingular: { cs: 'Kurz' } }])
+    const typed = apply(doc, [{ op: 'type.update', type: 'custom_kurzy', labelSingular: { cs: 'Kurz' } }])
     const form = cmsModelSettingsFormOf(typed.types[0]!, read)
     form.singular = ''
-    expect(cmsModelSettingsOp(typed.types[0]!, form, 'cs', read)).toEqual({ op: 'type.update', type: 'x_kurzy', labelSingular: null })
+    expect(cmsModelSettingsOp(typed.types[0]!, form, 'cs', read)).toEqual({ op: 'type.update', type: 'custom_kurzy', labelSingular: null })
   })
 
   it('offers the fields, then the address and the status, as columns', () => {
@@ -600,22 +600,22 @@ describe('the settings of a type', () => {
     const form = cmsModelSettingsFormOf(own.types[0]!, read)
     expect(form).toMatchObject({ ownColumns: true, columns: ['title', 'price', 'status'] })
     form.ownColumns = false
-    expect(cmsModelSettingsOp(own.types[0]!, form, 'cs', read)).toEqual({ op: 'type.update', type: 'x_kurzy', listColumns: null })
+    expect(cmsModelSettingsOp(own.types[0]!, form, 'cs', read)).toEqual({ op: 'type.update', type: 'custom_kurzy', listColumns: null })
   })
 
   it('orders by a field the website can sort by, newest first, or by hand', () => {
     expect(cmsModelOrderFields(type()).map((f) => f.key)).toEqual(['title', 'note', 'price'])
     expect(run(change((f) => { f.order = 'field'; f.orderBy = 'price'; f.orderDir = 'desc' }))).toMatchObject({ order: { by: 'price', dir: 'desc' } })
     expect(change((f) => { f.order = 'manual' })).toMatchObject({ order: 'manual' })
-    const sorted = apply(doc, [{ op: 'type.update', type: 'x_kurzy', order: { by: 'price', dir: 'asc' } }]).types[0]!
+    const sorted = apply(doc, [{ op: 'type.update', type: 'custom_kurzy', order: { by: 'price', dir: 'asc' } }]).types[0]!
     const form = cmsModelSettingsFormOf(sorted, read)
     expect(form).toMatchObject({ order: 'field', orderBy: 'price', orderDir: 'asc' })
     form.order = 'newest'
-    expect(cmsModelSettingsOp(sorted, form, 'cs', read)).toEqual({ op: 'type.update', type: 'x_kurzy', order: null })
+    expect(cmsModelSettingsOp(sorted, form, 'cs', read)).toEqual({ op: 'type.update', type: 'custom_kurzy', order: null })
   })
 
   it('never sends an order for a type that is arranged by hand', () => {
-    const manual = apply(doc, [{ op: 'type.update', type: 'x_kurzy', order: 'manual' }]).types[0]!
+    const manual = apply(doc, [{ op: 'type.update', type: 'custom_kurzy', order: 'manual' }]).types[0]!
     const form = cmsModelSettingsFormOf(manual, read)
     expect(form.order).toBe('manual')
     form.order = 'newest'
@@ -629,11 +629,11 @@ describe('the settings of a type', () => {
     const set = apply(doc, [op]).types[0]!
     const form = cmsModelSettingsFormOf(set, read)
     form.image = ''
-    expect(cmsModelSettingsOp(set, form, 'cs', read)).toEqual({ op: 'type.update', type: 'x_kurzy', page: { image: null } })
+    expect(cmsModelSettingsOp(set, form, 'cs', read)).toEqual({ op: 'type.update', type: 'custom_kurzy', page: { image: null } })
   })
 
   it('has no page settings for a type without pages', () => {
-    const plain = apply(emptyModelDoc(), [{ op: 'type.add', name: 'x_a', label: { cs: 'A' } }]).types[0]!
+    const plain = apply(emptyModelDoc(), [{ op: 'type.add', name: 'custom_a', label: { cs: 'A' } }]).types[0]!
     const form = cmsModelSettingsFormOf(plain, read)
     form.image = 'x'
     expect(cmsModelSettingsOp(plain, form, 'cs', read)).toBeNull()
@@ -651,31 +651,31 @@ describe('the settings of a type', () => {
 
 describe('removing', () => {
   const doc = apply(base(), [
-    { op: 'type.add', name: 'x_akce', label: { cs: 'Akce' } },
-    { op: 'field.add', type: 'x_akce', field: { type: 'relation', key: 'course', label: { cs: 'Kurz' }, to: 'x_kurzy' } },
-    { op: 'field.add', type: 'x_kurzy', field: { type: 'relation', key: 'self', label: { cs: 'Související' }, to: 'x_kurzy' } },
+    { op: 'type.add', name: 'custom_akce', label: { cs: 'Akce' } },
+    { op: 'field.add', type: 'custom_akce', field: { type: 'relation', key: 'course', label: { cs: 'Kurz' }, to: 'custom_kurzy' } },
+    { op: 'field.add', type: 'custom_kurzy', field: { type: 'relation', key: 'self', label: { cs: 'Související' }, to: 'custom_kurzy' } },
   ])
 
   it('finds the fields of other types that link to a type', () => {
-    expect(cmsModelPointingAt(doc, 'x_kurzy')).toEqual([{ type: 'x_akce', key: 'course' }])
-    expect(cmsModelPointingAt(doc, 'x_akce')).toEqual([])
-    const hidden = apply(doc, [{ op: 'field.remove', type: 'x_akce', key: 'course' }])
-    expect(cmsModelPointingAt(hidden, 'x_kurzy')).toEqual([])
+    expect(cmsModelPointingAt(doc, 'custom_kurzy')).toEqual([{ type: 'custom_akce', key: 'course' }])
+    expect(cmsModelPointingAt(doc, 'custom_akce')).toEqual([])
+    const hidden = apply(doc, [{ op: 'field.remove', type: 'custom_akce', key: 'course' }])
+    expect(cmsModelPointingAt(hidden, 'custom_kurzy')).toEqual([])
   })
 
   it('names those fields in the admin’s words', () => {
-    expect(cmsModelFieldRefs(doc, [{ type: 'x_akce', key: 'course' }, { type: 'x_none', key: 'gone' }], read)).toEqual([
-      { type: 'x_akce', key: 'course', typeLabel: 'Akce', fieldLabel: 'Kurz' },
-      { type: 'x_none', key: 'gone', typeLabel: 'x_none', fieldLabel: 'gone' },
+    expect(cmsModelFieldRefs(doc, [{ type: 'custom_akce', key: 'course' }, { type: 'custom_none', key: 'gone' }], read)).toEqual([
+      { type: 'custom_akce', key: 'course', typeLabel: 'Akce', fieldLabel: 'Kurz' },
+      { type: 'custom_none', key: 'gone', typeLabel: 'custom_none', fieldLabel: 'gone' },
     ])
   })
 
   it('hides a type or a field, and the server takes it back with a restore', () => {
-    const hiddenField = apply(doc, [cmsModelRemoveOp('x_kurzy', 'self')])
+    const hiddenField = apply(doc, [cmsModelRemoveOp('custom_kurzy', 'self')])
     expect(cmsModelHiddenFields(hiddenField.types[0]!).map((f) => f.key)).toEqual(['self'])
-    const hiddenType = apply(doc, [cmsModelRemoveOp('x_akce')])
-    expect(cmsModelHiddenTypes(hiddenType).map((x) => x.name)).toEqual(['x_akce'])
-    expect(() => apply(doc, [cmsModelRemoveOp('x_kurzy')])).toThrow()
+    const hiddenType = apply(doc, [cmsModelRemoveOp('custom_akce')])
+    expect(cmsModelHiddenTypes(hiddenType).map((x) => x.name)).toEqual(['custom_akce'])
+    expect(() => apply(doc, [cmsModelRemoveOp('custom_kurzy')])).toThrow()
   })
 })
 
