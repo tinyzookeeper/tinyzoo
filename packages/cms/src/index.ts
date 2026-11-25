@@ -28,7 +28,7 @@ export {
 } from './plugin'
 export { defineModels, isCmsModels, modelsOf, modelMigrationsAsset, modelPluginsProblem, DEFAULT_MODEL, type CmsModelDef, type CmsModels } from './models'
 export {
-  CUSTOM_PREFIX, MODEL_FORMAT, DEFAULT_MODEL_LIMITS, MODEL_LABEL_MAX, MODEL_HELP_MAX, MODEL_DOC_MAX_BYTES, MODEL_PURGE_AFTER_MS, MODEL_PURGE_EMPTY_AFTER_MS, MODEL_FIELD_TYPES,
+  CUSTOM_PREFIX, MODEL_FORMAT, DEFAULT_MODEL_LIMITS, MODEL_LABEL_MAX, MODEL_HELP_MAX, MODEL_DOC_MAX_BYTES, MODEL_PURGE_EMPTY_AFTER_MS, MODEL_DELETE_WAIT_MS, MODEL_FIELD_TYPES,
   ModelProblem, emptyModelDoc, parseModelDoc, applyModelOps, modelPurgeDue, modelTypeName, modelFieldKey, modelPagePrefix,
   type ModelDoc, type ModelType, type ModelField, type ModelFieldType, type ModelFieldInput, type ModelOption, type ModelPage, type ModelOrder, type ModelLabel,
   type ModelLimits, type ModelOp, type ModelContext, type ModelNote, type ModelPurgeTimes,

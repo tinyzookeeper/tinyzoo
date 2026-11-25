@@ -1193,12 +1193,12 @@ interface Junction
 interface LinkFieldLike
 interface LinkRef
 interface LinkVisitor
+const MODEL_DELETE_WAIT_MS
 const MODEL_DOC_MAX_BYTES
 const MODEL_FIELD_TYPES
 const MODEL_FORMAT
 const MODEL_HELP_MAX
 const MODEL_LABEL_MAX
-const MODEL_PURGE_AFTER_MS
 const MODEL_PURGE_EMPTY_AFTER_MS
 interface MigrationClassification
 interface MigrationJournal

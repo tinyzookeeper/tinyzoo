@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { applyModelOps, emptyModelDoc, MODEL_PURGE_AFTER_MS, MODEL_PURGE_EMPTY_AFTER_MS, type ModelDoc, type ModelOp } from '../../packages/cms/src/model-doc'
+import { applyModelOps, emptyModelDoc, MODEL_PURGE_EMPTY_AFTER_MS, type ModelDoc, type ModelOp } from '../../packages/cms/src/model-doc'
 import en from '../../packages/cms/app/i18n/en'
 import {
   CMS_MODEL_ICONS, CMS_MODEL_KINDS, cmsModelCanRequire, cmsModelFields, cmsModelHiddenFields, cmsModelHiddenTypes, cmsModelKindIcon, cmsModelKindOf,
-  cmsModelNewType, cmsModelNoteText, cmsModelNotesText, cmsModelProblem, cmsModelPurgeAt, cmsModelStarterLabel, cmsModelTakenPrefixes,
+  cmsModelNewType, cmsModelNoteText, cmsModelNotesText, cmsModelProblem, cmsModelPurgeAt, cmsModelPurgeDateText, cmsModelStarterLabel, cmsModelTakenPrefixes,
   cmsModelTakenTypeNames, cmsModelVisibleTypes, cmsSheetUi,
   cmsModelAddOptionRow, cmsModelBlankForm, cmsModelColumnChoices, cmsModelDayText, cmsModelDesignKind, cmsModelFieldAddOp, cmsModelFieldCheck, cmsModelFieldParts,
   cmsModelFieldRefs, cmsModelFieldUpdateOp, cmsModelFormOf, cmsModelMoveKey, cmsModelMoveKeyTo, cmsModelNewFieldKey, cmsModelOrderFields, cmsModelOrderOp,
@@ -85,9 +85,9 @@ describe('reading the document', () => {
 
 describe('when a hidden thing is deleted', () => {
   const at = '2026-11-01T10:00:00.000Z'
-  it('adds the long wait, or the short one for something that held nothing', () => {
-    expect(cmsModelPurgeAt({ removedAt: at })?.getTime()).toBe(Date.parse(at) + MODEL_PURGE_AFTER_MS)
-    expect(cmsModelPurgeAt({ removedAt: at, removedEmpty: false })?.getTime()).toBe(Date.parse(at) + MODEL_PURGE_AFTER_MS)
+  it('adds the hour for something that held nothing, and says nothing for the rest', () => {
+    expect(cmsModelPurgeAt({ removedAt: at })).toBeNull()
+    expect(cmsModelPurgeAt({ removedAt: at, removedEmpty: false })).toBeNull()
     expect(cmsModelPurgeAt({ removedAt: at, removedEmpty: true })?.getTime()).toBe(Date.parse(at) + MODEL_PURGE_EMPTY_AFTER_MS)
   })
   it('says nothing for what is not hidden or has a broken date', () => {
@@ -316,13 +316,14 @@ describe('dates of a hidden thing', () => {
   it('says the hour when deletion is less than a day away, the day otherwise', () => {
     const ctx = { t, formatDateWith: fmt, now }
     expect(cmsModelPurgeText({ removedAt: '2026-11-25T09:30:00Z', removedEmpty: true }, ctx)).toMatch(/^model\.deletedOnAt/)
-    expect(cmsModelPurgeText({ removedAt: '2026-11-20T09:30:00Z' }, ctx)).toMatch(/^model\.deletedOn \{/)
+    expect(cmsModelPurgeDateText(new Date('2026-11-28T09:30:00Z'), ctx)).toMatch(/^model\.deletedOn \{/)
+    expect(cmsModelPurgeText({ removedAt: '2026-11-20T09:30:00Z' }, ctx)).toBe('')
     expect(cmsModelPurgeText({}, ctx)).toBe('')
   })
 
-  it('counts an hour for what holds nothing and the long wait for the rest', () => {
-    expect(cmsModelPurgeFromNow(true, now).getTime() - now.getTime()).toBe(MODEL_PURGE_EMPTY_AFTER_MS)
-    expect(cmsModelPurgeFromNow(false, now).getTime() - now.getTime()).toBe(MODEL_PURGE_AFTER_MS)
+  it('counts an hour for what holds nothing and nothing for the rest', () => {
+    expect(cmsModelPurgeFromNow(true, now)!.getTime() - now.getTime()).toBe(MODEL_PURGE_EMPTY_AFTER_MS)
+    expect(cmsModelPurgeFromNow(false, now)).toBeNull()
   })
 })
 

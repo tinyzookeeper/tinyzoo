@@ -13,7 +13,12 @@ export const CUSTOM_PREFIX = 'custom_'
 /** The version of the document's format this tinyzoo writes and reads. @internal */
 export const MODEL_FORMAT = 1
 
-/** How many custom types, fields of a type and choices of a field a site may have, hidden ones included. @internal */
+/**
+ * How many custom types, fields of a type and choices of a field a site may have. Types and fields
+ * count the visible ones; the removed ones have a bound of their own, the same number: a site keeps
+ * at most `types` removed types, a type at most `fields` removed fields. Choices count the removed
+ * ones too. @internal
+ */
 export interface ModelLimits {
   types: number
   fields: number
@@ -29,10 +34,19 @@ export const MODEL_LABEL_MAX = 80
 export const MODEL_HELP_MAX = 300
 /** The largest document (bytes of its JSON). @internal */
 export const MODEL_DOC_MAX_BYTES = 256 * 1024
-/** A hidden type or field is deleted for good this long after it was hidden… @internal */
-export const MODEL_PURGE_AFTER_MS = 30 * 24 * 60 * 60 * 1000
-/** …or this long after, when it held no content at that moment. @internal */
+/**
+ * A hidden type or field that held no content when it was hidden is deleted for good by the server
+ * this long after (a field added by mistake). Nothing that held content is ever deleted by a timer.
+ * @internal
+ */
 export const MODEL_PURGE_EMPTY_AFTER_MS = 60 * 60 * 1000
+/**
+ * How long after hiding a person may delete a hidden type or field for good. A request that started
+ * with the model before the hiding, where the thing was still visible, may still write to its table
+ * or column; the wait lets such work finish, as the hour does for the server's own deletion.
+ * @internal
+ */
+export const MODEL_DELETE_WAIT_MS = 60_000
 
 /** Text a person reads, per admin language: `{ cs: 'Kurzy', en: 'Courses' }`. At least one language. @internal */
 export type ModelLabel = Record<string, string>
@@ -51,7 +65,7 @@ interface ModelFieldBase {
   help?: ModelLabel | null
   /** When the field was hidden (ISO 8601), or null while it is visible. */
   removedAt?: string | null
-  /** The field held no value when it was hidden, so it may be deleted after an hour. */
+  /** The field held no value when it was hidden: the server deletes it after an hour, if it still holds none then. */
   removedEmpty?: boolean
 }
 
@@ -196,18 +210,21 @@ export interface ModelContext {
    * entries", "has values" and "has missing values" (the safe side).
    */
   counts?: { entries?: Record<string, number>; values?: Record<string, number>; missing?: Record<string, number> }
-  /** True only for the server's own sweep: allows `purge`. */
+  /**
+   * True only for the server's own sweep. Its `purge` deletes only what was hidden empty, an hour
+   * ago, and still holds nothing; a person's `purge` deletes anything hidden at least `deleteWaitMs` ago.
+   */
   internal?: boolean
-  /** How long a hidden thing waits before it may be deleted; default `MODEL_PURGE_AFTER_MS`. (The tests make it shorter.) */
-  purgeAfterMs?: number
-  /** The same for a hidden thing that held no content; default `MODEL_PURGE_EMPTY_AFTER_MS`. */
+  /** How long after hiding the server deletes a thing that held no content; default `MODEL_PURGE_EMPTY_AFTER_MS`. (The tests make it shorter.) */
   purgeEmptyAfterMs?: number
+  /** How long after hiding a person may delete a thing for good; default `MODEL_DELETE_WAIT_MS`. (The tests make it shorter.) */
+  deleteWaitMs?: number
 }
 
-/** The waits before the later deletion, when they are not the defaults. @internal */
+/** The waits before a deletion, when they are not the defaults. @internal */
 export interface ModelPurgeTimes {
-  purgeAfterMs?: number
   purgeEmptyAfterMs?: number
+  deleteWaitMs?: number
 }
 
 /** What an operation made safe on the way (a use of a removed field cleared, say). @internal */
@@ -591,6 +608,8 @@ function fail(r: Run, code: string, message: string, details?: Record<string, un
 }
 
 const isHidden = (x: { removedAt?: string | null }): boolean => !!x.removedAt
+const visibleCount = (xs: { removedAt?: string | null }[]): number => xs.filter((x) => !isHidden(x)).length
+const hiddenCount = (xs: { removedAt?: string | null }[]): number => xs.filter(isHidden).length
 const firstText = (label: ModelLabel | null | undefined): string | undefined => (label ? Object.values(label)[0] : undefined)
 const typeText = (t: ModelType): string => `"${firstText(t.label) ?? t.name}"`
 const fieldText = (f: ModelField): string => `"${firstText(f.label) ?? f.key}"`
@@ -657,7 +676,7 @@ function newKeyProblem(r: Run, t: ModelType, key: string, kind: ModelFieldType):
   const own = fieldKeyProblem(key, kind)
   if (own) return own
   const same = t.fields.find((f) => f.key === key)
-  if (same) return { code: 'name-taken', message: `${typeText(t)} already has a field "${key}"${isHidden(same) ? ' (removed, not yet deleted)' : ''}` }
+  if (same) return { code: 'name-taken', message: `${typeText(t)} already has a field "${key}"${isHidden(same) ? ' (removed: delete it for good to free the name)' : ''}` }
   const column = columnOf(key, kind)
   if (SYSTEM_COLUMNS.includes(column)) return { code: 'name-taken', message: `"${key}" would use the column ${column}, which tinyzoo keeps for itself` }
   const clash = t.fields.find((f) => columnOf(f.key, f.type) === column)
@@ -694,7 +713,7 @@ function checkOrder(r: Run, t: ModelType, order: ModelOrder | null | undefined):
 
 function typeAdd(r: Run, op: Extract<ModelOp, { op: 'type.add' }>): void {
   const { doc, ctx } = r
-  if (doc.types.length >= ctx.limits.types) fail(r, 'limit-types', `A site can have ${ctx.limits.types} content types at most (removed ones count until they are deleted)`)
+  if (visibleCount(doc.types) >= ctx.limits.types) fail(r, 'limit-types', `A site can have ${ctx.limits.types} content types at most`)
   checkLabel(r, op.label, 'The label')
   checkOptionalLabel(r, op.labelSingular, 'The singular label')
   checkOptionalLabel(r, op.description, 'The description', 'help')
@@ -803,6 +822,8 @@ function typeUpdate(r: Run, op: Extract<ModelOp, { op: 'type.update' }>): void {
 function typeRemove(r: Run, op: Extract<ModelOp, { op: 'type.remove' }>): void {
   const t = typeOf(r, op.type, true)
   if (isHidden(t)) fail(r, 'already-removed', `${typeText(t)} is already removed`)
+  const limit = r.ctx.limits.types
+  if (hiddenCount(r.doc.types) >= limit) fail(r, 'limit-removed-types', `A site can keep ${limit} removed content types at most. Delete one of them for good first`, { limit })
   const pointing: { type: string; key: string }[] = []
   for (const other of r.doc.types) {
     if (other === t || isHidden(other)) continue
@@ -819,6 +840,7 @@ function typeRemove(r: Run, op: Extract<ModelOp, { op: 'type.remove' }>): void {
 function typeRestore(r: Run, op: Extract<ModelOp, { op: 'type.restore' }>): void {
   const t = typeOf(r, op.type, true)
   if (!isHidden(t)) fail(r, 'not-removed', `${typeText(t)} is not removed`)
+  if (visibleCount(r.doc.types) >= r.ctx.limits.types) fail(r, 'limit-types', `A site can have ${r.ctx.limits.types} content types at most. Remove one before restoring ${typeText(t)}`)
   if (t.page && r.ctx.design.some((d) => d.pathPrefix === t.page?.prefix)) {
     fail(r, 'prefix-taken', `The address "${t.page.prefix}" of ${typeText(t)} is used by the design now`)
   }
@@ -848,7 +870,7 @@ function newOption(r: Run, option: { value?: string; label: ModelLabel }, used: 
 function fieldAdd(r: Run, op: Extract<ModelOp, { op: 'field.add' }>): void {
   const t = typeOf(r, op.type)
   const input = op.field
-  if (t.fields.length >= r.ctx.limits.fields) fail(r, 'limit-fields', `${typeText(t)} can have ${r.ctx.limits.fields} fields at most (removed ones count until they are deleted)`)
+  if (visibleCount(t.fields) >= r.ctx.limits.fields) fail(r, 'limit-fields', `${typeText(t)} can have ${r.ctx.limits.fields} fields at most`)
   checkLabel(r, input.label, 'The label')
   checkOptionalLabel(r, input.help, 'The help text', 'help')
   const kind = input.type
@@ -1028,6 +1050,8 @@ function fieldRemove(r: Run, op: Extract<ModelOp, { op: 'field.remove' }>): void
   const f = fieldOf(r, t, op.key, true)
   if (op.key === t.titleField) fail(r, 'title-field', `${fieldText(f)} names every entry of ${typeText(t)} and cannot be removed`)
   if (isHidden(f)) fail(r, 'already-removed', `${fieldText(f)} is already removed`)
+  const limit = r.ctx.limits.fields
+  if (hiddenCount(t.fields) >= limit) fail(r, 'limit-removed-fields', `${typeText(t)} can keep ${limit} removed fields at most. Delete one of them for good first`, { limit })
   f.removedAt = r.ctx.now.toISOString()
   f.removedEmpty = r.ctx.counts?.values?.[`${t.name}.${f.key}`] === 0
 
@@ -1060,6 +1084,7 @@ function fieldRestore(r: Run, op: Extract<ModelOp, { op: 'field.restore' }>): vo
   const t = typeOf(r, op.type)
   const f = fieldOf(r, t, op.key, true)
   if (!isHidden(f)) fail(r, 'not-removed', `${fieldText(f)} is not removed`)
+  if (visibleCount(t.fields) >= r.ctx.limits.fields) fail(r, 'limit-fields', `${typeText(t)} can have ${r.ctx.limits.fields} fields at most. Remove one before restoring ${fieldText(f)}`)
   if (f.type === 'relation') checkTarget(r, f.to)
   f.removedAt = null
   delete f.removedEmpty
@@ -1083,14 +1108,18 @@ function fieldOrder(r: Run, op: Extract<ModelOp, { op: 'field.order' }>): void {
 
 // Purge
 
-/** A hidden thing is due once it has been hidden long enough (an hour when it held nothing). */
+/** How long ago a hidden thing was hidden (ms), or NaN. */
+const hiddenFor = (item: { removedAt?: string | null }, now: Date): number => (item.removedAt ? now.getTime() - Date.parse(item.removedAt) : Number.NaN)
+
+/**
+ * What the server's sweep may delete: a thing hidden while it held nothing, an hour ago (whether it
+ * still holds nothing is for the purge to check, with the counts of the moment). Nothing else is
+ * ever due: what held content stays until a person deletes it.
+ */
 function isDue(item: { removedAt?: string | null; removedEmpty?: boolean }, now: Date, times: ModelPurgeTimes = {}): boolean {
-  if (!item.removedAt) return false
-  const age = now.getTime() - Date.parse(item.removedAt)
-  if (Number.isNaN(age)) return false
-  const after = times.purgeAfterMs ?? MODEL_PURGE_AFTER_MS
-  const empty = times.purgeEmptyAfterMs ?? MODEL_PURGE_EMPTY_AFTER_MS
-  return age >= after || (item.removedEmpty === true && age >= empty)
+  if (!item.removedAt || item.removedEmpty !== true) return false
+  const age = hiddenFor(item, now)
+  return !Number.isNaN(age) && age >= (times.purgeEmptyAfterMs ?? MODEL_PURGE_EMPTY_AFTER_MS)
 }
 
 const fieldId = (type: string, key: string): string => `${type}.${key}`
@@ -1107,37 +1136,65 @@ function purgeBlockers(doc: ModelDoc, types: Set<string>, fields: Set<string>): 
   return found
 }
 
+/**
+ * Deletes hidden types and fields for good. Two callers:
+ *
+ * - a person (an administrator; the route checks that): anything hidden at least `deleteWaitMs`
+ *   ago, else `too-soon` with the milliseconds left;
+ * - the server's sweep (`ctx.internal`): only what is due (hidden empty, an hour ago) and holds
+ *   nothing now by `ctx.counts` (absent counts as "holds something"). A target that holds something
+ *   now is kept: it loses `removedEmpty`, so it is an ordinary hidden thing from then on, and a note
+ *   `kept-not-empty` says so. The rest of the purge goes on.
+ */
 function purge(r: Run, op: Extract<ModelOp, { op: 'purge' }>): void {
-  if (r.ctx.internal !== true) fail(r, 'internal-only', 'Deleting removed things for good is done by the server only')
+  const { ctx } = r
+  const sweep = ctx.internal === true
+  const wait = ctx.deleteWaitMs ?? MODEL_DELETE_WAIT_MS
+  /** Refuses a target that may not go; false when the sweep keeps it because it holds content now. */
+  const mayGo = (item: ModelType | ModelField, what: string, count: number | undefined, t: ModelType): boolean => {
+    if (!isHidden(item)) fail(r, 'not-removed', `${what} is not removed`)
+    if (!sweep) {
+      const left = wait - hiddenFor(item, ctx.now)
+      if (!(left <= 0)) fail(r, 'too-soon', `${what} was removed less than a minute ago. It can be deleted for good a minute after it was removed`, { msLeft: Number.isNaN(left) ? wait : Math.ceil(left) })
+      return true
+    }
+    if (!isDue(item, ctx.now, ctx)) fail(r, 'not-due', `${what} is not due to be deleted`)
+    if (count === 0) return true
+    item.removedEmpty = false
+    r.notes.push({ code: 'kept-not-empty', message: `${what} holds content now, so it is kept. It stays removed until a person restores it or deletes it for good`, op: r.i, type: t.name, ...('key' in item ? { field: item.key } : {}) })
+    return false
+  }
   const types = new Set<string>()
   for (const name of op.types ?? []) {
     const t = typeOf(r, name, true)
-    if (!isHidden(t)) fail(r, 'not-removed', `${typeText(t)} is not removed`)
-    if (!isDue(t, r.ctx.now, r.ctx)) fail(r, 'not-due', `${typeText(t)} was removed too recently to be deleted`)
-    types.add(name)
+    if (mayGo(t, typeText(t), ctx.counts?.entries?.[name], t)) types.add(name)
   }
   const fields = new Set<string>()
   for (const ref of op.fields ?? []) {
     if (types.has(ref.type)) continue
     const t = typeOf(r, ref.type, true)
     const f = fieldOf(r, t, ref.key, true)
-    if (!isHidden(f)) fail(r, 'not-removed', `${fieldText(f)} in ${typeText(t)} is not removed`)
-    if (!isDue(f, r.ctx.now, r.ctx)) fail(r, 'not-due', `${fieldText(f)} in ${typeText(t)} was removed too recently to be deleted`)
-    fields.add(fieldId(ref.type, ref.key))
+    if (mayGo(f, `${fieldText(f)} in ${typeText(t)}`, ctx.counts?.values?.[fieldId(ref.type, ref.key)], t)) fields.add(fieldId(ref.type, ref.key))
   }
   const blockers = purgeBlockers(r.doc, types, fields)
   if (blockers.length) {
-    const where = blockers.map((b) => `"${b.key}" of "${b.type}" points at "${b.to}"`).join(', ')
-    fail(r, 'points-at-type', `A type cannot be deleted while a field points at it: ${where}`, { fields: blockers.map((b) => ({ type: b.type, key: b.key })) })
+    const named = (b: { type: string; key: string }): string => {
+      const t = r.doc.types.find((x) => x.name === b.type)
+      const f = t?.fields.find((x) => x.key === b.key)
+      return t && f ? `${fieldText(f)} of ${typeText(t)}` : `"${b.key}" of "${b.type}"`
+    }
+    const where = blockers.map(named).join(', ')
+    fail(r, 'points-at-type', `A type cannot be deleted while a field points at it. Delete these removed fields for good first: ${where}`, { fields: blockers.map((b) => ({ type: b.type, key: b.key })) })
   }
   r.doc.types = r.doc.types.filter((t) => !types.has(t.name))
   for (const t of r.doc.types) t.fields = t.fields.filter((f) => !fields.has(fieldId(t.name, f.key)))
 }
 
 /**
- * What the server's sweep may delete for good now: every removed type that is due, and every
- * removed field that is due on a type that stays. A type that a field outside the purge still
- * points at is left out, so `applyModelOps` with this as a `purge` operation does not refuse it.
+ * What the server's sweep may delete for good now: every removed type that is due (hidden while it
+ * held nothing, at least an hour ago), and every such field on a type that stays. A type that a
+ * field outside the purge still points at is left out, so `applyModelOps` with this as a `purge`
+ * operation does not refuse it. Whether each still holds nothing is checked by the purge itself.
  * `times` are the waits, when they are not the defaults (give `applyModelOps` the same).
  * @internal
  */

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_MODEL_LIMITS,
-  MODEL_PURGE_AFTER_MS,
+  MODEL_DELETE_WAIT_MS,
   MODEL_PURGE_EMPTY_AFTER_MS,
   ModelProblem,
   applyModelOps,
@@ -367,10 +367,43 @@ describe('type.add', () => {
       refuse(doc, [{ op: 'type.add', label: L('A'), icon }], 'invalid-icon', 0)
     }
     const c = ctx({ limits: { types: 2, fields: 30, options: 30 } })
-    refuse(doc, [{ op: 'type.add', label: L('A') }, { op: 'type.add', label: L('B') }, { op: 'type.add', label: L('C') }], 'limit-types', 2, c)
-    // hidden types count
+    const p = refuse(doc, [{ op: 'type.add', label: L('A') }, { op: 'type.add', label: L('B') }, { op: 'type.add', label: L('C') }], 'limit-types', 2, c)
+    expect(p.message).not.toContain('removed ones count')
+    // hidden types do not count: one visible and one hidden leave room for another
     const two = apply(doc, [{ op: 'type.add', label: L('A') }, { op: 'type.add', label: L('B') }, { op: 'type.remove', type: 'custom_b' }], c).doc
-    refuse(two, [{ op: 'type.add', label: L('C') }], 'limit-types', 0, c)
+    expect(apply(two, [{ op: 'type.add', label: L('C') }], c).doc.types.filter((t) => !t.removedAt).length).toBe(2)
+    // visible ones do
+    const full = apply(doc, [{ op: 'type.add', label: L('A') }, { op: 'type.add', label: L('B') }], c).doc
+    refuse(full, [{ op: 'type.add', label: L('C') }], 'limit-types', 0, c)
+  })
+
+  it('refuses to restore a type when the visible ones are at the limit', () => {
+    const c = ctx({ limits: { types: 2, fields: 30, options: 30 } })
+    const doc = apply(emptyModelDoc(), [
+      { op: 'type.add', label: L('A') },
+      { op: 'type.add', label: L('B') },
+      { op: 'type.remove', type: 'custom_b' },
+      { op: 'type.add', label: L('C') },
+    ], c).doc
+    refuse(doc, [{ op: 'type.restore', type: 'custom_b' }], 'limit-types', 0, c)
+    // with room it restores
+    expect(() => apply(doc, [{ op: 'type.remove', type: 'custom_c' }, { op: 'type.restore', type: 'custom_b' }], c)).not.toThrow()
+  })
+
+  it('refuses to remove a type when the removed ones are at the limit', () => {
+    const c = ctx({ limits: { types: 2, fields: 30, options: 30 } })
+    const doc = apply(emptyModelDoc(), [
+      { op: 'type.add', label: L('A') },
+      { op: 'type.add', label: L('B') },
+      { op: 'type.add', label: L('C') },
+      { op: 'type.remove', type: 'custom_a' },
+      { op: 'type.remove', type: 'custom_b' },
+    ], ctx({ limits: { types: 12, fields: 30, options: 30 } })).doc
+    const p = refuse(doc, [{ op: 'type.remove', type: 'custom_c' }], 'limit-removed-types', 0, c)
+    expect(p.details).toEqual({ limit: 2 })
+    // one fewer hidden and it goes through
+    const one = apply(doc, [{ op: 'type.restore', type: 'custom_a' }], ctx({ limits: { types: 12, fields: 30, options: 30 } })).doc
+    expect(() => apply(one, [{ op: 'type.remove', type: 'custom_c' }], c)).not.toThrow()
   })
 
   it('refuses a model over the size limit', () => {
@@ -667,12 +700,44 @@ describe('field.add', () => {
     refuse(courses(), select(31), 'limit-options', 0)
   })
 
-  it('refuses a field over the limit, hidden fields counted', () => {
+  it('refuses a field over the limit of the visible ones, hidden fields not counted', () => {
     const c = ctx({ limits: { types: 12, fields: 7, options: 30 } })
-    refuse(courses(), add({ type: 'text', label: L('Další') }), 'limit-fields', 0, c)
-    const hidden = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }]).doc
-    refuse(hidden, add({ type: 'text', label: L('Další') }), 'limit-fields', 0, c)
+    const p = refuse(courses(), add({ type: 'text', label: L('Další') }), 'limit-fields', 0, c)
+    expect(p.message).not.toContain('removed ones count')
     expect(() => apply(courses(), add({ type: 'text', label: L('Další') }), ctx({ limits: { types: 12, fields: 8, options: 30 } }))).not.toThrow()
+    // a hidden field leaves room, even when it is still named
+    const hidden = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }]).doc
+    const { doc } = apply(hidden, add({ type: 'text', label: L('Další') }), c)
+    expect(course(doc).fields.filter((f) => !f.removedAt).length).toBe(7)
+    refuse(doc, add({ type: 'text', label: L('Ještě') }), 'limit-fields', 0, c)
+  })
+
+  it('refuses to restore a field when the visible ones are at the limit', () => {
+    const c = ctx({ limits: { types: 12, fields: 7, options: 30 } })
+    const hidden = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }]).doc
+    const full = apply(hidden, add({ type: 'text', label: L('Další') }), c).doc
+    const restore: ModelOp[] = [{ op: 'field.restore', type: 'custom_course', key: 'price' }]
+    refuse(full, restore, 'limit-fields', 0, c)
+    // with room it restores
+    expect(() => apply(full, [{ op: 'field.remove', type: 'custom_course', key: 'perex' }, ...restore], c)).not.toThrow()
+  })
+
+  it('refuses to remove a field when the removed ones are at the limit', () => {
+    const big = ctx({ limits: { types: 12, fields: 30, options: 30 } })
+    const doc = apply(courses(), [
+      { op: 'field.remove', type: 'custom_course', key: 'price' },
+      { op: 'field.remove', type: 'custom_course', key: 'cover' },
+    ], big).doc
+    const c = ctx({ limits: { types: 12, fields: 2, options: 30 } })
+    const p = refuse(doc, [{ op: 'field.remove', type: 'custom_course', key: 'perex' }], 'limit-removed-fields', 0, c)
+    expect(p.details).toEqual({ limit: 2 })
+    expect(p.message).not.toContain('removed ones count')
+    // another type has its own count
+    const withTeacher = apply(twoTypes(), [{ op: 'field.add', type: 'custom_teacher', field: { type: 'text', key: 'bio', label: L('Bio') } }]).doc
+    expect(() => apply(withTeacher, [{ op: 'field.remove', type: 'custom_teacher', key: 'bio' }], c)).not.toThrow()
+    // one fewer hidden and it goes through
+    const one = apply(doc, [{ op: 'field.restore', type: 'custom_course', key: 'cover' }], big).doc
+    expect(() => apply(one, [{ op: 'field.remove', type: 'custom_course', key: 'perex' }], c)).not.toThrow()
   })
 
   it('refuses labels and help texts that are too long or empty', () => {
@@ -959,122 +1024,314 @@ describe('field.order', () => {
 })
 
 describe('purge', () => {
-  /** A course type with fields removed at `T0` and purged at some later time. */
   const T0 = new Date('2026-10-01T00:00:00.000Z')
+  const MIN = 60 * 1000
+  const HOUR = 60 * MIN
+  const price = { type: 'custom_course', key: 'price' }
+  const priceOp: ModelOp = { op: 'purge', fields: [price] }
+  const typeOp: ModelOp = { op: 'purge', types: ['custom_course'] }
   const removedAt = (doc: ModelDoc, ops: ModelOp[], extra: Partial<ModelContext> = {}) => apply(doc, ops, ctx({ now: T0, ...extra })).doc
-  const purge = (doc: ModelDoc, op: ModelOp, ms: number, internal = true) =>
-    apply(doc, [op], ctx({ now: new Date(T0.getTime() + ms), internal }))
+  /** The server's sweep, `ms` after `T0`, with the counts it has at that moment. */
+  const sweep = (doc: ModelDoc, op: ModelOp, ms: number, counts?: ModelContext['counts']) =>
+    apply(doc, [op], ctx({ now: new Date(T0.getTime() + ms), internal: true, counts }))
+  /** A person, `ms` after `T0`; no counts. */
+  const person = (doc: ModelDoc, op: ModelOp, ms: number, extra: Partial<ModelContext> = {}) =>
+    apply(doc, [op], ctx({ now: new Date(T0.getTime() + ms), ...extra }))
+  const gone = (doc: ModelDoc, key = 'price') => !course(doc).fields.some((f) => f.key === key)
+  /** `price` hidden while it held nothing. */
+  const hiddenEmpty = () => removedAt(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], { counts: { values: { 'custom_course.price': 0 } } })
+  /** `price` hidden while it held values. */
+  const hiddenFull = () => removedAt(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], { counts: { values: { 'custom_course.price': 3 } } })
+  const emptyCounts: ModelContext['counts'] = { values: { 'custom_course.price': 0 }, entries: { custom_course: 0 } }
 
-  it('only runs for the server', () => {
+  it('refuses what is not removed for a person and for the server, and deletes a hidden type for a person', () => {
     const doc = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }])
-    refuse(doc, [{ op: 'purge', types: ['custom_course'] }], 'internal-only', 0, ctx({ now: at(60 * DAY) }))
-    refuse(doc, [{ op: 'purge', types: ['custom_course'] }], 'internal-only', 0, ctx({ now: at(60 * DAY), internal: false }))
+    // neither the server nor a person may delete what is not hidden
+    refuse(courses(), [typeOp], 'not-removed', 0)
+    refuse(courses(), [typeOp], 'not-removed', 0, ctx({ internal: true }))
+    expect(person(doc, typeOp, HOUR).doc.types).toEqual([])
   })
 
-  it('deletes a field 30 days after, not 29', () => {
-    const doc = removedAt(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }])
-    const op: ModelOp = { op: 'purge', fields: [{ type: 'custom_course', key: 'price' }] }
-    const p = refusal(() => purge(doc, op, MODEL_PURGE_AFTER_MS - 1))
-    expect({ code: p.code, op: p.op }).toEqual({ code: 'not-due', op: 0 })
-    refusal(() => purge(doc, op, 29 * DAY))
-    const { doc: next } = purge(doc, op, 30 * DAY)
-    expect(next.types[0]!.fields.some((f) => f.key === 'price')).toBe(false)
+  describe('the server\'s sweep', () => {
+    it('deletes a field hidden empty after an hour, not 59 minutes', () => {
+      const doc = hiddenEmpty()
+      for (const ms of [0, MIN, 59 * MIN, MODEL_PURGE_EMPTY_AFTER_MS - 1]) {
+        const p = refusal(() => sweep(doc, priceOp, ms, emptyCounts))
+        expect({ code: p.code, op: p.op }).toEqual({ code: 'not-due', op: 0 })
+      }
+      const { doc: next, notes } = sweep(doc, priceOp, MODEL_PURGE_EMPTY_AFTER_MS, emptyCounts)
+      expect(gone(next)).toBe(true)
+      expect(notes).toEqual([])
+    })
+
+    it('never deletes what was hidden with content or without a count, however old', () => {
+      const op = priceOp
+      for (const doc of [hiddenFull(), removedAt(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }])]) {
+        for (const ms of [2 * HOUR, 30 * DAY, 400 * DAY]) {
+          expect(refusal(() => sweep(doc, op, ms, emptyCounts)).code).toBe('not-due')
+        }
+      }
+      const type = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }], { counts: { entries: { custom_course: 5 } } })
+      expect(refusal(() => sweep(type, typeOp, 400 * DAY, emptyCounts)).code).toBe('not-due')
+    })
+
+    it('deletes a type hidden empty with all its fields', () => {
+      const doc = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }], { counts: { entries: { custom_course: 0 } } })
+      expect(refusal(() => sweep(doc, typeOp, 59 * MIN, emptyCounts)).code).toBe('not-due')
+      expect(sweep(doc, typeOp, HOUR, emptyCounts).doc.types).toEqual([])
+      // a field of a purged type needs no check of its own
+      const both = sweep(doc, { op: 'purge', types: ['custom_course'], fields: [price] }, HOUR, emptyCounts)
+      expect(both.doc.types).toEqual([])
+    })
+
+    it('keeps a field that holds values now, clears its flag and says so', () => {
+      const doc = hiddenEmpty()
+      const { doc: next, notes } = sweep(doc, priceOp, 2 * HOUR, { values: { 'custom_course.price': 4 } })
+      expect(gone(next)).toBe(false)
+      expect(fieldOf(next, 'custom_course', 'price')).toMatchObject({ removedAt: T0.toISOString(), removedEmpty: false })
+      expect(notes).toEqual([expect.objectContaining({ code: 'kept-not-empty', op: 0, type: 'custom_course', field: 'price' })])
+      // from then on it is never due again
+      expect(modelPurgeDue(next, new Date(T0.getTime() + 400 * DAY))).toEqual({ types: [], fields: [] })
+      expect(refusal(() => sweep(next, priceOp, 400 * DAY, emptyCounts)).code).toBe('not-due')
+    })
+
+    it('keeps what has no count, as if it held something', () => {
+      const field = sweep(hiddenEmpty(), priceOp, 2 * HOUR)
+      expect(gone(field.doc)).toBe(false)
+      expect(fieldOf(field.doc, 'custom_course', 'price').removedEmpty).toBe(false)
+      expect(field.notes.map((n) => n.code)).toEqual(['kept-not-empty'])
+      // a count for something else is no count for this
+      const other = sweep(hiddenEmpty(), priceOp, 2 * HOUR, { values: { 'custom_course.cover': 0 }, entries: { custom_course: 0 } })
+      expect(gone(other.doc)).toBe(false)
+      const type = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }], { counts: { entries: { custom_course: 0 } } })
+      const kept = sweep(type, typeOp, 2 * HOUR)
+      expect(course(kept.doc).removedEmpty).toBe(false)
+      expect(kept.notes).toEqual([expect.objectContaining({ code: 'kept-not-empty', op: 0, type: 'custom_course' })])
+    })
+
+    it('keeps a type that holds entries now, without a field in the note', () => {
+      const type = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }], { counts: { entries: { custom_course: 0 } } })
+      const { doc, notes } = sweep(type, typeOp, 2 * HOUR, { entries: { custom_course: 2 } })
+      expect(course(doc)).toMatchObject({ removedAt: T0.toISOString(), removedEmpty: false })
+      expect(course(doc).fields.length).toBe(7)
+      expect(notes).toHaveLength(1)
+      expect(notes[0]).toMatchObject({ code: 'kept-not-empty', op: 0, type: 'custom_course' })
+      expect(notes[0]).not.toHaveProperty('field')
+      expect(modelPurgeDue(doc, new Date(T0.getTime() + 400 * DAY)).types).toEqual([])
+    })
+
+    it('goes on with the other targets of the same purge', () => {
+      const doc = removedAt(
+        courses(),
+        [{ op: 'field.remove', type: 'custom_course', key: 'price' }, { op: 'field.remove', type: 'custom_course', key: 'perex' }],
+        { counts: { values: { 'custom_course.price': 0, 'custom_course.perex': 0 } } },
+      )
+      const op: ModelOp = { op: 'purge', fields: [price, { type: 'custom_course', key: 'perex' }] }
+      const { doc: next, notes } = sweep(doc, op, 2 * HOUR, { values: { 'custom_course.price': 2, 'custom_course.perex': 0 } })
+      expect(gone(next, 'perex')).toBe(true)
+      expect(gone(next, 'price')).toBe(false)
+      expect(fieldOf(next, 'custom_course', 'price').removedEmpty).toBe(false)
+      expect(notes).toEqual([expect.objectContaining({ code: 'kept-not-empty', field: 'price' })])
+    })
+
+    it('still refuses a target that is not due, in a purge with others', () => {
+      const doc = hiddenEmpty()
+      const p = refusal(() => sweep(doc, { op: 'purge', fields: [price, { type: 'custom_course', key: 'perex' }] }, 2 * HOUR, emptyCounts))
+      expect(p.code).toBe('not-removed')
+    })
   })
 
-  it('deletes an empty one after an hour, not 59 minutes', () => {
-    const doc = removedAt(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], { counts: { values: { 'custom_course.price': 0 } } })
-    const op: ModelOp = { op: 'purge', fields: [{ type: 'custom_course', key: 'price' }] }
-    expect(refusal(() => purge(doc, op, MODEL_PURGE_EMPTY_AFTER_MS - 1)).code).toBe('not-due')
-    expect(refusal(() => purge(doc, op, 59 * 60 * 1000)).code).toBe('not-due')
-    expect(course(purge(doc, op, 60 * 60 * 1000).doc).fields.some((f) => f.key === 'price')).toBe(false)
-    // a field that held values waits the 30 days
-    const full = removedAt(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], { counts: { values: { 'custom_course.price': 3 } } })
-    expect(refusal(() => purge(full, op, 2 * 60 * 60 * 1000)).code).toBe('not-due')
+  describe('a person', () => {
+    it('refuses what is not removed', () => {
+      refuse(courses(), [priceOp], 'not-removed', 0)
+      refuse(courses(), [typeOp], 'not-removed', 0, ctx({ internal: false }))
+    })
+
+    it('waits a minute after the removal, and is told how long', () => {
+      const doc = hiddenFull()
+      const p = refusal(() => person(doc, priceOp, 20 * 1000))
+      expect({ code: p.code, op: p.op }).toEqual({ code: 'too-soon', op: 0 })
+      expect(p.details).toEqual({ msLeft: MODEL_DELETE_WAIT_MS - 20 * 1000 })
+      expect(refusal(() => person(doc, priceOp, 0)).details).toEqual({ msLeft: MODEL_DELETE_WAIT_MS })
+      const late = refusal(() => person(doc, priceOp, MODEL_DELETE_WAIT_MS - 1))
+      expect(late.code).toBe('too-soon')
+      expect((late.details as { msLeft: number }).msLeft).toBe(1)
+      const type = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }])
+      expect(refusal(() => person(type, typeOp, 5 * 1000)).code).toBe('too-soon')
+    })
+
+    it('may delete exactly at the wait, and later', () => {
+      expect(MODEL_DELETE_WAIT_MS).toBe(60_000)
+      expect(gone(person(hiddenFull(), priceOp, MODEL_DELETE_WAIT_MS).doc)).toBe(true)
+      expect(gone(person(hiddenFull(), priceOp, 400 * DAY).doc)).toBe(true)
+      const type = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }])
+      expect(person(type, typeOp, MODEL_DELETE_WAIT_MS).doc.types).toEqual([])
+    })
+
+    it('may delete what holds content, without counts, and what was hidden empty', () => {
+      const withEntries = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }], { counts: { entries: { custom_course: 40 } } })
+      expect(person(withEntries, typeOp, 2 * MIN, { counts: { entries: { custom_course: 40 } } }).doc.types).toEqual([])
+      expect(person(withEntries, typeOp, 2 * MIN).doc.types).toEqual([])
+      expect(gone(person(hiddenEmpty(), priceOp, 2 * MIN).doc)).toBe(true)
+      expect(person(hiddenFull(), priceOp, 2 * MIN).notes).toEqual([])
+    })
+
+    it('waits the default minute when the context gives none, and the context value when it does', () => {
+      const doc = hiddenFull()
+      expect(refusal(() => person(doc, priceOp, 30 * 1000)).code).toBe('too-soon')
+      const long = { deleteWaitMs: 10 * MIN }
+      const p = refusal(() => person(doc, priceOp, 2 * MIN, long))
+      expect(p.code).toBe('too-soon')
+      expect(p.details).toEqual({ msLeft: 8 * MIN })
+      expect(gone(person(doc, priceOp, 10 * MIN, long).doc)).toBe(true)
+      const short = { deleteWaitMs: 5 * 1000 }
+      expect(gone(person(doc, priceOp, 5 * 1000, short).doc)).toBe(true)
+      expect(refusal(() => person(doc, priceOp, 4 * 1000, short)).details).toEqual({ msLeft: 1000 })
+    })
+
+    it('refuses things that are unknown', () => {
+      refuse(courses(), [{ op: 'purge', types: ['custom_nope'] }], 'unknown-type', 0)
+      refuse(courses(), [{ op: 'purge', types: ['category'] }], 'design-type', 0)
+      refuse(courses(), [{ op: 'purge', fields: [{ type: 'custom_course', key: 'nope' }] }], 'unknown-field', 0)
+    })
   })
 
-  it('deletes a type with all its fields', () => {
-    const doc = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }])
-    expect(refusal(() => purge(doc, { op: 'purge', types: ['custom_course'] }, 29 * DAY)).code).toBe('not-due')
-    const { doc: next } = purge(doc, { op: 'purge', types: ['custom_course'] }, 30 * DAY)
-    expect(next.types).toEqual([])
-    // a field of a purged type needs no check of its own
-    const both = purge(doc, { op: 'purge', types: ['custom_course'], fields: [{ type: 'custom_course', key: 'price' }] }, 30 * DAY)
-    expect(both.doc.types).toEqual([])
+  it('refuses things that are not removed, or are unknown, in the sweep too', () => {
+    const c = ctx({ internal: true })
+    refuse(courses(), [typeOp], 'not-removed', 0, c)
+    refuse(courses(), [priceOp], 'not-removed', 0, c)
+    refuse(courses(), [{ op: 'purge', types: ['custom_nope'] }], 'unknown-type', 0, c)
+    refuse(courses(), [{ op: 'purge', types: ['category'] }], 'design-type', 0, c)
+    refuse(courses(), [{ op: 'purge', fields: [{ type: 'custom_course', key: 'nope' }] }], 'unknown-field', 0, c)
   })
 
-  it('refuses things that are not removed, or are unknown', () => {
-    refuse(courses(), [{ op: 'purge', types: ['custom_course'] }], 'not-removed', 0, ctx({ internal: true }))
-    refuse(courses(), [{ op: 'purge', fields: [{ type: 'custom_course', key: 'price' }] }], 'not-removed', 0, ctx({ internal: true }))
-    refuse(courses(), [{ op: 'purge', types: ['custom_nope'] }], 'unknown-type', 0, ctx({ internal: true }))
-    refuse(courses(), [{ op: 'purge', types: ['category'] }], 'design-type', 0, ctx({ internal: true }))
-    refuse(courses(), [{ op: 'purge', fields: [{ type: 'custom_course', key: 'nope' }] }], 'unknown-field', 0, ctx({ internal: true }))
+  describe('a relation that points at the type', () => {
+    /** custom_teacher.course is hidden (empty), custom_course is hidden too. */
+    const stage = () => {
+      const hiddenField = apply(twoTypes(), [{ op: 'field.remove', type: 'custom_teacher', key: 'course' }], ctx({ now: T0 })).doc
+      return removedAt(hiddenField, [{ op: 'type.remove', type: 'custom_course' }])
+    }
+
+    it('stops a person, names the fields, and works once they go too', () => {
+      const doc = stage()
+      const p = refusal(() => person(doc, typeOp, 5 * MIN))
+      expect({ code: p.code, op: p.op }).toEqual({ code: 'points-at-type', op: 0 })
+      expect(p.details).toEqual({ fields: [{ type: 'custom_teacher', key: 'course' }] })
+      expect(p.message).toContain('Kurz')
+      expect(p.message).toMatch(/delete/i)
+      expect(p.message).toMatch(/for good/)
+      const done = person(doc, { op: 'purge', types: ['custom_course'], fields: [{ type: 'custom_teacher', key: 'course' }] }, 5 * MIN)
+      expect(done.doc.types.map((t) => t.name)).toEqual(['custom_teacher'])
+      expect(done.doc.types[0]!.fields.map((f) => f.key)).toEqual(['title'])
+      // the field alone is fine, and then the type can go
+      const first = person(doc, { op: 'purge', fields: [{ type: 'custom_teacher', key: 'course' }] }, 5 * MIN).doc
+      expect(person(first, typeOp, 5 * MIN).doc.types.map((t) => t.name)).toEqual(['custom_teacher'])
+    })
+
+    it('stops the sweep too', () => {
+      const doc = removedAt(
+        apply(twoTypes(), [{ op: 'field.remove', type: 'custom_teacher', key: 'course' }], ctx({ now: T0, counts: { values: { 'custom_teacher.course': 0 } } })).doc,
+        [{ op: 'type.remove', type: 'custom_course' }],
+        { counts: { entries: { custom_course: 0 } } },
+      )
+      const counts = { entries: { custom_course: 0 }, values: { 'custom_teacher.course': 0 } }
+      const p = refusal(() => sweep(doc, typeOp, 2 * HOUR, counts))
+      expect(p.code).toBe('points-at-type')
+      expect(p.details).toEqual({ fields: [{ type: 'custom_teacher', key: 'course' }] })
+      const done = sweep(doc, { op: 'purge', ...modelPurgeDue(doc, new Date(T0.getTime() + 2 * HOUR)) }, 2 * HOUR, counts)
+      expect(done.doc.types.map((t) => t.name)).toEqual(['custom_teacher'])
+    })
+
+    it('stops a person when a visible field of a hidden type points at the type', () => {
+      const hiddenTeacher = removedAt(twoTypes(), [{ op: 'type.remove', type: 'custom_teacher' }])
+      // custom_course may be hidden too, now that custom_teacher is hidden
+      const both = removedAt(hiddenTeacher, [{ op: 'type.remove', type: 'custom_course' }])
+      const p = refusal(() => person(both, typeOp, 5 * MIN))
+      expect(p.code).toBe('points-at-type')
+      expect(p.details).toEqual({ fields: [{ type: 'custom_teacher', key: 'course' }] })
+      expect(person(both, { op: 'purge', types: ['custom_course', 'custom_teacher'] }, 5 * MIN).doc.types).toEqual([])
+    })
   })
 
-  it('refuses to delete a type while a field outside the purge points at it', () => {
-    // custom_teacher.course is hidden (twice as recently), custom_course is hidden at T0.
-    const stage = removedAt(
-      apply(twoTypes(), [{ op: 'field.remove', type: 'custom_teacher', key: 'course' }], ctx({ now: new Date(T0.getTime() + 25 * DAY) })).doc,
-      [{ op: 'type.remove', type: 'custom_course' }],
-    )
-    const p = refusal(() => purge(stage, { op: 'purge', types: ['custom_course'] }, 31 * DAY))
-    expect({ code: p.code, op: p.op }).toEqual({ code: 'points-at-type', op: 0 })
-    expect(p.details).toEqual({ fields: [{ type: 'custom_teacher', key: 'course' }] })
-    // naming the field too works once it is due
-    const done = purge(stage, { op: 'purge', types: ['custom_course'], fields: [{ type: 'custom_teacher', key: 'course' }] }, 56 * DAY)
-    expect(done.doc.types.map((t) => t.name)).toEqual(['custom_teacher'])
-    expect(done.doc.types[0]!.fields.map((f) => f.key)).toEqual(['title'])
-  })
+  describe('a name is free again after the deletion', () => {
+    it('a field key', () => {
+      const hidden = removedAt(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }])
+      const add: ModelOp[] = [{ op: 'field.add', type: 'custom_course', field: { type: 'number', key: 'price', label: L('Cena nová') } }]
+      refuse(hidden, add, 'name-taken', 0, ctx({ now: new Date(T0.getTime() + 5 * MIN) }))
+      const purged = person(hidden, priceOp, 5 * MIN).doc
+      const { doc } = apply(purged, add, ctx({ now: new Date(T0.getTime() + 5 * MIN) }))
+      expect(fieldOf(doc, 'custom_course', 'price')).toMatchObject({ label: L('Cena nová') })
+      expect(fieldOf(doc, 'custom_course', 'price').removedAt ?? null).toBeNull()
+    })
 
-  it('refuses when a visible field of a hidden type points at the purged type', () => {
-    const hiddenTeacher = removedAt(twoTypes(), [{ op: 'type.remove', type: 'custom_teacher' }])
-    // custom_course is visible: hide it too, which is allowed now that custom_teacher is hidden
-    const both = removedAt(hiddenTeacher, [{ op: 'type.remove', type: 'custom_course' }])
-    const late = ctx({ now: new Date(T0.getTime() + 31 * DAY), internal: true })
-    // purging only custom_course leaves custom_teacher.course (visible, in a hidden type) pointing at it
-    expect(refusal(() => apply(both, [{ op: 'purge', types: ['custom_course'] }], late)).code).toBe('points-at-type')
-    expect(() => apply(both, [{ op: 'purge', types: ['custom_course', 'custom_teacher'] }], late)).not.toThrow()
+    it('a type name and its page prefix', () => {
+      const hidden = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }])
+      const add: ModelOp[] = [{ op: 'type.add', name: 'custom_course', label: L('Nové kurzy'), page: { prefix: 'kurzy' } }]
+      const later = ctx({ now: new Date(T0.getTime() + 5 * MIN) })
+      refuse(hidden, add, 'name-taken', 0, later)
+      const purged = person(hidden, typeOp, 5 * MIN).doc
+      const { doc } = apply(purged, add, later)
+      expect(doc.types.map((t) => t.name)).toEqual(['custom_course'])
+      expect(course(doc).label).toEqual(L('Nové kurzy'))
+      expect(course(doc).page?.prefix).toBe('kurzy')
+      // and a made-up name is the plain one again
+      expect(apply(purged, [{ op: 'type.add', label: L('Kurzy'), page: {} }], later).doc.types.map((t) => t.name)).toEqual(['custom_kurzy'])
+    })
   })
 })
 
 describe('modelPurgeDue', () => {
   const T0 = new Date('2026-10-01T00:00:00.000Z')
-  const day = (n: number) => new Date(T0.getTime() + n * DAY)
+  const MIN = 60 * 1000
+  const at0 = (ms: number) => new Date(T0.getTime() + ms)
+  const price = { type: 'custom_course', key: 'price' }
+  const zeros: ModelContext['counts'] = { entries: { custom_course: 0, custom_teacher: 0 }, values: { 'custom_course.price': 0, 'custom_teacher.course': 0 } }
 
-  it('lists what is due and what is not', () => {
-    const doc = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], ctx({ now: T0 })).doc
-    expect(modelPurgeDue(doc, day(29))).toEqual({ types: [], fields: [] })
-    expect(modelPurgeDue(doc, day(30))).toEqual({ types: [], fields: [{ type: 'custom_course', key: 'price' }] })
-    const empty0 = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], ctx({ now: T0, counts: { values: { 'custom_course.price': 0 } } })).doc
-    expect(modelPurgeDue(empty0, new Date(T0.getTime() + 59 * 60 * 1000)).fields).toEqual([])
-    expect(modelPurgeDue(empty0, new Date(T0.getTime() + 60 * 60 * 1000)).fields).toEqual([{ type: 'custom_course', key: 'price' }])
-    expect(modelPurgeDue(courses(), day(400))).toEqual({ types: [], fields: [] })
+  it('lists only what was hidden empty, an hour ago', () => {
+    const doc = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], ctx({ now: T0, counts: { values: { 'custom_course.price': 0 } } })).doc
+    expect(modelPurgeDue(doc, at0(0))).toEqual({ types: [], fields: [] })
+    expect(modelPurgeDue(doc, at0(59 * MIN))).toEqual({ types: [], fields: [] })
+    expect(modelPurgeDue(doc, at0(60 * MIN))).toEqual({ types: [], fields: [price] })
+    expect(modelPurgeDue(doc, at0(400 * DAY))).toEqual({ types: [], fields: [price] })
+    expect(modelPurgeDue(courses(), at0(400 * DAY))).toEqual({ types: [], fields: [] })
+  })
+
+  it('never lists what was hidden with content or without a count, however old', () => {
+    const full = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], ctx({ now: T0, counts: { values: { 'custom_course.price': 3 } } })).doc
+    const unknown = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], ctx({ now: T0 })).doc
+    const type = apply(courses(), [{ op: 'type.remove', type: 'custom_course' }], ctx({ now: T0, counts: { entries: { custom_course: 9 } } })).doc
+    for (const doc of [full, unknown, type]) {
+      for (const ms of [(60 * 60 * 1000), 30 * DAY, 400 * DAY]) expect(modelPurgeDue(doc, at0(ms))).toEqual({ types: [], fields: [] })
+    }
   })
 
   it('leaves the fields of a purged type to the type', () => {
-    const doc = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }, { op: 'type.remove', type: 'custom_course' }], ctx({ now: T0 })).doc
-    expect(modelPurgeDue(doc, day(30))).toEqual({ types: ['custom_course'], fields: [] })
+    const doc = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }, { op: 'type.remove', type: 'custom_course' }], ctx({ now: T0, counts: zeros })).doc
+    expect(modelPurgeDue(doc, at0(60 * MIN))).toEqual({ types: ['custom_course'], fields: [] })
   })
 
   it('holds a type back while a field outside the purge points at it', () => {
-    const early = apply(twoTypes(), [{ op: 'field.remove', type: 'custom_teacher', key: 'course' }], ctx({ now: day(25) })).doc
-    const doc = apply(early, [{ op: 'type.remove', type: 'custom_course' }], ctx({ now: T0 })).doc
-    const held = modelPurgeDue(doc, day(31))
+    // custom_teacher.course is hidden half an hour after custom_course, so it is due half an hour later
+    const early = apply(twoTypes(), [{ op: 'field.remove', type: 'custom_teacher', key: 'course' }], ctx({ now: at0(30 * MIN), counts: zeros })).doc
+    const doc = apply(early, [{ op: 'type.remove', type: 'custom_course' }], ctx({ now: T0, counts: zeros })).doc
+    const held = modelPurgeDue(doc, at0(61 * MIN))
     expect(held).toEqual({ types: [], fields: [] })
-    const due = modelPurgeDue(doc, day(56))
+    const due = modelPurgeDue(doc, at0(90 * MIN))
     expect(due).toEqual({ types: ['custom_course'], fields: [{ type: 'custom_teacher', key: 'course' }] })
-    for (const [d, result] of [[31, held], [56, due]] as const) {
-      expect(() => apply(doc, [{ op: 'purge', ...result }], ctx({ now: day(d), internal: true }))).not.toThrow()
+    for (const [ms, result] of [[61 * MIN, held], [90 * MIN, due]] as const) {
+      expect(() => apply(doc, [{ op: 'purge', ...result }], ctx({ now: at0(ms), internal: true, counts: zeros }))).not.toThrow()
     }
   })
 
   it('holds a type back for a visible field in a hidden type, and keeps going until stable', () => {
-    // custom_course and custom_teacher are hidden; custom_teacher is not due, so it stays and its visible field holds custom_course back.
-    const early = apply(twoTypes(), [{ op: 'type.remove', type: 'custom_teacher' }], ctx({ now: day(25) })).doc
-    const doc = apply(early, [{ op: 'type.remove', type: 'custom_course' }], ctx({ now: T0 })).doc
-    const result = modelPurgeDue(doc, day(31))
+    // both are hidden; custom_teacher is not due yet, so it stays and its visible field holds custom_course back.
+    const early = apply(twoTypes(), [{ op: 'type.remove', type: 'custom_teacher' }], ctx({ now: at0(30 * MIN), counts: zeros })).doc
+    const doc = apply(early, [{ op: 'type.remove', type: 'custom_course' }], ctx({ now: T0, counts: zeros })).doc
+    const result = modelPurgeDue(doc, at0(61 * MIN))
     expect(result).toEqual({ types: [], fields: [] })
-    expect(() => apply(doc, [{ op: 'purge', ...result }], ctx({ now: day(31), internal: true }))).not.toThrow()
-    // a chain: C points at B, B points at A; only A and C are due, B is not
+    expect(() => apply(doc, [{ op: 'purge', ...result }], ctx({ now: at0(61 * MIN), internal: true, counts: zeros }))).not.toThrow()
+    expect(modelPurgeDue(doc, at0(90 * MIN)).types).toEqual(['custom_course', 'custom_teacher'])
+    // a chain: C points at B, B points at A; only C is due
     const chain = apply(emptyModelDoc(), [
       { op: 'type.add', name: 'custom_a', label: L('A') },
       { op: 'type.add', name: 'custom_b', label: L('B') },
@@ -1083,10 +1340,17 @@ describe('modelPurgeDue', () => {
       { op: 'field.add', type: 'custom_c', field: { type: 'relation', key: 'toB', label: L('B'), to: 'custom_b' } },
       { op: 'field.remove', type: 'custom_c', key: 'toB' },
       { op: 'type.remove', type: 'custom_c' },
-    ], ctx({ now: T0 })).doc
-    const chainDue = modelPurgeDue(chain, day(31))
+    ], ctx({ now: T0, counts: { entries: { custom_c: 0 }, values: { 'custom_c.toB': 0 } } })).doc
+    const chainDue = modelPurgeDue(chain, at0(61 * MIN))
     expect(chainDue.types).toEqual(['custom_c'])
-    expect(() => apply(chain, [{ op: 'purge', ...chainDue }], ctx({ now: day(31), internal: true }))).not.toThrow()
+    expect(() => apply(chain, [{ op: 'purge', ...chainDue }], ctx({ now: at0(61 * MIN), internal: true, counts: { entries: { custom_c: 0 } } }))).not.toThrow()
+  })
+
+  it('does not list a thing again once the sweep kept it', () => {
+    const doc = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], ctx({ now: T0, counts: zeros })).doc
+    expect(modelPurgeDue(doc, at0(2 * 60 * MIN)).fields).toEqual([price])
+    const kept = apply(doc, [{ op: 'purge', fields: [price] }], ctx({ now: at0(2 * 60 * MIN), internal: true, counts: { values: { 'custom_course.price': 1 } } })).doc
+    expect(modelPurgeDue(kept, at0(400 * DAY))).toEqual({ types: [], fields: [] })
   })
 })
 
@@ -1135,59 +1399,76 @@ describe('the times of the later deletion, given by the caller', () => {
   const MIN = 60 * 1000
   const after = (ms: number) => new Date(T0.getTime() + ms)
   const hide = (counts?: ModelContext['counts']) => apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], ctx({ now: T0, counts })).doc
-  const times = { purgeAfterMs: 10 * MIN, purgeEmptyAfterMs: 2 * MIN }
+  const times = { purgeEmptyAfterMs: 2 * MIN, deleteWaitMs: 10 * MIN }
   const price = [{ type: 'custom_course', key: 'price' }]
+  const zero = { values: { 'custom_course.price': 0 } }
 
   it('decides a hidden empty field by the short empty time', () => {
-    const doc = hide({ values: { 'custom_course.price': 0 } })
+    const doc = hide(zero)
     expect(modelPurgeDue(doc, after(MIN), times).fields).toEqual([])
     expect(modelPurgeDue(doc, after(2 * MIN), times).fields).toEqual(price)
   })
 
-  it('keeps a hidden field with content until the long time', () => {
+  it('never lists a hidden field with content, whatever the times', () => {
     const doc = hide({ values: { 'custom_course.price': 5 } })
-    expect(modelPurgeDue(doc, after(2 * MIN), times).fields).toEqual([])
-    expect(modelPurgeDue(doc, after(9 * MIN), times).fields).toEqual([])
-    expect(modelPurgeDue(doc, after(10 * MIN), times).fields).toEqual(price)
+    for (const ms of [2 * MIN, 10 * MIN, 400 * DAY]) expect(modelPurgeDue(doc, after(ms), times).fields).toEqual([])
+    expect(modelPurgeDue(doc, after(400 * DAY), { purgeEmptyAfterMs: 0, deleteWaitMs: 0 }).fields).toEqual([])
   })
 
   it('can take only one of the two times and keep the default of the other', () => {
-    const doc = hide({ values: { 'custom_course.price': 5 } })
-    expect(modelPurgeDue(doc, after(2 * MIN), { purgeEmptyAfterMs: MIN }).fields).toEqual([])
-    expect(modelPurgeDue(doc, after(10 * MIN), { purgeAfterMs: 10 * MIN }).fields).toEqual(price)
+    const doc = hide(zero)
+    expect(modelPurgeDue(doc, after(30 * MIN), { deleteWaitMs: 1 }).fields).toEqual([])
+    expect(modelPurgeDue(doc, after(60 * MIN), { deleteWaitMs: 1 }).fields).toEqual(price)
+    expect(modelPurgeDue(doc, after(MIN), { purgeEmptyAfterMs: MIN }).fields).toEqual(price)
   })
 
-  it('keeps the defaults of 30 days and an hour when no times are given', () => {
-    const full = hide({ values: { 'custom_course.price': 5 } })
-    expect(modelPurgeDue(full, after(30 * DAY - 1)).fields).toEqual([])
-    expect(modelPurgeDue(full, after(30 * DAY)).fields).toEqual(price)
-    const none = hide({ values: { 'custom_course.price': 0 } })
+  it('keeps the default of an hour when no times are given', () => {
+    const none = hide(zero)
     expect(modelPurgeDue(none, after(59 * MIN)).fields).toEqual([])
     expect(modelPurgeDue(none, after(60 * MIN)).fields).toEqual(price)
     expect(modelPurgeDue(none, after(60 * MIN), {}).fields).toEqual(price)
+    const full = hide({ values: { 'custom_course.price': 5 } })
+    expect(modelPurgeDue(full, after(400 * DAY)).fields).toEqual([])
+  })
+
+  it('has only the hour and the minute as default times', () => {
+    expect(MODEL_PURGE_EMPTY_AFTER_MS).toBe(60 * MIN)
+    expect(MODEL_DELETE_WAIT_MS).toBe(MIN)
   })
 
   it('purges a field that is due by the times of the context', () => {
-    const doc = hide({ values: { 'custom_course.price': 0 } })
-    const { doc: next } = apply(doc, [{ op: 'purge', fields: price }], ctx({ now: after(2 * MIN), internal: true, ...times }))
+    const doc = hide(zero)
+    const { doc: next } = apply(doc, [{ op: 'purge', fields: price }], ctx({ now: after(2 * MIN), internal: true, counts: zero, ...times }))
     expect(course(next).fields.some((f) => f.key === 'price')).toBe(false)
   })
 
   it('refuses a purge of a field that is not due by the times of the context', () => {
-    const doc = hide({ values: { 'custom_course.price': 5 } })
-    const p = refusal(() => apply(doc, [{ op: 'purge', fields: price }], ctx({ now: after(2 * MIN), internal: true, ...times })))
+    const doc = hide(zero)
+    const p = refusal(() => apply(doc, [{ op: 'purge', fields: price }], ctx({ now: after(MIN), internal: true, counts: zero, ...times })))
     expect(p.code).toBe('not-due')
-    expect(() => apply(doc, [{ op: 'purge', fields: price }], ctx({ now: after(10 * MIN), internal: true, ...times }))).not.toThrow()
+    // what held content is not due at any time
+    const full = hide({ values: { 'custom_course.price': 5 } })
+    expect(refusal(() => apply(full, [{ op: 'purge', fields: price }], ctx({ now: after(400 * DAY), internal: true, counts: zero, ...times }))).code).toBe('not-due')
   })
 
   it('refuses the same purge with the default times', () => {
-    const doc = hide({ values: { 'custom_course.price': 0 } })
-    expect(refusal(() => apply(doc, [{ op: 'purge', fields: price }], ctx({ now: after(2 * MIN), internal: true }))).code).toBe('not-due')
+    const doc = hide(zero)
+    expect(refusal(() => apply(doc, [{ op: 'purge', fields: price }], ctx({ now: after(2 * MIN), internal: true, counts: zero }))).code).toBe('not-due')
   })
 
   it('purges a removed type by the times of the context too', () => {
-    const doc = apply(courses(), [{ op: 'type.remove', type: 'custom_course' }], ctx({ now: T0 })).doc
-    expect(refusal(() => apply(doc, [{ op: 'purge', types: ['custom_course'] }], ctx({ now: after(MIN), internal: true, ...times }))).code).toBe('not-due')
-    expect(() => apply(doc, [{ op: 'purge', types: ['custom_course'] }], ctx({ now: after(10 * MIN), internal: true, ...times }))).not.toThrow()
+    const doc = apply(courses(), [{ op: 'type.remove', type: 'custom_course' }], ctx({ now: T0, counts: { entries: { custom_course: 0 } } })).doc
+    const counts = { entries: { custom_course: 0 } }
+    expect(refusal(() => apply(doc, [{ op: 'purge', types: ['custom_course'] }], ctx({ now: after(MIN), internal: true, counts, ...times }))).code).toBe('not-due')
+    expect(apply(doc, [{ op: 'purge', types: ['custom_course'] }], ctx({ now: after(2 * MIN), internal: true, counts, ...times })).doc.types).toEqual([])
+  })
+
+  it('makes a person wait by deleteWaitMs of the context, not by the empty time', () => {
+    const doc = hide(zero)
+    const op: ModelOp = { op: 'purge', fields: price }
+    const p = refusal(() => apply(doc, [op], ctx({ now: after(5 * MIN), ...times })))
+    expect(p.code).toBe('too-soon')
+    expect(p.details).toEqual({ msLeft: 5 * MIN })
+    expect(() => apply(doc, [op], ctx({ now: after(10 * MIN), ...times }))).not.toThrow()
   })
 })

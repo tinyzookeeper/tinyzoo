@@ -3,7 +3,7 @@
 // is tested without a browser. Names and limits come from tinyzoo's own rules (`model-doc.ts`),
 // never copied here.
 import {
-  modelTypeName, modelFieldKey, modelPagePrefix, MODEL_PURGE_AFTER_MS, MODEL_PURGE_EMPTY_AFTER_MS,
+  modelTypeName, modelFieldKey, modelPagePrefix, MODEL_PURGE_EMPTY_AFTER_MS,
   type ModelDoc, type ModelType, type ModelField, type ModelFieldInput, type ModelOp, type ModelLabel, type ModelOrder,
   MODEL_LABEL_MAX, MODEL_HELP_MAX,
 } from '../../src/model-doc'
@@ -126,12 +126,12 @@ export const cmsModelFields = (type: ModelType): ModelField[] => type.fields.fil
 /** The fields of a type that are hidden. */
 export const cmsModelHiddenFields = (type: ModelType): ModelField[] => type.fields.filter((f) => !!f.removedAt)
 
-/** When a hidden thing is deleted for good, or null when it is not hidden. */
+/** When the server deletes a hidden thing by itself, or null: only what was removed empty is ever deleted by the server, after an hour. */
 export function cmsModelPurgeAt(item: { removedAt?: string | null; removedEmpty?: boolean }): Date | null {
-  if (!item.removedAt) return null
+  if (!item.removedAt || item.removedEmpty !== true) return null
   const at = Date.parse(item.removedAt)
   if (Number.isNaN(at)) return null
-  return new Date(at + (item.removedEmpty === true ? MODEL_PURGE_EMPTY_AFTER_MS : MODEL_PURGE_AFTER_MS))
+  return new Date(at + MODEL_PURGE_EMPTY_AFTER_MS)
 }
 
 /** Every name a new type may not have: the document's types (hidden too), the design's, and the choices' database types. */
@@ -317,9 +317,9 @@ export function cmsModelPurgeText(item: { removedAt?: string | null; removedEmpt
   return at ? cmsModelPurgeDateText(at, ctx) : ''
 }
 
-/** When something hidden right now is deleted for good: an hour for what holds nothing, else the long wait. */
-export const cmsModelPurgeFromNow = (empty: boolean, now: Date = new Date()): Date =>
-  new Date(now.getTime() + (empty ? MODEL_PURGE_EMPTY_AFTER_MS : MODEL_PURGE_AFTER_MS))
+/** When something hidden right now is deleted by the server: an hour for what holds nothing, never for the rest (null). */
+export const cmsModelPurgeFromNow = (empty: boolean, now: Date = new Date()): Date | null =>
+  empty ? new Date(now.getTime() + MODEL_PURGE_EMPTY_AFTER_MS) : null
 
 // ---------------------------------------------------------------------------------------------
 // Order of the fields

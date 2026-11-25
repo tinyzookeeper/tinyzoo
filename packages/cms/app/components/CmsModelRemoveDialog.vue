@@ -125,8 +125,8 @@ async function remove() {
           <!-- 3. when it is gone for good -->
           <p class="flex items-start gap-3 text-sm text-default text-pretty">
             <UIcon name="i-lucide-eye-off" class="mt-0.5 size-4 shrink-0 text-muted" aria-hidden="true" />
-            <span v-if="purgeSoon">{{ t('model.remove.hiddenSoon', { time: formatDateWith(purgeAt, { timeStyle: 'short' }) }) }}</span>
-            <span v-else>{{ t('model.remove.hiddenUntil', { date: cmsModelDayText(purgeAt, dateCtx) }) }}</span>
+            <span v-if="purgeSoon && purgeAt">{{ t('model.remove.hiddenSoon', { time: formatDateWith(purgeAt, { timeStyle: 'short' }) }) }}</span>
+            <span v-else-if="purgeAt">{{ t('model.remove.hiddenUntil', { date: cmsModelDayText(purgeAt, dateCtx) }) }}</span>
           </p>
           <p v-if="field" class="-mt-2 pl-7 text-sm text-muted text-pretty">{{ t('model.remove.fieldEmptyHour') }}</p>
         </template>
