@@ -57,7 +57,11 @@ function scalarSchema(t: Extract<ContentFieldType, { kind: 'scalar' }>): JsonSch
     case 'datetime': return { type: 'string', format: 'date-time' }
     case 'string': {
       const s: JsonSchema = { type: 'string' }
-      if (t.enumValues) s.enum = [...t.enumValues]
+      if (t.enumValues) {
+        // An open list only names the known values.
+        if (t.open) s.examples = [...t.enumValues]
+        else s.enum = [...t.enumValues]
+      }
       if (t.pattern) s.pattern = t.pattern
       return s
     }
@@ -163,7 +167,7 @@ function listParams(shape: ContentShape): JsonSchema[] {
       name: filter.key,
       in: 'query',
       description: 'Exact-match filter.',
-      schema: filter.value === 'boolean' ? { type: 'boolean' } : filter.enumValues ? { type: 'string', enum: [...filter.enumValues] } : { type: 'string' },
+      schema: filter.value === 'boolean' ? { type: 'boolean' } : filter.enumValues ? (filter.open ? { type: 'string', examples: [...filter.enumValues] } : { type: 'string', enum: [...filter.enumValues] }) : { type: 'string' },
     })
   }
   return params
