@@ -780,6 +780,8 @@ export default {
     addType: 'Hinzufügen: {label}',
     moveUp: 'Nach oben verschieben',
     moveDown: 'Nach unten verschieben',
+    moveLeft: 'Nach links verschieben',
+    moveRight: 'Nach rechts verschieben',
     duplicate: 'Duplizieren',
     remove: 'Entfernen',
     actions: 'Blockaktionen',

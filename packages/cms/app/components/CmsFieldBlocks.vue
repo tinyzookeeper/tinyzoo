@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { isLinkRef } from '../../src/linkref'
-import { cmsBuilderMove, cmsBuilderPlaceIndex, type CmsBuilderPlace } from '../../shared/builder'
+import type { CmsBuilderPath, CmsBuilderPlace } from '../../shared/builder'
+import {
+  blankBlock, blockListFull, blockListKinds, blockListMax, findBlock, isLockedBlock, listOfPlaceIn, treeDuplicate, treeInsert, treeMove, treeRemove, withNewIds,
+  type BlockList,
+} from '../../shared/block-tree'
 
 // Page builder: an ordered list of typed blocks. Each block is a collapsible card —
 // its type, a one-line summary when collapsed, and a marker when something inside
@@ -15,27 +19,41 @@ import { cmsBuilderMove, cmsBuilderPlaceIndex, type CmsBuilderPlace } from '../.
 // ("sections.2.items"), so a problem in item 3 marks both the item and the block. An item
 // of that list may hold a list of its own (a layout's group of small blocks): the same
 // again, one level deeper ("sections.2.items.0.items"). A block's settings (`.setting()`)
-// come after its content, under one heading.
+// come after its content, under one heading. Ids, empty blocks, copies and limits come from
+// shared/block-tree.ts, which the editor in the preview uses too.
 const props = defineProps<{ field: any; entity: string; readOnly?: boolean }>()
 // Text inside blocks is edited on its own (not shared), even on a shared entry.
 provide('cmsCollab', null)
 const model = defineModel<any[] | null>()
 const { t, tl } = useCmsI18n()
 const toast = useToast()
-// The editor in the preview (experimental): only the page-blocks field of a form takes part, not a list and not a list inside a block.
+// The editor in the preview (experimental): the page-blocks field of a form registers with it and makes
+// every change the page asks for, at any depth; a list inside a block follows what the page selects.
 const builderRef = useCmsBuilder()
 const root = ref<HTMLElement | null>(null)
 const confirm = useCmsConfirm()
 const form = inject<{ issues?: Record<string, string> } | null>('cmsForm', null)
 const list = computed<{ max: number | null; itemLabel: any } | null>(() => props.field.meta?.list ?? null)
-const full = computed(() => !!list.value?.max && blocks.value.length >= list.value.max)
+const max = computed(() => blockListMax(props.field))
+const full = computed(() => blockListFull({ items: blocks.value, max: max.value }))
 
 const defs = computed<Record<string, any>>(() => props.field.meta?.blocks ?? {})
 const blocks = computed<any[]>(() => (Array.isArray(model.value) ? model.value : []))
 const open = reactive<Record<string, boolean>>({})
+// A list inside a block (or a group): its key is a path ("sections.0.items"). Empty, it says so in one line, not as a page would.
+const inside = props.field.key.includes('.')
+// Only a form's own list of page blocks registers with the editor in the preview: not a list (`f.list()`), not one inside a block.
+const takesPart = !list.value && !inside
+/** The path (ids from the page's list down) of the block whose list this is: `[]` for the page's own list. */
+const above = computed<CmsBuilderPath | null>(() => (takesPart ? [] : inside ? builderRef.value?.pathOf(props.field.key) ?? null : null))
+const pathTo = (id: string): CmsBuilderPath | null => (above.value ? [...above.value, id] : null)
+function opened(id: string) {
+  const path = pathTo(id)
+  if (path) builderRef.value?.opened(path)
+}
 function toggle(id: string) {
   open[id] = !open[id]
-  if (open[id]) builderRef.value?.opened(id)
+  if (open[id]) opened(id)
 }
 // A link to a page is stored as a reference (`cms:page/<id>`): the collapsed row says which
 // page it is (title and address), asked for in one batch like the expanded row does.
@@ -53,22 +71,12 @@ watchEffect(() => {
   if (refs.length) requestTargets(refs)
 })
 
-const newId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`).replace(/-/g, '').slice(0, 12)
-
-function blank(type: string) {
-  const def = defs.value[type]
-  const b: Record<string, any> = { id: newId(), type }
-  for (const f of def?.fields ?? []) {
-    b[f.key] = f.type === 'boolean' ? false : f.type === 'richtext' ? { type: 'doc', content: [] } : null
-  }
-  return b
-}
-
 function update(next: any[]) {
   model.value = next
 }
 function insertAt(index: number, type: string) {
-  const b = blank(type)
+  if (full.value) return
+  const b = blankBlock(defs.value, type)
   const next = [...blocks.value]
   next.splice(index, 0, b)
   update(next)
@@ -76,7 +84,7 @@ function insertAt(index: number, type: string) {
   for (const k of Object.keys(open)) open[k] = false
   open[b.id] = true
   pickerOpen.value = false
-  builderRef.value?.opened(b.id)
+  opened(b.id)
   builderRef.value?.changed()
 }
 function move(index: number, by: number) {
@@ -86,12 +94,14 @@ function move(index: number, by: number) {
   update(next)
 }
 function duplicate(index: number) {
-  const copy = { ...structuredClone(toRaw(blocks.value[index])), id: newId() }
+  if (full.value) return
+  // A new id for the copy and for every block inside it: no two blocks of a page share one.
+  const copy = withNewIds(toRaw(blocks.value[index]))
   const next = [...blocks.value]
   next.splice(index + 1, 0, copy)
   update(next)
   open[copy.id] = true
-  builderRef.value?.opened(copy.id)
+  opened(copy.id)
 }
 function remove(index: number) {
   const next = [...blocks.value]
@@ -109,70 +119,134 @@ function remove(index: number) {
   })
 }
 
-// ── the editor in the preview: what the page may ask of this field (it reuses the functions above) ──
+// ── the editor in the preview: what the page may ask of this field, at any depth (shared/block-tree.ts) ──
+const tree = (): BlockList => ({ items: toRaw(blocks.value), defs: defs.value, max: max.value })
 function builderCollapse() {
   for (const k of Object.keys(open)) open[k] = false
 }
-function builderReveal(id: string) {
-  if (!blocks.value.some((b) => b?.id === id)) return
-  builderRef.value?.lists.value.forEach((l) => l.collapse())
-  open[id] = true
+function scrollRow(id: string) {
   void nextTick(() => {
     const row = [...(root.value?.querySelectorAll<HTMLElement>('[data-cms-block-row]') ?? [])].find((el) => el.dataset.cmsBlockRow === id)
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
     row?.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' })
   })
 }
-function builderMove(id: string, place: CmsBuilderPlace) {
+function builderReveal(path: CmsBuilderPath) {
+  // Called right after a change too: the value comes back through v-model on the next tick.
+  if (!blocks.value.some((b) => b?.id === path[0])) {
+    void nextTick(() => { if (blocks.value.some((b) => b?.id === path[0])) builderReveal(path) })
+    return
+  }
+  builderRef.value?.lists.value.forEach((l) => l.collapse())
+  open[path[0]!] = true
+  // The rows inside open as their lists mount (or at once, when they are mounted already).
+  builderRef.value?.open(path)
+  if (path.length === 1) scrollRow(path[0]!)
+}
+/** A block's name in a list of `kinds`: its first text, else its type's label. */
+function nameIn(b: any, kinds: Record<string, any>): string {
+  const first = summaryOf(b, kinds).split(' · ')[0] ?? ''
+  const name = first || tl(kinds[b?.type]?.label, String(b?.type ?? ''))
+  return name.length > 40 ? `${name.slice(0, 39).trimEnd()}…` : name
+}
+function builderMove(path: CmsBuilderPath, place: CmsBuilderPlace) {
   if (props.readOnly) return
-  const before = blocks.value
-  const next = cmsBuilderMove(before, id, place)
-  if (!next) return
-  const at = before.findIndex((b) => b?.id === id)
-  // Back next to the block that followed it, else the one that preceded it.
-  const back: CmsBuilderPlace | null = before[at + 1] ? { before: before[at + 1].id } : before[at - 1] ? { after: before[at - 1].id } : null
-  update(next)
+  const done = treeMove(tree(), path, place)
+  if (!done) return
+  update(done.items)
   toast.add({
     title: t('blocks.moved'),
     icon: 'i-lucide-arrow-up-down',
-    actions: back ? [{ label: t('blocks.undo'), color: 'neutral', variant: 'outline', onClick: () => {
-      const undone = cmsBuilderMove(blocks.value, id, back)
-      if (undone) {
-        update(undone)
-        builderRef.value?.changed()
-      }
-    } }] : [],
+    actions: [{ label: t('blocks.undo'), color: 'neutral', variant: 'outline', onClick: () => {
+      const undone = treeMove(tree(), done.path, done.back)
+      if (!undone) return
+      update(undone.items)
+      builderRef.value?.changed()
+    } }],
+  })
+  // A block that went into another list stays selected there (the page selected it already, where it was dropped).
+  if (done.path.join('/') !== path.join('/') && builderRef.value) {
+    builderRef.value.selectedPath.value = done.path
+    builderReveal(done.path)
+  }
+}
+function builderDuplicate(path: CmsBuilderPath) {
+  if (props.readOnly) return
+  const done = treeDuplicate(tree(), path)
+  if (!done) return
+  update(done.items)
+  builderReveal(done.path)
+  builderRef.value?.opened(done.path)
+}
+function builderRemove(path: CmsBuilderPath) {
+  const found = findBlock(tree(), path)
+  if (props.readOnly || !found || isLockedBlock(found.list.defs, found.block)) return
+  const done = treeRemove(tree(), path)
+  if (!done) return
+  update(done.items)
+  toast.add({
+    title: t('blocks.removed', { label: nameIn(done.removed, found.list.defs) }),
+    icon: 'i-lucide-trash-2',
+    actions: [{ label: t('blocks.undo'), color: 'neutral', variant: 'outline', onClick: () => {
+      const back = treeInsert(tree(), done.place, done.removed)
+      if (!back) return
+      update(back)
+      builderRef.value?.changed()
+    } }],
   })
 }
-function builderDuplicate(id: string) {
-  const index = blocks.value.findIndex((b) => b?.id === id)
-  if (props.readOnly || index < 0 || isLocked(blocks.value[index])) return
-  duplicate(index)
-}
-function builderRemove(id: string) {
-  const index = blocks.value.findIndex((b) => b?.id === id)
-  if (props.readOnly || index < 0 || isLocked(blocks.value[index])) return
-  remove(index)
+/** Add a new block of `type` at `place` (in this field's value, at any depth), open it and select it on the page. */
+function builderInsert(place: CmsBuilderPlace, type: string) {
+  pickerOpen.value = false
+  const into = listOfPlaceIn(tree(), place)
+  if (props.readOnly || !into) return
+  const b = blankBlock(into.defs, type)
+  const next = treeInsert(tree(), place, b)
+  if (!next) return
+  update(next)
+  const path = [...(place.in ?? []), b.id]
+  builderReveal(path)
+  builderRef.value?.opened(path)
+  builderRef.value?.changed()
 }
 function builderAdd(place: CmsBuilderPlace) {
-  const at = cmsBuilderPlaceIndex(blocks.value.map((b) => b?.id), place)
-  if (props.readOnly || at === null || full.value) return
-  openPicker(at)
+  const into = listOfPlaceIn(tree(), place)
+  if (props.readOnly || !into || blockListFull(into)) return
+  const types = Object.keys(into.defs)
+  if (types.length === 1) return builderInsert(place, types[0]!)
+  pickerFor.value = { defs: into.defs, place }
+  pickerQuery.value = ''
+  pickerOpen.value = true
 }
-// A list inside a block (or a group): its key is a path ("sections.0.items"). Empty, it says so in one line, not as a page would.
-const inside = props.field.key.includes('.')
-// Only a form's own list of page blocks takes part: not a list (`f.list()`), not one inside a block.
-const takesPart = !list.value && !inside
 if (takesPart) {
   watch(builderRef, (builder, _old, onCleanup) => {
     if (!builder || !import.meta.client) return
     const unregister = builder.register({
+      key: props.field.key,
+      root: tree,
       ids: () => blocks.value.map((b) => b?.id).filter((x): x is string => typeof x === 'string'),
       labels: () => Object.fromEntries(Object.entries(defs.value).map(([type, def]) => [type, tl(def.label, type)])),
+      kinds: () => blockListKinds({ defs: defs.value, max: max.value }, (def, type) => tl(def.label as any, type)),
       reveal: builderReveal, collapse: builderCollapse,
       move: builderMove, duplicate: builderDuplicate, remove: builderRemove, add: builderAdd,
     })
     onCleanup(unregister)
+  }, { immediate: true })
+}
+// A list inside a block follows what the page selects: the row on the path opens (the others close),
+// the last one comes into view. Asked for while this list was not mounted yet, it is done when it mounts.
+if (inside && !list.value) {
+  watch(() => builderRef.value?.openPath.value, (request) => {
+    const at = above.value
+    if (!request || !at || Date.now() - request.at > 2000) return
+    const { path } = request
+    if (path.length < at.length || !at.every((id, i) => path[i] === id)) return
+    const mine = path[at.length]
+    if (mine !== undefined && !blocks.value.some((b) => b?.id === mine)) return
+    for (const k of Object.keys(open)) open[k] = false
+    if (mine === undefined) return
+    open[mine] = true
+    if (path.length === at.length + 1) scrollRow(mine)
   }, { immediate: true })
 }
 
@@ -250,12 +324,28 @@ function setField(index: number, key: string, value: unknown) {
 /**
  * What the block says, for the collapsed header: its first few values, choices by their labels
  * ("Plavání · Úterý · 18:00"). Its settings are left out. A block that says nothing itself (a
- * layout that only holds small blocks) is summed up by what its lists hold.
+ * layout that only holds small blocks) is summed up by what its lists hold: their texts, else
+ * the names of their blocks ("Picture · Picture · Group"), so a layout of pictures has a line too.
  */
 function summary(b: any): string {
+  return summaryOf(b, defs.value)
+}
+function summaryOf(b: any, kinds: Record<string, any>): string {
   const parts: string[] = []
-  textsOf(b, defs.value[b?.type]?.fields ?? [], parts, 0)
+  const fields = kinds[b?.type]?.fields ?? []
+  textsOf(b, fields, parts, 0)
+  if (!parts.length) namesOf(b, fields, parts)
   return parts.join(' · ')
+}
+function namesOf(b: any, fields: any[], parts: string[]) {
+  for (const f of fields) {
+    if (f.type !== 'blocks' || f.meta?.list || !Array.isArray(b?.[f.key])) continue
+    for (const item of b[f.key]) {
+      if (parts.length >= 3) return
+      const kind = f.meta?.blocks?.[item?.type]
+      if (kind) parts.push(tl(kind.label, item.type))
+    }
+  }
 }
 function textsOf(b: any, fields: any[], parts: string[], depth: number) {
   for (const f of fields) {
@@ -313,7 +403,7 @@ function menu(index: number): DropdownMenuItem[][] {
     [
       { label: t('blocks.moveUp'), icon: 'i-lucide-arrow-up', disabled: index === 0, onSelect: () => move(index, -1) },
       { label: t('blocks.moveDown'), icon: 'i-lucide-arrow-down', disabled: index === blocks.value.length - 1, onSelect: () => move(index, 1) },
-      ...(isLocked(blocks.value[index]) ? [] : [{ label: t('blocks.duplicate'), icon: 'i-lucide-copy', onSelect: () => duplicate(index) }]),
+      ...(isLocked(blocks.value[index]) || full.value ? [] : [{ label: t('blocks.duplicate'), icon: 'i-lucide-copy', onSelect: () => duplicate(index) }]),
     ],
     [{ label: t('blocks.remove'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => remove(index) }],
   ]
@@ -323,6 +413,8 @@ function menu(index: number): DropdownMenuItem[][] {
 const pickerOpen = ref(false)
 const pickerAt = ref(0)
 const pickerQuery = ref('')
+/** The picker asked for by the page: the types of the list it adds to (at any depth) and the place. */
+const pickerFor = ref<{ defs: Record<string, any>; place: CmsBuilderPlace } | null>(null)
 // One block type (e.g. menu links): no picker, the button names the type.
 const onlyType = computed(() => {
   const types = Object.keys(defs.value)
@@ -332,13 +424,19 @@ const onlyType = computed(() => {
 const addLabel = computed(() => (list.value ? t('blocks.addItem') : onlyType.value ? t('blocks.addType', { label: tl(defs.value[onlyType.value]?.label, onlyType.value) }) : t('blocks.add')))
 function openPicker(at: number) {
   if (onlyType.value) return insertAt(at, onlyType.value)
+  pickerFor.value = null
   pickerAt.value = at
   pickerQuery.value = ''
   pickerOpen.value = true
 }
+function choose(type: string) {
+  if (pickerFor.value) builderInsert(pickerFor.value.place, type)
+  else insertAt(pickerAt.value, type)
+}
+watch(pickerOpen, (value) => { if (!value) pickerFor.value = null })
 const choices = computed(() => {
   const q = pickerQuery.value.trim().toLowerCase()
-  return Object.entries(defs.value)
+  return Object.entries(pickerFor.value?.defs ?? defs.value)
     .map(([type, d]) => ({ type, label: tl(d.label, type), description: tl(d.description), icon: d.icon }))
     .filter((c) => !q || c.label.toLowerCase().includes(q) || c.description.toLowerCase().includes(q))
 })
@@ -360,7 +458,7 @@ const choices = computed(() => {
       <!-- insertion point between blocks -->
       <div v-if="i > 0" class="group relative h-2 -my-1 flex items-center justify-center">
         <button
-          type="button" class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity size-5 rounded-full border border-default bg-default grid place-items-center text-muted hover:text-highlighted z-10"
+          v-if="!full" type="button" class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity size-5 rounded-full border border-default bg-default grid place-items-center text-muted hover:text-highlighted z-10"
           :aria-label="t('blocks.insertHere')" @click="openPicker(i)"
         >
           <UIcon name="i-lucide-plus" class="size-3" />
@@ -370,7 +468,7 @@ const choices = computed(() => {
 
       <!-- a block the site no longer knows (or could not bring up to date): kept, not editable -->
       <div
-        v-if="isLocked(b)" role="group" :aria-label="lockedName(b)" data-cms-block-locked :data-cms-block-row="takesPart && builderRef ? b.id : undefined"
+        v-if="isLocked(b)" role="group" :aria-label="lockedName(b)" data-cms-block-locked :data-cms-block-row="above && builderRef ? b.id : undefined"
         class="cms-card flex items-start gap-3 px-3 py-3" :class="[blockIssue(i) ? 'border-error' : 'border-warning/60', indented(b) ? 'ml-6' : '']"
       >
         <UIcon name="i-lucide-triangle-alert" class="size-4 text-warning shrink-0 mt-0.5" aria-hidden="true" />
@@ -386,7 +484,7 @@ const choices = computed(() => {
         >{{ t('blocks.remove') }}</UButton>
       </div>
       <div
-        v-else class="cms-card transition-[margin,box-shadow]" :data-cms-block-row="takesPart && builderRef ? b.id : undefined"
+        v-else class="cms-card transition-[margin,box-shadow]" :data-cms-block-row="above && builderRef ? b.id : undefined"
         :class="[hasIssue(i) ? 'border-error' : '', indented(b) ? 'ml-6' : '', dragOver === i && dragFrom !== i ? 'ring-2 ring-(--ui-primary)/40' : '', dragFrom === i ? 'opacity-50' : '']"
         :draggable="!readOnly && armed === b.id"
         @dragstart.stop="(e: DragEvent) => { dragFrom = i; e.dataTransfer?.setData('text/plain', b.id) }"
@@ -458,7 +556,7 @@ const choices = computed(() => {
         <UInput v-model="pickerQuery" icon="i-lucide-search" :placeholder="t('blocks.search')" autofocus class="w-full mb-3" />
         <ul class="-mx-2 space-y-0.5">
           <li v-for="c in choices" :key="c.type">
-            <button type="button" class="w-full flex items-start gap-3 rounded-(--ui-radius) px-2 py-2 text-left hover:bg-elevated/70" @click="insertAt(pickerAt, c.type)">
+            <button type="button" class="w-full flex items-start gap-3 rounded-(--ui-radius) px-2 py-2 text-left hover:bg-elevated/70" @click="choose(c.type)">
               <span class="size-8 shrink-0 rounded-md border border-default grid place-items-center text-muted">
                 <UIcon :name="c.icon" class="size-4" />
               </span>

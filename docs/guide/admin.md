@@ -337,7 +337,23 @@ The preview beside the form follows the typing. The editor's unsaved values go t
 
 A site that loads its content through the content API with `?preview` (as the starter does) needs no code for this. A site rendering from somewhere else can listen for `{ type: 'cms:preview', entity, id, locale, data }` messages.
 
-**Experimental: the editor in the preview.** With `NUXT_CMS_BUILDER=on` in the server's environment, an editor can select, move, duplicate, delete and add the blocks of a page in the preview itself, and the form follows. The admin and the page talk through `cms:builder:*` messages (`cms:builder:on` and `cms:builder:select` to the page; `cms:builder:select`, `move`, `duplicate`, `remove` and `add` back). A page in the preview says `cms:builder:ready` to the admin once it listens, with the variable or without it. In the preview, `<CmsBlocks>` marks each block's root element with `data-cms-block`, `data-cms-block-type` and `data-cms-block-list`, never on the live site. Without the variable none of this runs, and the admin is as before. It may change in a minor release.
+**Experimental: the editor in the preview.** With `NUXT_CMS_BUILDER=on` in the server's environment, an editor can select, move, duplicate, delete and add the blocks of a page in the preview itself, and the form follows. The admin and the page talk through `cms:builder:*` messages (`cms:builder:on` and `cms:builder:select` to the page; `cms:builder:select`, `move`, `duplicate`, `remove` and `add` back). A page in the preview says `cms:builder:ready` to the admin once it listens, with the variable or without it. In the preview, `<CmsBlocks>` marks each block's root element (each of them, for a component with several) with `data-cms-block`, `data-cms-block-type` and `data-cms-block-list`, never on the live site. Without the variable none of this runs, and the admin is as before. It may change in a minor release.
+
+Blocks inside a block's list (`f.blocks()` inside a block, drawn with `<CmsBlocks>` too) are edited the same way, one level per click: the first click selects the section, the next a block inside it, the next a block inside a group. Escape goes up a level. A block inside another one is named in the messages by its `path`, the ids from the page's list down; a place can be `{ before, in }`, `{ after, in }` or `{ end: true, in }`, where `in` is the path of the block whose list it is. A block can be dragged into another list that has the same type of block and room for it. A list is full at its `max` (`f.blocks(blocks, { max })`).
+
+While an editor works on the page, `useCmsEditing()` is `true` (never on the live site). Use it to draw an empty block, which a visitor never sees, as a quiet placeholder, so that it can be selected and filled in:
+
+```vue
+<script setup lang="ts">
+defineProps<{ block: { text?: string | null } }>()
+const editing = useCmsEditing()
+</script>
+
+<template>
+  <h2 v-if="block.text">{{ block.text }}</h2>
+  <div v-else-if="editing" class="placeholder-heading" aria-hidden="true" />
+</template>
+```
 
 ### Form sections
 

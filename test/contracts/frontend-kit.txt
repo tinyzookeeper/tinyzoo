@@ -116,6 +116,10 @@ returns: { choice, decided, ready, granted, onChange, bannerVisible, settingsOpe
 export function useCmsUiLocale()
 returns: a value (see the signature)
 
+// useCmsEditing (app/composables/useCmsEditing.ts): Whether an editor works on the page in the admin's preview with the editor in the preview on (experimental); false on the live site.
+export function useCmsEditing(): ComputedRef<boolean>
+returns: a value (see the signature)
+
 // ── the data types of the kit ───────────────────────────────────
 
 export interface CmsSearchItem {

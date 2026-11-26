@@ -780,6 +780,8 @@ export default {
     addType: 'Přidat: {label}',
     moveUp: 'Posunout nahoru',
     moveDown: 'Posunout dolů',
+    moveLeft: 'Posunout doleva',
+    moveRight: 'Posunout doprava',
     duplicate: 'Duplikovat',
     remove: 'Odebrat',
     actions: 'Akce s blokem',

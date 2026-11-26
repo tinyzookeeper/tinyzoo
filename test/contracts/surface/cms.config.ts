@@ -48,12 +48,12 @@ export const quote = defineBlock({
   fields: { text: f.text({ required: true, multiline: true, max: 400 }), by: f.text().optional() },
 })
 
-/** A layout: lists two levels deep (a group of blocks among its blocks), settings after the content, a choice as segments. */
+/** A layout: lists two levels deep (a group of blocks among its blocks), settings after the content, a choice as segments, a list's `max`. */
 export const layout = defineBlock({
   label: { en: 'Layout', cs: 'Rozvržení' },
   icon: 'i-lucide-layout-grid',
   fields: {
-    items: f.blocks({ quote, group: defineBlock({ label: 'Group', fields: { items: f.blocks({ quote }) } }) }),
+    items: f.blocks({ quote, group: defineBlock({ label: 'Group', fields: { items: f.blocks({ quote }, { max: 4 }) } }) }, { max: 6 }),
     arrangement: f.select({ options: ['row', 'stack', 'grid'] as const, icons: { row: 'i-lucide-columns-3', stack: 'i-lucide-rows-3' }, segments: true }).setting(),
     space: f.select({ options: ['small', 'medium', 'large'] as const }).setting().label({ en: 'Space between' }),
   },

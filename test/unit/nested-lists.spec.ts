@@ -122,6 +122,23 @@ describe('a write, two levels down', () => {
     expect(schema.safeParse(v).success).toBe(true)
   })
 
+  it('keeps the most of a list of blocks (f.blocks with max) at every level, and says it in the admin graph', () => {
+    const small = defineBlock({ label: 'Small', fields: { text: f.text() } })
+    const box = defineBlock({ label: 'Box', fields: { items: f.blocks({ small }, { max: 2 }) } })
+    const section = defineBlock({ label: 'Section', fields: { items: f.blocks({ small, box }, { max: 3 }) } })
+    const top = blocksSchema({ section }, 2)
+    const smalls = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `s${i}`, type: 'small', text: null }))
+    const v: any[] = [{ id: 'S', type: 'section', items: [...smalls(2), { id: 'B', type: 'box', items: smalls(3) }] }]
+    expect(top.safeParse(v).error!.issues.map((is) => [is.path, is.code])).toEqual([[[0, 'items', 2, 'items'], 'too_big']])
+    v[0].items[2].items.pop()
+    expect(top.safeParse(v).success).toBe(true)
+    v[0].items.push(...smalls(1).map((b) => ({ ...b, id: 'x' })))
+    expect(top.safeParse(v).error!.issues.map((is) => [is.path, is.code])).toEqual([[[0, 'items'], 'too_big']])
+    expect(top.safeParse([v[0], { ...v[0], id: 'T', items: [] }, { ...v[0], id: 'U', items: [] }]).success).toBe(false)
+    expect((f.blocks({ section }, { max: 3 }) as any).meta.max).toBe(3)
+    expect((f.blocks({ section }) as any).meta.max).toBeUndefined()
+  })
+
   it('keeps an inner block of a type that is gone only when the same block is stored there', () => {
     const gone = { id: 'old', type: 'video', url: 'https://example.com/v.mp4' }
     const v = page()

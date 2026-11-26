@@ -379,13 +379,17 @@ export const f = {
    * into a page. Define each type with `defineBlock()`. Stored as jsonb; defaults to [].
    *
    *   sections: f.blocks({ hero: defineBlock({ label: 'Hero', fields: { heading: f.text() } }) })
+   *   items: f.blocks({ heading, picture }, { max: 12 })   // at most 12 blocks
+   *
+   * `max` caps how many blocks the list holds: the server refuses more, and the admin offers
+   * no "add" once the list is full.
    */
-  blocks: <const B extends Record<string, BlockDef<any>>>(blocks: B) =>
+  blocks: <const B extends Record<string, BlockDef<any>>>(blocks: B, o: { max?: number } = {}) =>
     as<ScalarKind<BlocksValue<B>, BlocksValue<B>, true>>(createField({
       type: 'blocks', ui: { edit: 'CmsFieldBlocks', cell: 'CmsCellBlocks' },
       base: { kind: 'jsonb' }, tsType: 'CmsBlock[]',
-      meta: { blocks: blocksGraph(blocks as Record<string, BlockDef>) },
-      zod: (ctx) => blocksSchema(blocks as Record<string, BlockDef>, 500, ctx?.stored),
+      meta: { blocks: blocksGraph(blocks as Record<string, BlockDef>), ...(o.max ? { max: o.max } : {}) },
+      zod: (ctx) => blocksSchema(blocks as Record<string, BlockDef>, o.max ?? 500, ctx?.stored),
       createDefault: [],
       blocks: blocks as Record<string, BlockDef>,
     }, { default: [] })),

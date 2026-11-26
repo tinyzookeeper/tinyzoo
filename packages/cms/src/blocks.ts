@@ -448,6 +448,9 @@ function compile(blocks: Record<string, BlockDef>): Map<string, Compiled> {
   return out
 }
 
+/** The most items a list field takes: `f.list({ max })` or `f.blocks(…, { max })`, else 500. */
+const listMax = (fld: FieldDescriptor): number => (fld.meta?.list as { max?: number | null } | undefined)?.max ?? (fld.meta?.max as number | undefined) ?? 500
+
 type Problem = { code: string; path: (string | number)[]; message: string; [k: string]: unknown }
 const problem = (path: (string | number)[], message: string): Problem => ({ code: 'custom', path, message })
 const idOf = (b: Record<string, any>) => (typeof b.id === 'string' ? b.id : null)
@@ -576,7 +579,7 @@ function validateBlockList(
         continue
       }
       const nested: Problem[] = []
-      const checked = validateBlockList(fld.blocks!, (fld.meta?.list as { max?: number | null } | undefined)?.max ?? 500, raw, storedOfType?.[key], [key], nested)
+      const checked = validateBlockList(fld.blocks!, listMax(fld), raw, storedOfType?.[key], [key], nested)
       own.push(...nested)
       if (checked) value[key] = checked
     }

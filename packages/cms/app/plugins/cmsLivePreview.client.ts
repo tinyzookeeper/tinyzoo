@@ -13,16 +13,24 @@
 import { isCmsBuilderToPage, type CmsBuilderToAdmin } from '../../shared/builder'
 import { cmsBuilderOn } from '../builder/state'
 
-export default defineNuxtPlugin(() => {
+export default defineNuxtPlugin((nuxtApp) => {
   if (window.parent === window) return
   if (!new URLSearchParams(location.search).has('preview')) return
   let timer: ReturnType<typeof setTimeout> | undefined
+  // The admin may answer `ready` while the page is still hydrating: the switch (and what a site draws
+  // with useCmsEditing()) turns on only once the page matches what the server drew.
+  const hydrated = new Promise<void>((done) => {
+    if (!nuxtApp.isHydrating) done()
+    else nuxtApp.hooks.hookOnce('app:suspense:resolve', () => done())
+  })
   window.addEventListener('message', (e: MessageEvent) => {
     if (e.origin !== location.origin || e.source !== window.parent) return
     if (isCmsBuilderToPage(e.data)) {
       const message = e.data
-      if (message.type === 'cms:builder:on') cmsBuilderOn.value = true
-      import('../builder/overlay').then((overlay) => overlay.handleCmsBuilderMessage(message))
+      void hydrated.then(() => {
+        if (message.type === 'cms:builder:on') cmsBuilderOn.value = true
+        return import('../builder/overlay')
+      }).then((overlay) => overlay.handleCmsBuilderMessage(message))
       return
     }
     if (e.data?.type !== 'cms:preview') return

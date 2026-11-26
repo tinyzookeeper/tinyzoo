@@ -782,6 +782,8 @@ export default {
     addType: 'Add: {label}',
     moveUp: 'Move up',
     moveDown: 'Move down',
+    moveLeft: 'Move left',
+    moveRight: 'Move right',
     duplicate: 'Duplicate',
     remove: 'Remove',
     actions: 'Block actions',

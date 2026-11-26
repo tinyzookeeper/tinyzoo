@@ -8,7 +8,7 @@
 //
 //   <CmsBlocks :blocks="page.sections" />
 //   <CmsBlocks :blocks="page.sections" prefix="Section" />   // → <SectionHero>
-import { getCurrentInstance, onBeforeUnmount, onMounted, onUpdated, resolveDynamicComponent, watch } from 'vue'
+import { Fragment, getCurrentInstance, onBeforeUnmount, onMounted, onUpdated, resolveDynamicComponent, watch } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
 import type { CmsBlocksProps } from '../../src/frontend'
 import { cmsBuilderMarkers, cmsBuilderOn } from '../builder/state'
@@ -29,22 +29,35 @@ const items = computed(() => (props.blocks ?? []).map((block, index) => ({ block
 
 // The editor in the preview finds a block's element by these attributes. They are written
 // only once the preview has switched the tool on, so a visitor's page never carries them.
-// A block whose component has no single element at its root (a fragment) is left unmarked.
+// A block whose component has several elements at its root (a fragment) has each of them
+// marked, and the tool draws around them together; one that draws no element is left unmarked.
 const listId = String(getCurrentInstance()?.uid)
 const instances = new Map<string, Element | ComponentPublicInstance>()
 function keep(id: string, instance: Element | ComponentPublicInstance | null) {
   if (instance) instances.set(id, instance)
   else instances.delete(id)
 }
+/** The elements a block's component draws at its root: its one element, or those of its fragment. */
+function rootElements(instance: Element | ComponentPublicInstance | undefined): Element[] {
+  if (!instance) return []
+  if (!('$el' in instance)) return instance.nodeType === 1 ? [instance] : []
+  const el = instance.$el as Node | null
+  if (el?.nodeType === 1) return [el as Element]
+  // A fragment: Vue keeps the nodes between its start and its end anchor.
+  const tree = (instance.$ as { subTree?: { type: unknown; el: Node | null; anchor: Node | null } }).subTree
+  if (!tree || tree.type !== Fragment || !tree.el || !tree.anchor) return []
+  const out: Element[] = []
+  for (let n = tree.el.nextSibling; n && n !== tree.anchor; n = n.nextSibling) if (n.nodeType === 1) out.push(n as Element)
+  return out
+}
 function mark() {
   if (!cmsBuilderOn.value) return
   for (const x of items.value) {
-    const instance = instances.get(x.block.id)
-    const el = instance && '$el' in instance ? instance.$el : instance
-    if (el?.nodeType !== 1) continue
-    el.setAttribute('data-cms-block', x.block.id)
-    el.setAttribute('data-cms-block-type', x.block.type)
-    el.setAttribute('data-cms-block-list', listId)
+    for (const el of rootElements(instances.get(x.block.id))) {
+      el.setAttribute('data-cms-block', x.block.id)
+      el.setAttribute('data-cms-block-type', x.block.type)
+      el.setAttribute('data-cms-block-list', listId)
+    }
   }
 }
 onMounted(() => {

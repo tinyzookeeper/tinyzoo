@@ -1078,7 +1078,9 @@ export const f: {
         segments?: boolean;
     }) => FieldDescriptor<ScalarKind<T[number], T[number], undefined extends D ? false : true>>;
     richtext: () => FieldDescriptor<ScalarKind<RichTextDoc, RichTextDoc, false>>;
-    blocks: <const B extends Record<string, BlockDef<any>>>(blocks: B) => FieldDescriptor<ScalarKind<BlocksValue<B>, BlocksValue<B>, true>>;
+    blocks: <const B extends Record<string, BlockDef<any>>>(blocks: B, o?: {
+        max?: number;
+    }) => FieldDescriptor<ScalarKind<BlocksValue<B>, BlocksValue<B>, true>>;
     list: <const F extends Record<string, AnyFieldDescriptor>, const K extends string = "item">(o: {
         fields: F;
         max?: number;

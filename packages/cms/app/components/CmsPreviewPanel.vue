@@ -7,7 +7,7 @@
 // With the editor in the preview on (NUXT_CMS_BUILDER=on, useCmsBuilder()), the panel also tells the
 // page what it needs to draw its tools and passes the page's `cms:builder:*` messages on.
 // Reloaded after every save; the unsaved values are dropped when the editor closes.
-import { isCmsBuilderToAdmin, type CmsBuilderToPage } from '../../shared/builder'
+import { isCmsBuilderToAdmin, type CmsBuilderKey, type CmsBuilderToPage } from '../../shared/builder'
 
 const props = defineProps<{ url: string; entity: string; id: string; locale: string | null; data: Record<string, any>; version: string | null; sheet?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -87,9 +87,27 @@ function sendOn() {
     texts: {
       drag: t('blocks.drag'), moveUp: t('blocks.moveUp'), moveDown: t('blocks.moveDown'),
       duplicate: t('blocks.duplicate'), remove: t('blocks.remove'), insertHere: t('blocks.insertHere'),
+      moveLeft: t('blocks.moveLeft'), moveRight: t('blocks.moveRight'), addBlock: t('blocks.pickerTitle'),
     },
     selected: bridge.selected.value,
+    selectedPath: bridge.selectedPath.value,
+    lists: JSON.parse(JSON.stringify(bridge.kinds.value)),
   })
+}
+/**
+ * Escape and Alt with an arrow, pressed in the admin while a block is selected, go to the page as if
+ * pressed there (the page has no focus after a block was selected from the form). Never from a field
+ * someone types in, a menu or a dialog: those keep their keys.
+ */
+function forwardKey(e: KeyboardEvent) {
+  const bridge = builder.value
+  if (!bridge?.selectedPath.value || e.defaultPrevented || e.ctrlKey || e.metaKey || e.shiftKey) return
+  const arrow = e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight'
+  if (!(e.key === 'Escape' && !e.altKey) && !(arrow && e.altKey)) return
+  const target = e.target instanceof Element ? e.target : null
+  if (target?.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="dialog"], [role="menu"], [role="listbox"], [role="radiogroup"], [data-cms-no-builder-keys]')) return
+  e.preventDefault()
+  sendToPage({ type: 'cms:builder:key', key: e.key as CmsBuilderKey })
 }
 /** The frame has loaded: the draft first, then the tool (the page may load its overlay after the draft). */
 let loaded = false
@@ -124,13 +142,15 @@ watch(builder, (bridge, _old, onCleanup) => {
     },
   })
   window.addEventListener('message', onMessage)
+  window.addEventListener('keydown', forwardKey)
   // The bridge came after the frame loaded: tell the page now.
   if (loaded || frameComplete()) sendOn()
-  const stop = watch([bridge.labels, adminLanguage], () => sendOn(), { deep: true })
+  const stop = watch([bridge.kinds, adminLanguage], () => sendOn(), { deep: true })
   onCleanup(() => {
     stop()
     detach()
     window.removeEventListener('message', onMessage)
+    window.removeEventListener('keydown', forwardKey)
   })
 }, { immediate: true })
 onMounted(() => { if (frameComplete()) sendOn() })
