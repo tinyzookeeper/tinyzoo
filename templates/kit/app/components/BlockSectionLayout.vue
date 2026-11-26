@@ -13,14 +13,19 @@
 // under each other; a block as wide as its content keeps its width and never forces overflow. A grid
 // is the cards' rule (KitEntries): at most N side by side, fewer on a narrower section, one on a
 // phone. A stack is a column. The space between is one of three steps.
+//
+// While an editor works on the page (useCmsEditing()), empty blocks are drawn as quiet placeholders
+// of their kind and an empty section or group as a dashed box, so that a block just added can be seen
+// and selected; the editor in the preview draws "Add a block" in an empty one. A visitor sees none.
 const props = defineProps<{ block: Record<string, any>; index?: number }>()
-const plan = computed(() => layoutPlan(props.block))
+const editing = useCmsEditing()
+const plan = computed(() => layoutPlan(props.block, editing.value))
 const look = computed(() => sectionLook(props.block))
 </script>
 
 <template>
   <KitSection v-if="plan" :id="`section-${block.id ?? index ?? ''}`" heading="" :narrow="look.narrow" :close="look.close" class="kit-lay-section">
-    <div :class="layoutClasses(plan)">
+    <div :class="[...layoutClasses(plan), plan.items.length ? '' : 'kit-lay-ghost-list']">
       <CmsBlocks :blocks="plan.items" prefix="KitLayout" />
     </div>
   </KitSection>
@@ -95,4 +100,22 @@ const look = computed(() => sectionLook(props.block))
    label wraps inside it. One that fills is as wide as its place. */
 .kit-section .kit-lay .kit-lay-button > .kit-btn { margin-top: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .kit-section .kit-lay .kit-lay-button.kit-lay-fill > .kit-btn:not(.kit-btn-plain) { display: flex; width: 100%; }
+
+/* Placeholders, only while an editor works on the page (useCmsEditing()): quiet shapes in the
+   look's own text colour, so they sit in every look. An empty list is a dashed box with room for
+   the editor's "Add a block"; an empty block is a ghost of its kind. */
+.kit-section .kit-lay.kit-lay-ghost-list { min-height: 7rem; min-width: min(100%, 12rem); border: 1.5px dashed color-mix(in srgb, currentColor 28%, transparent); border-radius: max(var(--custom-radius, 0px), 6px); }
+.kit-section .kit-lay .kit-lay-group.kit-lay-ghost-list { min-height: 5.5rem; }
+.kit-section .kit-lay .kit-lay-ghost-bar { display: block; height: 0.75rem; border-radius: 999px; background: currentColor; opacity: 0.13; }
+.kit-section .kit-lay-text.kit-lay-ghost { display: flex; flex-direction: column; gap: 0.6rem; padding-block: 0.3rem; min-width: min(100%, 14rem); }
+.kit-section .kit-lay-text.kit-lay-ghost .kit-lay-ghost-short { width: 62%; }
+.kit-section .kit-lay-heading.kit-lay-ghost { min-width: min(100%, 12rem); padding-block: 0.25rem; }
+.kit-section .kit-lay-heading.kit-lay-ghost .kit-lay-ghost-title { width: min(100%, 18rem); height: 1.6rem; border-radius: 6px; }
+.kit-section .kit-lay-heading.kit-lay-h-large .kit-lay-ghost-title { height: 2.1rem; }
+.kit-section .kit-lay-heading.kit-lay-h-small .kit-lay-ghost-title { height: 1.15rem; }
+.kit-section .kit-lay-picture .kit-lay-ghost-frame { display: grid; place-items: center; width: 100%; min-width: min(100%, 12rem); max-height: 16rem; border-radius: var(--custom-radius, 0); background: color-mix(in srgb, currentColor 7%, transparent); border: 1.5px dashed color-mix(in srgb, currentColor 25%, transparent); }
+.kit-section .kit-lay-picture .kit-lay-ghost-frame svg { width: 2rem; height: 2rem; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; opacity: 0.35; }
+.kit-section .kit-lay-button .kit-lay-ghost-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 8rem; min-height: 2.75rem; padding: 0.5rem 1.25rem; border: 1.5px dashed color-mix(in srgb, currentColor 35%, transparent); border-radius: max(var(--custom-radius, 0px), 6px); opacity: 0.8; }
+.kit-section .kit-lay-button .kit-lay-ghost-btn .kit-lay-ghost-bar { width: 4.5rem; }
+.kit-section .kit-lay .kit-lay-button.kit-lay-fill > .kit-lay-ghost-btn { display: flex; width: 100%; }
 </style>

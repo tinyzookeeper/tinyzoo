@@ -7,6 +7,10 @@
 // block saved before a choice existed is drawn as a new one. A small block with nothing in it, a
 // block of an unknown type and a group inside a group are left out; a group whose blocks are all
 // left out is left out too; a section with nothing left gives null, and nothing is drawn.
+//
+// While an editor works on the page (`editing`, from useCmsEditing()), a small block with nothing in
+// it, an empty group and an empty section are kept, marked `empty`, so that they are drawn as quiet
+// placeholders that can be selected and filled in. A visitor never sees them.
 import type { CustomMedia } from './customTypes'
 
 type Rec = Record<string, any>
@@ -45,12 +49,14 @@ export type LayoutBox = {
   columns: LayoutColumns
 }
 
-type ItemBase = { id: string; size: LayoutSize }
+/** `empty`: kept only while editing, drawn as a placeholder of its kind. */
+type ItemBase = { id: string; size: LayoutSize; empty?: true }
 export type LayoutHeading = ItemBase & { type: 'heading'; text: string; level: 'large' | 'medium' | 'small' }
 export type LayoutText = ItemBase & { type: 'text'; body: Rec & { type: string } }
 export type LayoutPicture = ItemBase & {
   type: 'picture'
-  image: CustomMedia
+  /** Null only for an empty picture while editing. */
+  image: CustomMedia | null
   shape: 'original' | 'landscape' | 'square' | 'portrait'
   /** The shape as a CSS `aspect-ratio`; for the original shape the picture's own, null when its size is unknown. */
   ratio: string | null
@@ -81,52 +87,58 @@ export function layoutBox(block: unknown, group = false): LayoutBox {
 
 /**
  * One small block or group, read; null when it has nothing to show, its type is unknown, or it is
- * a group inside a group (`inGroup`). `index` names it when it has no id.
+ * a group inside a group (`inGroup`). `index` names it when it has no id. While `editing`, a block
+ * or group with nothing to show is kept, marked `empty` (a button with a text and no link too).
  */
-export function layoutItem(raw: unknown, index = 0, inGroup = false): LayoutItem | null {
+export function layoutItem(raw: unknown, index = 0, inGroup = false, editing = false): LayoutItem | null {
   if (!isRec(raw)) return null
   const id = typeof raw.id === 'string' && raw.id !== '' ? raw.id : String(index)
-  const size: LayoutSize = oneOf(raw.size, ['fill', 'content'], 'fill')
+  // A button is as wide as its text unless it says otherwise; every other block fills.
+  const size: LayoutSize = oneOf(raw.size, ['fill', 'content'], raw.type === 'button' ? 'content' : 'fill')
+  const empty = editing ? ({ empty: true } as const) : null
   switch (raw.type) {
     case 'heading': {
       const text = str(raw.text)
-      return text ? { id, type: 'heading', size, text, level: oneOf(raw.level, ['large', 'medium', 'small'], 'medium') } : null
+      const level = oneOf(raw.level, ['large', 'medium', 'small'], 'medium')
+      return text ? { id, type: 'heading', size, text, level } : empty && { id, type: 'heading', size, text: '', level, ...empty }
     }
     case 'text':
-      return richHasContent(raw.body) ? { id, type: 'text', size, body: raw.body as Rec & { type: string } } : null
+      return richHasContent(raw.body) ? { id, type: 'text', size, body: raw.body as Rec & { type: string } } : empty && { id, type: 'text', size, body: { type: 'doc' }, ...empty }
     case 'picture': {
       const image = media(raw.image)
-      if (!image) return null
       const shape = oneOf(raw.shape, ['original', 'landscape', 'square', 'portrait'], 'original')
+      if (!image) return empty && { id, type: 'picture', size, image: null, shape, ratio: shape === 'original' ? null : SHAPE_RATIOS[shape], ...empty }
       return { id, type: 'picture', size, image, shape, ratio: shape === 'original' ? ownRatio(image) : SHAPE_RATIOS[shape] }
     }
     case 'button': {
       const label = str(raw.label)
       const href = str(raw.link)
-      return label && href ? { id, type: 'button', size, label, href } : null
+      return label && href ? { id, type: 'button', size, label, href } : empty && { id, type: 'button', size, label, href, ...empty }
     }
     case 'group': {
       if (inGroup) return null
-      const items = layoutItems(raw.items, GROUP_MOST, true) as LayoutSmall[]
-      return items.length ? { id, type: 'group', size, ...layoutBox(raw, true), items } : null
+      const items = layoutItems(raw.items, GROUP_MOST, true, editing) as LayoutSmall[]
+      if (items.length) return { id, type: 'group', size, ...layoutBox(raw, true), items }
+      return empty && { id, type: 'group', size, ...layoutBox(raw, true), items, ...empty }
     }
     default:
       return null
   }
 }
 
-/** A list of small blocks, read: at most `most` of them, those with nothing to show left out. */
-export function layoutItems(list: unknown, most: number, inGroup = false): LayoutItem[] {
+/** A list of small blocks, read: at most `most` of them, those with nothing to show left out (kept while `editing`). */
+export function layoutItems(list: unknown, most: number, inGroup = false, editing = false): LayoutItem[] {
   return (Array.isArray(list) ? list.slice(0, most) : []).flatMap((raw: unknown, i: number) => {
-    const item = layoutItem(raw, i, inGroup)
+    const item = layoutItem(raw, i, inGroup, editing)
     return item ? [item] : []
   })
 }
 
-export function layoutPlan(block: unknown): LayoutPlan | null {
+/** A section, read; null when it has nothing to show. While `editing`, an empty section is a plan with no items. */
+export function layoutPlan(block: unknown, editing = false): LayoutPlan | null {
   const b = isRec(block) ? block : {}
-  const items = layoutItems(b.items, LAYOUT_MOST)
-  return items.length ? { ...layoutBox(b), items } : null
+  const items = layoutItems(b.items, LAYOUT_MOST, false, editing)
+  return items.length || editing ? { ...layoutBox(b), items } : null
 }
 
 /** The classes of the element that holds a list of small blocks (the section's, or a group's). */

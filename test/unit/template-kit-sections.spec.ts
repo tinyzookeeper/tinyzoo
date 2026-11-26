@@ -3,7 +3,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { GROUP_ARRANGEMENTS, GROUP_MAX, HEADING_SIZES, kitSections, LAYOUT_ALIGNS, LAYOUT_ARRANGEMENTS, LAYOUT_COLUMNS, LAYOUT_MAX, LAYOUT_SIZES, LAYOUT_SPACES, PICTURE_SHAPES, SECTION_ANSWERS, SECTION_SIDES, SECTION_SIZES, SECTION_WIDTHS } from '../../templates/kit/sections'
+import { BUTTON_SIZES, GROUP_ARRANGEMENTS, GROUP_MAX, HEADING_SIZES, kitSections, LAYOUT_ALIGNS, LAYOUT_ARRANGEMENTS, LAYOUT_COLUMNS, LAYOUT_MAX, LAYOUT_SIZES, LAYOUT_SPACES, PICTURE_SHAPES, SECTION_ANSWERS, SECTION_SIDES, SECTION_SIZES, SECTION_WIDTHS } from '../../templates/kit/sections'
 import { cardsPlan, pictureRatio, questionsPlan, sectionLook, textPicturePlan } from '../../templates/kit/app/utils/sections'
 import { GROUP_MOST, LAYOUT_MOST, layoutBox, layoutClasses, layoutItem, layoutPlan, ownRatio } from '../../templates/kit/app/utils/layout'
 
@@ -212,10 +212,17 @@ describe('layout: the block', () => {
     expect(GROUP_MAX).toBe(GROUP_MOST)
   })
 
-  it('gives every small block and the group one size, a setting: fill or content', () => {
+  it('holds at most 12 blocks in the section and 8 in a group: the admin and the server keep to it', () => {
+    expect((items as unknown as Meta).meta.max).toBe(12)
+    expect((group.fields.items as unknown as Meta).meta.max).toBe(8)
+  })
+
+  it('gives every small block and the group one size, a setting: fill or content; a button is as wide as its text by default', () => {
     const all = { ...items.blocks!, ...Object.fromEntries(Object.entries(group.fields.items!.blocks!).map(([k, b]) => [`group.${k}`, b])) }
+    expect(BUTTON_SIZES).toEqual(['content', 'fill'])
     for (const [name, b] of Object.entries(all)) {
       expect(b.fields.size!.meta.options, name).toEqual(['fill', 'content'])
+      expect((b.fields.size as unknown as { default?: string }).default ?? (b.fields.size as any).mods?.default, name).toBe(name.endsWith('button') ? 'content' : 'fill')
       expect(b.fields.size!.meta.setting, name).toBe(true)
       expect(b.fields.size!.meta.labels.content.cs, name).toBe('Podle obsahu')
       expect(b.fields.size!.meta.labels.fill.cs, name).toBe('Vyplnit')
@@ -278,8 +285,34 @@ describe('layout: how it is read', () => {
     expect(layoutItem({ id: 'c', type: 'picture', image, shape: 'landscape' })).toMatchObject({ ratio: '4 / 3' })
     expect(layoutItem({ id: 'c', type: 'picture', image: { url: '/a' }, shape: 'oval' })).toMatchObject({ shape: 'original', ratio: null })
     expect(layoutItem({ id: 'd', type: 'button', label: ' Go ', link: '/x', size: 'content' })).toEqual({ id: 'd', type: 'button', size: 'content', label: 'Go', href: '/x' })
+    expect(layoutItem({ id: 'd', type: 'button', label: 'Go', link: '/x' })).toMatchObject({ size: 'content' })
+    expect(layoutItem({ id: 'd', type: 'button', label: 'Go', link: '/x', size: 'fill' })).toMatchObject({ size: 'fill' })
+    expect(layoutItem({ id: 'a', type: 'heading', text: 'Hi' })).toMatchObject({ size: 'fill' })
     expect(ownRatio({ url: '/a', width: 0, height: 5 })).toBeNull()
     expect(ownRatio(null)).toBeNull()
+  })
+
+  it('keeps every empty block, an empty group and an empty section while an editor works on the page, marked empty', () => {
+    expect(layoutPlan({ items: [] }, true)).toEqual({ arrangement: 'row', space: 'medium', align: 'start', columns: 3, items: [] })
+    expect(layoutPlan({}, true)!.items).toEqual([])
+    const plan = layoutPlan({
+      items: [
+        { id: 'a', type: 'heading', text: '  ', level: 'large' }, { id: 'b', type: 'text', body: emptyDoc }, { id: 'c', type: 'picture', image: null, shape: 'square' },
+        { id: 'd', type: 'button', label: 'Go' }, { id: 'e', type: 'button' }, { id: 'f', type: 'hero' }, { id: 'g', type: 'group', items: [], arrangement: 'row' },
+        { id: 'h', type: 'group', items: [{ id: 'i', type: 'heading' }] },
+      ],
+    }, true)!
+    expect(plan.items.map((i) => [i.id, i.type, i.empty ?? false])).toEqual([
+      ['a', 'heading', true], ['b', 'text', true], ['c', 'picture', true], ['d', 'button', true], ['e', 'button', true], ['g', 'group', true], ['h', 'group', false],
+    ])
+    expect(plan.items[0]).toMatchObject({ level: 'large', text: '' })
+    expect(plan.items[2]).toMatchObject({ image: null, ratio: '1 / 1' })
+    expect(plan.items[3]).toMatchObject({ label: 'Go', href: '', size: 'content' })
+    expect(plan.items[5]).toMatchObject({ arrangement: 'row', items: [] })
+    expect((plan.items[6] as { items: { empty?: true }[] }).items[0]!.empty).toBe(true)
+    // Filled blocks read the same either way, and a visitor sees no empty one.
+    expect(layoutPlan({ items: [heading('a')] }, true)).toEqual(layoutPlan({ items: [heading('a')] }))
+    expect(layoutPlan({ items: [{ id: 'a', type: 'heading' }] })).toBeNull()
   })
 
   it('names a block without an id by its place', () => {
@@ -295,7 +328,7 @@ describe('layout: how it is read', () => {
     })!
     expect(plan.items).toEqual([{
       id: 'g', type: 'group', size: 'content', arrangement: 'row', space: 'small', align: 'center', columns: 3,
-      items: [{ id: 'a', type: 'heading', size: 'fill', text: 'H', level: 'medium' }, { id: 'b', type: 'button', size: 'fill', label: 'Go', href: '/x' }],
+      items: [{ id: 'a', type: 'heading', size: 'fill', text: 'H', level: 'medium' }, { id: 'b', type: 'button', size: 'content', label: 'Go', href: '/x' }],
     }])
     expect(layoutItem({ id: 'g', type: 'group', items: [heading('a')] }, 0, true)).toBeNull()
   })
@@ -317,6 +350,35 @@ describe('layout: how it is read', () => {
   })
 })
 
+describe('the settings of the other sections', () => {
+  const settingsOf = (fields: Record<string, any>) => Object.entries(fields).filter(([, f]) => f.meta?.setting === true).map(([k]) => k)
+  const blocks = kitSections() as unknown as Record<string, { fields: Record<string, any> }>
+
+  it('are marked as settings, after the content', () => {
+    expect(settingsOf(blocks.section_text_picture!.fields)).toEqual(['side', 'size', 'width', 'close'])
+    expect(settingsOf(blocks.section_cards!.fields)).toEqual(['columns', 'picture', 'width', 'close'])
+    expect(settingsOf(blocks.section_questions!.fields)).toEqual(['answers', 'width', 'close'])
+  })
+
+  it('draw a choice of two to four options as segments', () => {
+    for (const [name, block] of Object.entries(blocks)) {
+      for (const [key, field] of Object.entries(block.fields)) {
+        if (field.type !== 'select' || !field.meta?.setting) continue
+        const n = field.meta.options.length
+        expect(field.meta.segments === true, `${name}.${key}`).toBe(n >= 2 && n <= 4)
+      }
+    }
+  })
+
+  it('leave the entries blocks as they were', async () => {
+    const { kitEntryBlocks } = await import('../../templates/kit/sections')
+    for (const b of Object.values(kitEntryBlocks()) as unknown as { fields: Record<string, any> }[]) {
+      expect(b.fields.columns.meta.segments).toBeUndefined()
+      expect(b.fields.columns.meta.setting).toBeUndefined()
+    }
+  })
+})
+
 describe('layout: how it is drawn', () => {
   const kit = (file: string) => readFileSync(join(repoRoot, 'templates', 'kit', 'app', 'components', file), 'utf8')
 
@@ -328,7 +390,8 @@ describe('layout: how it is drawn', () => {
   it('gives each small block one root element, and never an h1', () => {
     for (const name of ['KitLayoutHeading', 'KitLayoutText', 'KitLayoutPicture', 'KitLayoutButton', 'KitLayoutGroup']) {
       const template = kit(`${name}.vue`).split('<template>')[1]!.split('</template>').slice(0, -1).join('</template>')
-      const roots = template.split('\n').filter((l) => /^ {2}<[a-zA-Z]/.test(l))
+      // One root element at a time: a placeholder drawn instead of the block is a v-if / v-else pair.
+      const roots = template.split('\n').filter((l) => /^ {2}<[a-zA-Z]/.test(l) && !/\sv-else[\s>]/.test(l))
       expect(roots, name).toHaveLength(1)
       expect(template, name).not.toMatch(/h1/)
     }

@@ -32,12 +32,15 @@ function entryLayout() {
   }).label({ en: 'Layout', cs: 'Vzhled', de: 'Darstellung' })
 }
 
-/** The choices both blocks get on top of tinyzoo's fields. They apply to cards; rows and the table have neither. */
-function entryChoices() {
-  return {
-    columns: f.select({
+/**
+ * The choices both blocks get on top of tinyzoo's fields. They apply to cards; rows and the table have neither.
+ * The Cards section has them too, as settings drawn as segments (`asSettings`).
+ */
+function entryChoices(asSettings = false) {
+  const columns = f.select({
       options: ['2', '3', '4'],
       default: ENTRY_COLUMNS[0],
+      segments: asSettings,
       labels: {
         2: { en: '2 columns', cs: '2 sloupce', de: '2 Spalten' },
         3: { en: '3 columns', cs: '3 sloupce', de: '3 Spalten' },
@@ -48,10 +51,12 @@ function entryChoices() {
         en: 'For cards. On a wide screen; narrow screens show fewer, a phone shows one.',
         cs: 'Pro karty. Na široké obrazovce; na užší jich je méně, na telefonu jedna.',
         de: 'Für Karten. Auf einem breiten Bildschirm; schmalere zeigen weniger, ein Telefon eine.',
-      }),
-    picture: f.select({
+      })
+  const picture = f.select({
       options: [...ENTRY_PICTURES],
       default: ENTRY_PICTURES[0],
+      segments: asSettings,
+      ...(asSettings ? { icons: { landscape: 'i-lucide-rectangle-horizontal', square: 'i-lucide-square', portrait: 'i-lucide-rectangle-vertical' } } : {}),
       labels: {
         landscape: { en: 'Landscape', cs: 'Na šířku', de: 'Querformat' },
         square: { en: 'Square', cs: 'Čtverec', de: 'Quadrat' },
@@ -62,8 +67,8 @@ function entryChoices() {
         en: 'For cards. Every card\'s picture is cut to this shape.',
         cs: 'Pro karty. Obrázek každé karty se ořízne do tohoto tvaru.',
         de: 'Für Karten. Das Bild jeder Karte wird auf diese Form zugeschnitten.',
-      }),
-  }
+      })
+  return asSettings ? { columns: columns.setting(), picture: picture.setting() } : { columns, picture }
 }
 
 /**
@@ -92,12 +97,13 @@ const shortText = () => f.text({ multiline: true }).label({ en: 'Text', cs: 'Tex
 const link = () => f.text({ format: 'link' }).label({ en: 'Link', cs: 'Odkaz', de: 'Link' })
 const picture = () => f.media({ accept: 'image/*' }).optional().label({ en: 'Picture', cs: 'Obrázek', de: 'Bild' })
 
-/** The settings every section has, after its own fields. */
+/** The settings every section has, after its own fields: settings (`.setting()`), the width drawn as segments. */
 function sectionSettings() {
   return {
     width: f.select({
       options: [...SECTION_WIDTHS],
       default: SECTION_WIDTHS[0],
+      segments: true,
       labels: {
         look: { en: 'As the look', cs: 'Podle vzhledu', de: 'Wie das Design' },
         narrow: { en: 'Narrow', cs: 'Úzká', de: 'Schmal' },
@@ -107,13 +113,15 @@ function sectionSettings() {
         en: 'The content of a narrow section is at most a readable width.',
         cs: 'Obsah úzké sekce je nejvýše tak široký, aby se dobře četl.',
         de: 'Der Inhalt eines schmalen Abschnitts ist höchstens so breit, dass er gut lesbar ist.',
-      }),
+      })
+      .setting(),
     close: f.boolean().label({ en: 'Close to the section above', cs: 'Těsně pod předchozí sekcí', de: 'Dicht am Abschnitt darüber' })
       .help({
         en: 'No space above the section.',
         cs: 'Nad sekcí není žádný odstup.',
         de: 'Kein Abstand über dem Abschnitt.',
-      }),
+      })
+      .setting(),
   }
 }
 
@@ -129,6 +137,8 @@ export const LAYOUT_ALIGNS = ['start', 'center', 'end'] as const
 export const LAYOUT_COLUMNS = ['3', '2', '4'] as const
 /** How wide a small block is: the room it is given, or as wide as its content. The default is the first. */
 export const LAYOUT_SIZES = ['fill', 'content'] as const
+/** How wide a button is: as wide as its text, unless it fills. The default is the first. */
+export const BUTTON_SIZES = ['content', 'fill'] as const
 /** The size of a heading. The default is the first. */
 export const HEADING_SIZES = ['medium', 'large', 'small'] as const
 /** The shape of a picture. The default is the first. */
@@ -183,11 +193,11 @@ function spacing() {
   }
 }
 
-/** The one setting every small block and group has: how wide it is. */
-function itemSize() {
+/** The one setting every small block and group has: how wide it is. A button is as wide as its text unless it says otherwise. */
+function itemSize(fallback: (typeof LAYOUT_SIZES)[number] = LAYOUT_SIZES[0]) {
   return f.select({
     options: [...LAYOUT_SIZES],
-    default: LAYOUT_SIZES[0],
+    default: fallback,
     segments: true,
     labels: {
       fill: { en: 'Fill', cs: 'Vyplnit', de: 'Ausfüllen' },
@@ -258,7 +268,7 @@ function smallBlocks() {
       fields: {
         label: f.text().label({ en: 'Button text', cs: 'Text tlačítka', de: 'Text des Knopfs' }),
         link: link().label({ en: 'Button link', cs: 'Odkaz tlačítka', de: 'Link des Knopfs' }),
-        size: itemSize(),
+        size: itemSize(BUTTON_SIZES[0]),
       },
     }),
   }
@@ -288,6 +298,8 @@ export function kitSections() {
         side: f.select({
           options: [...SECTION_SIDES],
           default: SECTION_SIDES[0],
+          segments: true,
+          icons: { right: 'i-lucide-panel-right', left: 'i-lucide-panel-left' },
           labels: {
             right: { en: 'Right', cs: 'Vpravo', de: 'Rechts' },
             left: { en: 'Left', cs: 'Vlevo', de: 'Links' },
@@ -297,15 +309,17 @@ export function kitSections() {
             en: 'On a phone the picture is above the text.',
             cs: 'Na telefonu je obrázek nad textem.',
             de: 'Auf dem Telefon steht das Bild über dem Text.',
-          }),
+          })
+          .setting(),
         size: f.select({
           options: [...SECTION_SIZES],
           default: SECTION_SIZES[0],
+          segments: true,
           labels: {
             half: { en: 'Half', cs: 'Polovina', de: 'Hälfte' },
             third: { en: 'A third', cs: 'Třetina', de: 'Ein Drittel' },
           },
-        }).label({ en: 'Picture size', cs: 'Velikost obrázku', de: 'Bildgröße' }),
+        }).label({ en: 'Picture size', cs: 'Velikost obrázku', de: 'Bildgröße' }).setting(),
         ...sectionSettings(),
       },
     }),
@@ -326,7 +340,7 @@ export function kitSections() {
           max: 12,
           itemLabel: { en: 'Card', cs: 'Karta', de: 'Karte' },
         }).label({ en: 'Cards', cs: 'Karty', de: 'Karten' }),
-        ...entryChoices(),
+        ...entryChoices(true),
         ...sectionSettings(),
       },
     }),
@@ -348,11 +362,12 @@ export function kitSections() {
         answers: f.select({
           options: [...SECTION_ANSWERS],
           default: SECTION_ANSWERS[0],
+          segments: true,
           labels: {
             folded: { en: 'Folded', cs: 'Sbalené', de: 'Eingeklappt' },
             open: { en: 'Open', cs: 'Rozbalené', de: 'Aufgeklappt' },
           },
-        }).label({ en: 'Answers', cs: 'Odpovědi', de: 'Antworten' }),
+        }).label({ en: 'Answers', cs: 'Odpovědi', de: 'Antworten' }).setting(),
         ...sectionSettings(),
       },
     }),
@@ -376,14 +391,14 @@ export function kitSections() {
             },
             icon: 'i-lucide-group',
             fields: {
-              items: f.blocks(smallBlocks()).label({ en: 'Blocks', cs: 'Bloky', de: 'Blöcke' }),
+              items: f.blocks(smallBlocks(), { max: GROUP_MAX }).label({ en: 'Blocks', cs: 'Bloky', de: 'Blöcke' }),
               arrangement: f.select({ options: ['stack', 'row'], default: GROUP_ARRANGEMENTS[0], segments: true, labels: ARRANGEMENT_LABELS, icons: ARRANGEMENT_ICONS })
                 .label(arrangementLabel).help(arrangementHelp).setting(),
               ...spacing(),
               size: itemSize(),
             },
           }),
-        }).label({ en: 'Blocks', cs: 'Bloky', de: 'Blöcke' }),
+        }, { max: LAYOUT_MAX }).label({ en: 'Blocks', cs: 'Bloky', de: 'Blöcke' }),
         arrangement: f.select({ options: ['row', 'stack', 'grid'], default: LAYOUT_ARRANGEMENTS[0], segments: true, labels: ARRANGEMENT_LABELS, icons: ARRANGEMENT_ICONS })
           .label(arrangementLabel).help(arrangementHelp).setting(),
         ...spacing(),
@@ -399,8 +414,7 @@ export function kitSections() {
             de: 'Für ein Raster. Auf einem breiten Bildschirm; schmalere zeigen weniger, ein Telefon einen.',
           })
           .setting(),
-        width: sectionSettings().width.setting(),
-        close: sectionSettings().close.setting(),
+        ...sectionSettings(),
       },
     }),
   }
