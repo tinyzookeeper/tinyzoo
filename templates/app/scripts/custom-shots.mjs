@@ -22,12 +22,17 @@
 // per look, one row per block) and `<template>-<width>-entry.png`. 1440 pictures are halved.
 // report.json lists every shot, every failure, browser errors and the seconds each phase took.
 //
-// `--sections` makes pictures of the kit's three page blocks instead (`section_text_picture`, `section_cards`,
-// `section_questions`): no type, no entries; eleven blocks at the end of the home page (eight that draw
-// something, three empty ones that must draw nothing; the home page must hold exactly eight of `.kit-section, section.custom-block`
-// and not scroll sideways). Shots: `tp`, `tpleft`, `cards`, `cardsplain`, `faq` (first question opened),
-// `faqopen`, `narrow`, and `close` (the `narrow` and `close` sections together). Sheets:
-// `<template>-<width>-sections.png`. Same arguments otherwise.
+// `--sections` makes pictures of the kit's four page blocks instead (`section_text_picture`, `section_cards`,
+// `section_questions`, `section_layout`): no type, no entries; nineteen blocks at the end of the home page
+// (fourteen that draw something, five empty ones that must draw nothing; the home page must hold exactly
+// fourteen of `.kit-section, section.custom-block` and not scroll sideways, and no element of a layout may
+// stick out of the page). Shots: `tp`, `tpleft`, `cards`, `cardsplain`, `faq` (first question opened),
+// `faqopen`, `narrow`, `close` (the `narrow` and `close` sections together), and six layouts: `layrow` (a
+// picture and a group of heading, text and button, in a row), `laygrid` (three groups in a grid), `laystack`
+// (a centred stack), `layend` (a text that fills and a long button as wide as its content, bottom-aligned),
+// `laypics` (four square pictures in a grid with small space), `laylong` (a row with large space, a long
+// word in a heading and a wide button). Sheets: `<template>-<width>-sections.png` (all) and
+// `<template>-<width>-layouts.png` (the six layouts). Same arguments otherwise.
 //
 // `--prefix` must start with `tzx_`: the databases it names are dropped at the end, unless
 // `--keep` (which keeps them and the data folder). `--templates` defaults to every template of
@@ -42,7 +47,9 @@ const SEEDS_AT_ONCE = 4
 const SECTIONS_MODE = process.argv.includes('--sections')
 // Cards are drawn by KitEntries, which has `.kit-section` only when it is narrow or close; its root is always `.custom-block`.
 const SECTION_SELECTOR = '.kit-section, section.custom-block'
-const SHOTS = SECTIONS_MODE ? ['tp', 'tpleft', 'cards', 'cardsplain', 'faq', 'faqopen', 'narrow', 'close'] : ['cards', 'rows', 'chosen', 'four', 'two', 'table']
+const SHOTS = SECTIONS_MODE
+  ? ['tp', 'tpleft', 'cards', 'cardsplain', 'faq', 'faqopen', 'narrow', 'close', 'layrow', 'laygrid', 'laystack', 'layend', 'laypics', 'laylong']
+  : ['cards', 'rows', 'chosen', 'four', 'two', 'table']
 const WIDTHS = [{ width: 1440, height: 900, scale: 0.5 }, { width: 390, height: 844, scale: 1 }]
 const ENTRY_MAX_HEIGHT = 3000
 
@@ -263,9 +270,73 @@ function kitSectionBlocks(pictures) {
       heading: 'Ozvěte se nám', close: true, buttonLabel: 'Napsat zprávu', buttonLink: '/kontakt',
       body: rich('Rádi odpovíme na každou otázku.'),
     }),
+    ...layoutBlocks(pictures),
     b('section_text_picture', {}),
     b('section_cards', {}),
     b('section_questions', {}),
+    b('section_layout', {}),
+    b('section_layout', { items: [small('heading', { text: '  ' }), small('group', { items: [small('button', { label: 'Bez odkazu' })] })] }),
+  ]
+}
+
+const small = (type, fields = {}) => ({ id: crypto.randomUUID(), type, ...fields })
+
+/** The six Layout sections an owner would make (section_layout). Choices left out are the defaults. */
+function layoutBlocks(pictures) {
+  const b = (fields) => ({ id: crypto.randomUUID(), type: 'section_layout', ...fields })
+  const pic = (i, fields = {}) => small('picture', { image: pictures[i % pictures.length], ...fields })
+  return [
+    // (a) a picture beside a group of a heading, a text and a button; the arrangement left empty (a row).
+    b({
+      align: 'center',
+      items: [
+        pic(0),
+        small('group', {
+          space: 'small',
+          items: [
+            small('heading', { text: 'Ordinace v centru města', level: 'large' }),
+            small('text', { body: rich('Najdete nás pět minut pěšky od náměstí, v přízemí domu s parkovištěm ve dvoře.', 'Ordinujeme každý všední den, v úterý a ve čtvrtek až do večera.') }),
+            small('button', { label: 'Objednat se', link: '/kontakt', size: 'content' }),
+          ],
+        }),
+      ],
+    }),
+    // (b) three groups in a grid, each a picture, a heading and a text.
+    b({
+      arrangement: 'grid', columns: '3',
+      items: [['Prevence', 'Pravidelné prohlídky a očkování pro celou rodinu.'], ['Vyšetření', 'Odběry, EKG a ultrazvuk přímo na místě, bez dalšího objednávání.'], ['Poradna', 'Čas na otázky, které se do běžné návštěvy nevejdou.']].map(([h, t], i) => small('group', {
+        space: 'small',
+        items: [pic(i + 1, { shape: 'landscape' }), small('heading', { text: h }), small('text', { body: rich(t) })],
+      })),
+    }),
+    // (c) a centred stack of a heading, a text and a button.
+    b({
+      arrangement: 'stack', align: 'center',
+      items: [
+        small('heading', { text: 'Máte otázku k vyšetření?', level: 'large' }),
+        small('text', { body: rich('Napište nám nebo zavolejte. Odpovíme ještě týž den a poradíme, co si vzít s sebou a jak se připravit.') }),
+        small('button', { label: 'Napsat zprávu', link: '/kontakt', size: 'content' }),
+      ],
+    }),
+    // (d) a text that fills and a long button as wide as its content, at the bottom.
+    b({
+      align: 'end',
+      items: [
+        small('text', { body: rich('Nově u nás najdete také nutriční poradnu. První konzultace je zdarma a trvá zhruba čtyřicet minut; domluvíte se na ní telefonicky i přes formulář.') }),
+        small('button', { label: 'Objednat se na první konzultaci zdarma', link: '/kontakt', size: 'content' }),
+      ],
+    }),
+    // (e) four square pictures in a grid with small space.
+    b({ arrangement: 'grid', columns: '4', space: 'small', items: [0, 1, 2, 3].map((i) => pic(i + 2, { shape: 'square' })) }),
+    // (f) a row with large space: a heading with a long word, a text, and a wide button that fills.
+    b({
+      space: 'large',
+      items: [
+        small('heading', { text: 'Nejnezdevětadevadesáteronásobitelnějšího', level: 'medium' }),
+        small('text', { body: rich('Dlouhé slovo se musí zalomit uvnitř, a nic nesmí přečnívat ze stránky ani na telefonu.') }),
+        small('button', { label: 'Zobrazit všechny služby a ceník ordinace', link: '/sluzby' }),
+      ],
+    }),
   ]
 }
 
@@ -486,6 +557,14 @@ async function main() {
             if (count !== SHOTS.length) fail(key('home'), `${count} blocks of ${SECTIONS_MODE ? SECTION_SELECTOR : 'section.custom-block'}, expected ${SHOTS.length}: ${(await blocks.evaluateAll((els) => els.map((e) => (e.textContent ?? '').trim().slice(0, 20)))).join(' | ')}`)
             const over = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth])
             if (over[0] > over[1]) fail(key('home'), `sideways overflow: scrollWidth ${over[0]} > ${over[1]}`)
+            if (SECTIONS_MODE) {
+              // Nothing of a layout sticks out of the page (an overflow hidden by a look would not show in scrollWidth).
+              const out = await page.evaluate(() => [...document.querySelectorAll('.kit-lay, .kit-lay-item, .kit-lay-item *')].flatMap((el) => {
+                const r = el.getBoundingClientRect()
+                return r.width > 0 && (r.left < -0.5 || r.right > document.documentElement.clientWidth + 0.5) ? [`${el.className || el.tagName} ${Math.round(r.left)}..${Math.round(r.right)}`] : []
+              }))
+              if (out.length) fail(key('home'), `a layout sticks out of the page: ${out.slice(0, 4).join(' | ')}`)
+            }
             // A header that stays on screen would lie over a block's picture: hidden, without moving anything.
             await page.evaluate(() => {
               for (const el of document.querySelectorAll('body *')) {
@@ -544,6 +623,7 @@ async function main() {
           catch (e) { fail(`sheet ${name}`, e.message) }
         }
         await sheet(SECTIONS_MODE ? 'sections' : 'blocks', (s) => SHOTS.map((w) => `${s.slug}-${w}-${size.width}.png`))
+        if (SECTIONS_MODE) await sheet('layouts', (s) => SHOTS.filter((w) => w.startsWith('lay')).map((w) => `${s.slug}-${w}-${size.width}.png`))
         if (!SECTIONS_MODE) await sheet('entry', (s) => [`${s.slug}-entry-${size.width}.png`])
       }
     }

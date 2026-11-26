@@ -1,6 +1,6 @@
 // The page blocks the kit draws for every look (docs/builder-plan.md): the two blocks of a
 // site's own content types, with the choices an owner has for how they are shown, and the
-// sections (Text and picture, Cards, Questions), which belong to no template.
+// sections (Text and picture, Cards, Questions, Layout), which belong to no template.
 //
 //   import { kitEntryBlocks, kitSections } from 'tinyzoo-template-kit/sections'
 //   export const Page = definePages({ blocks: { hero, text, ...kitEntryBlocks(), ...kitSections() } })
@@ -117,10 +117,161 @@ function sectionSettings() {
   }
 }
 
+/** How the small blocks of a Layout section stand. The default is the first. */
+export const LAYOUT_ARRANGEMENTS = ['row', 'stack', 'grid'] as const
+/** How the small blocks of a group stand. The default is the first. */
+export const GROUP_ARRANGEMENTS = ['stack', 'row'] as const
+/** The space between the small blocks, from a scale of three. The default is the first. */
+export const LAYOUT_SPACES = ['medium', 'small', 'large'] as const
+/** Where the small blocks stand across the direction: in a row top, middle, bottom; in a stack or a grid left, centre, right. The default is the first. */
+export const LAYOUT_ALIGNS = ['start', 'center', 'end'] as const
+/** How many small blocks of a grid stand side by side at most. The default is the first. */
+export const LAYOUT_COLUMNS = ['3', '2', '4'] as const
+/** How wide a small block is: the room it is given, or as wide as its content. The default is the first. */
+export const LAYOUT_SIZES = ['fill', 'content'] as const
+/** The size of a heading. The default is the first. */
+export const HEADING_SIZES = ['medium', 'large', 'small'] as const
+/** The shape of a picture. The default is the first. */
+export const PICTURE_SHAPES = ['original', 'landscape', 'square', 'portrait'] as const
+/** The most small blocks in a Layout section, and in a group. */
+export const LAYOUT_MAX = 12
+export const GROUP_MAX = 8
+
+const ARRANGEMENT_LABELS = {
+  row: { en: 'Row', cs: 'Vedle sebe', de: 'Nebeneinander' },
+  stack: { en: 'Stack', cs: 'Pod sebou', de: 'Untereinander' },
+  grid: { en: 'Grid', cs: 'Mřížka', de: 'Raster' },
+}
+const ARRANGEMENT_ICONS = { row: 'i-lucide-columns-3', stack: 'i-lucide-rows-3', grid: 'i-lucide-layout-grid' }
+const arrangementLabel = { en: 'Arrangement', cs: 'Uspořádání', de: 'Anordnung' }
+const arrangementHelp = {
+  en: 'Where there is not enough room, a row goes on below.',
+  cs: 'Kde není dost místa, řada pokračuje pod sebou.',
+  de: 'Wo der Platz nicht reicht, geht eine Reihe darunter weiter.',
+}
+
+/** The settings of how small blocks stand, shared by the section and a group: the space and the alignment. */
+function spacing() {
+  return {
+    space: f.select({
+      options: ['small', 'medium', 'large'],
+      default: LAYOUT_SPACES[0],
+      segments: true,
+      labels: {
+        small: { en: 'Small', cs: 'Malé', de: 'Klein' },
+        medium: { en: 'Medium', cs: 'Střední', de: 'Mittel' },
+        large: { en: 'Large', cs: 'Velké', de: 'Groß' },
+      },
+    }).label({ en: 'Space between', cs: 'Mezery', de: 'Abstände' }).setting(),
+    align: f.select({
+      options: [...LAYOUT_ALIGNS],
+      default: LAYOUT_ALIGNS[0],
+      segments: true,
+      labels: {
+        start: { en: 'Start', cs: 'Začátek', de: 'Anfang' },
+        center: { en: 'Centre', cs: 'Střed', de: 'Mitte' },
+        end: { en: 'End', cs: 'Konec', de: 'Ende' },
+      },
+      icons: { start: 'i-lucide-align-start-horizontal', center: 'i-lucide-align-center-horizontal', end: 'i-lucide-align-end-horizontal' },
+    }).label({ en: 'Alignment', cs: 'Zarovnání', de: 'Ausrichtung' })
+      .help({
+        en: 'In a row: top, middle or bottom. In a stack or a grid: left, centre or right.',
+        cs: 'Vedle sebe: nahoru, na střed, dolů. Pod sebou a v mřížce: vlevo, na střed, vpravo.',
+        de: 'Nebeneinander: oben, Mitte, unten. Untereinander und im Raster: links, Mitte, rechts.',
+      })
+      .setting(),
+  }
+}
+
+/** The one setting every small block and group has: how wide it is. */
+function itemSize() {
+  return f.select({
+    options: [...LAYOUT_SIZES],
+    default: LAYOUT_SIZES[0],
+    segments: true,
+    labels: {
+      fill: { en: 'Fill', cs: 'Vyplnit', de: 'Ausfüllen' },
+      content: { en: 'Fit content', cs: 'Podle obsahu', de: 'Nach Inhalt' },
+    },
+    icons: { fill: 'i-lucide-unfold-horizontal', content: 'i-lucide-fold-horizontal' },
+  }).label({ en: 'Width', cs: 'Šířka', de: 'Breite' })
+    .help({
+      en: 'Fill takes the room it is given. Fit content is as wide as what it holds.',
+      cs: 'Vyplnit zabere místo, které dostane. Podle obsahu je tak široký jako to, co obsahuje.',
+      de: 'Ausfüllen nimmt den Platz, den es bekommt. Nach Inhalt ist so breit wie sein Inhalt.',
+    })
+    .setting()
+}
+
+/** The small blocks of a Layout section, which a group holds too. */
+function smallBlocks() {
+  return {
+    heading: defineBlock({
+      label: { en: 'Heading', cs: 'Nadpis', de: 'Überschrift' },
+      icon: 'i-lucide-heading',
+      fields: {
+        text: f.text().label({ en: 'Heading', cs: 'Nadpis', de: 'Überschrift' }),
+        level: f.select({
+          options: ['large', 'medium', 'small'],
+          default: HEADING_SIZES[0],
+          segments: true,
+          labels: {
+            large: { en: 'Large', cs: 'Velký', de: 'Groß' },
+            medium: { en: 'Medium', cs: 'Střední', de: 'Mittel' },
+            small: { en: 'Small', cs: 'Malý', de: 'Klein' },
+          },
+        }).label({ en: 'Size', cs: 'Velikost', de: 'Größe' }).setting(),
+        size: itemSize(),
+      },
+    }),
+    text: defineBlock({
+      label: { en: 'Text', cs: 'Text', de: 'Text' },
+      icon: 'i-lucide-pilcrow',
+      fields: {
+        body: f.richtext().label({ en: 'Text', cs: 'Text', de: 'Text' }),
+        size: itemSize(),
+      },
+    }),
+    picture: defineBlock({
+      label: { en: 'Picture', cs: 'Obrázek', de: 'Bild' },
+      icon: 'i-lucide-image',
+      fields: {
+        image: picture(),
+        shape: f.select({
+          options: ['original', 'landscape', 'square', 'portrait'],
+          default: PICTURE_SHAPES[0],
+          segments: true,
+          labels: {
+            original: { en: 'Original', cs: 'Původní', de: 'Original' },
+            landscape: { en: 'Landscape', cs: 'Na šířku', de: 'Querformat' },
+            square: { en: 'Square', cs: 'Čtverec', de: 'Quadrat' },
+            portrait: { en: 'Portrait', cs: 'Na výšku', de: 'Hochformat' },
+          },
+          icons: { original: 'i-lucide-image', landscape: 'i-lucide-rectangle-horizontal', square: 'i-lucide-square', portrait: 'i-lucide-rectangle-vertical' },
+        }).label({ en: 'Shape', cs: 'Tvar', de: 'Form' }).setting(),
+        size: itemSize(),
+      },
+    }),
+    button: defineBlock({
+      label: { en: 'Button', cs: 'Tlačítko', de: 'Knopf' },
+      icon: 'i-lucide-mouse-pointer-click',
+      fields: {
+        label: f.text().label({ en: 'Button text', cs: 'Text tlačítka', de: 'Text des Knopfs' }),
+        link: link().label({ en: 'Button link', cs: 'Odkaz tlačítka', de: 'Link des Knopfs' }),
+        size: itemSize(),
+      },
+    }),
+  }
+}
+
 /**
  * The kit's sections: blocks no template has, drawn by the kit in the look's own frame
- * (BlockSectionTextPicture, BlockSectionCards, BlockSectionQuestions). Spread them next to
+ * (BlockSectionTextPicture, BlockSectionCards, BlockSectionQuestions, BlockSectionLayout). Spread them next to
  * `kitEntryBlocks()` in a template's page blocks. Their names start with `section_`.
+ *
+ * Layout holds small blocks (a heading, a text, a picture, a button) and groups of them, in a row,
+ * a stack or a grid: three levels at most (page, section, group), written out, not recursive. Its
+ * settings are choices from short lists; nothing is set in pixels or per screen size.
  */
 export function kitSections() {
   return {
@@ -203,6 +354,53 @@ export function kitSections() {
           },
         }).label({ en: 'Answers', cs: 'Odpovědi', de: 'Antworten' }),
         ...sectionSettings(),
+      },
+    }),
+    section_layout: defineBlock({
+      label: { en: 'Layout', cs: 'Rozvržení', de: 'Layout' },
+      description: {
+        en: 'Headings, texts, pictures and buttons in a row, a stack or a grid.',
+        cs: 'Nadpisy, texty, obrázky a tlačítka vedle sebe, pod sebou nebo v mřížce.',
+        de: 'Überschriften, Texte, Bilder und Knöpfe nebeneinander, untereinander oder im Raster.',
+      },
+      icon: 'i-lucide-layout-dashboard',
+      fields: {
+        items: f.blocks({
+          ...smallBlocks(),
+          group: defineBlock({
+            label: { en: 'Group', cs: 'Skupina', de: 'Gruppe' },
+            description: {
+              en: 'Small blocks that stand together, as one block of the layout.',
+              cs: 'Malé bloky, které drží pohromadě jako jeden blok rozvržení.',
+              de: 'Kleine Blöcke, die als ein Block des Layouts zusammenstehen.',
+            },
+            icon: 'i-lucide-group',
+            fields: {
+              items: f.blocks(smallBlocks()).label({ en: 'Blocks', cs: 'Bloky', de: 'Blöcke' }),
+              arrangement: f.select({ options: ['stack', 'row'], default: GROUP_ARRANGEMENTS[0], segments: true, labels: ARRANGEMENT_LABELS, icons: ARRANGEMENT_ICONS })
+                .label(arrangementLabel).help(arrangementHelp).setting(),
+              ...spacing(),
+              size: itemSize(),
+            },
+          }),
+        }).label({ en: 'Blocks', cs: 'Bloky', de: 'Blöcke' }),
+        arrangement: f.select({ options: ['row', 'stack', 'grid'], default: LAYOUT_ARRANGEMENTS[0], segments: true, labels: ARRANGEMENT_LABELS, icons: ARRANGEMENT_ICONS })
+          .label(arrangementLabel).help(arrangementHelp).setting(),
+        ...spacing(),
+        columns: f.select({
+          options: ['2', '3', '4'],
+          default: LAYOUT_COLUMNS[0],
+          segments: true,
+          labels: { 2: { en: '2', cs: '2', de: '2' }, 3: { en: '3', cs: '3', de: '3' }, 4: { en: '4', cs: '4', de: '4' } },
+        }).label({ en: 'Most side by side', cs: 'Nejvíc vedle sebe', de: 'Höchstens nebeneinander' })
+          .help({
+            en: 'For a grid. On a wide screen; narrow screens show fewer, a phone shows one.',
+            cs: 'Pro mřížku. Na široké obrazovce; na užší jich je méně, na telefonu jeden.',
+            de: 'Für ein Raster. Auf einem breiten Bildschirm; schmalere zeigen weniger, ein Telefon einen.',
+          })
+          .setting(),
+        width: sectionSettings().width.setting(),
+        close: sectionSettings().close.setting(),
       },
     }),
   }

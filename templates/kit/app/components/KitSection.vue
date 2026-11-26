@@ -17,7 +17,7 @@ defineProps<{
 </script>
 
 <template>
-  <LookPart :id="id" part="Text" :block="{ heading, body: null }" :first="false" class="kit-section" :class="{ 'kit-section-narrow': narrow, 'kit-section-close': close }" :aria-label="heading || undefined">
+  <LookPart :id="id" part="Text" :block="{ heading, body: null }" :first="false" class="kit-section" :class="{ 'kit-section-narrow': narrow, 'kit-section-close': close, 'kit-section-bare': !heading }" :aria-label="heading || undefined">
     <div class="kit-section-body">
       <slot />
     </div>
@@ -37,4 +37,9 @@ defineProps<{
 .kit-section.kit-section-close,
 .kit-section.kit-section-close > :first-child { padding-top: 0; margin-top: 0; border-top-width: 0; }
 .kit-section.kit-section-close.kit-section-close { padding-top: var(--custom-close, 0); }
+/* bare: a section with no heading (Layout has none of its own). Some looks keep the heading in a
+   wrapper of its own, which stays when the heading is missing: a line under it (Výkres), a sheet
+   (Paragon). So an element of the frame left empty before the section's body is not drawn. */
+.kit-section.kit-section-bare > :empty:not(.kit-section-body),
+.kit-section.kit-section-bare > :not(.kit-section-body) > :empty:not(.kit-section-body) { display: none; }
 </style>
