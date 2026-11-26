@@ -13,7 +13,7 @@ const form = useCmsForm(computed(() => props.meta?.fields ?? []), computed(() =>
 const { state, fieldErrors, editable, dirty, saving, conflict } = form
 const toast = useToast()
 // The editor in the preview (experimental, NUXT_CMS_BUILDER=on): provided only when the menu says it is on.
-provideCmsBuilder(useCmsBuilderOn())
+const builder = provideCmsBuilder(useCmsBuilderOn())
 
 // ── content languages (as in the entry editor) ──
 const locales = computed(() => props.meta?.locales as { default: string; all: string[]; labels: Record<string, any> } | null)
@@ -160,6 +160,8 @@ function togglePreview() {
   catch { /* storage blocked: for this visit only */ }
 }
 const split = computed(() => wide.value && previewOpen.value && !!previewUrl.value)
+// The editor in the preview: while the page is beside the form, the form shows a selected block alone.
+watchEffect(() => { if (builder.value) builder.value.panel.value = split.value })
 useCmsFocus(split)
 
 // Before the first save there is nothing to translate yet: the languages show, with
@@ -237,6 +239,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
             :conflict="conflict" :incoming="live?.incoming.value"
             @load="loadNewest" @save-anyway="saveOnTop" @dismiss="live && (live.incoming.value = null)"
           />
+          <CmsBuilderFocus :entity="entity" :read-only="readOnly">
           <CmsFormSections
             :fields="visible" :sections="meta?.sections" :state="state" :errors="fieldErrors"
             :disclose="!isTranslation" :menu="!split"
@@ -267,6 +270,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               />
             </template>
           </CmsFormSections>
+          </CmsBuilderFocus>
         </div>
       </div>
       </fieldset>

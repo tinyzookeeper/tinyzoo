@@ -1,6 +1,7 @@
 import type { ComputedRef, InjectionKey, Ref, ShallowRef } from 'vue'
 import { cmsBuilderPathOf, cmsBuilderPlaceAnchor, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace, type CmsBuilderToAdmin, type CmsBuilderToPage } from '../../shared/builder'
-import { kindsAlong, pathOfListKey, type BlockKindDef, type BlockList } from '../../shared/block-tree'
+import { changedBlock, kindsAlong, pathOfId, pathOfListKey, type BlockKindDef, type BlockList } from '../../shared/block-tree'
+import { createBuilderHistory } from '../../shared/builder-history'
 
 // The editor in the preview (experimental, NUXT_CMS_BUILDER=on), admin side: a bridge between the
 // page-blocks fields of the form and the preview panel that shows the page. The fields register
@@ -13,6 +14,10 @@ import { kindsAlong, pathOfListKey, type BlockKindDef, type BlockList } from '..
 // block's row in the form may not be mounted (its row is closed), so the bridge never asks one: the
 // page-blocks field changes its whole value as a tree, and a list inside follows `openPath` when it
 // mounts or when it changes.
+//
+// The bridge also keeps the history of the page-blocks field's changes while the editor is open (undo and
+// redo, shared/builder-history.ts): the field records each change it makes, the bridge applies an undo
+// through the field and selects what changed, in the page and in the form.
 
 /** What a page-blocks field lets the bridge do. The changes do nothing on a field that is read-only. */
 export interface CmsBuilderList {
@@ -34,6 +39,10 @@ export interface CmsBuilderList {
   remove: (path: CmsBuilderPath) => void
   /** Ask which block to add (the picker of that list's types), then add it there. */
   add: (place: CmsBuilderPlace) => void
+  /** Set a field of the block at `path` (the focus panel's fields). */
+  set: (path: CmsBuilderPath, key: string, value: unknown) => void
+  /** Put a whole value back (an undo or a redo): no step of the history. */
+  apply: (items: any[]) => void
 }
 
 /** The mounted preview panel. */
@@ -76,6 +85,27 @@ export interface CmsBuilder {
   changed: () => void
   /** The path of the block whose list a list of the form is, from its field key (`sections.2.items`); `null` outside the page's blocks. */
   pathOf: (key: string) => CmsBuilderPath | null
+  /** Select a block (or none) in the form and in the page, which scrolls to it. */
+  select: (path: CmsBuilderPath | null) => void
+  /** Whether the form shows the selected block alone (the focus panel): the editor sets it while the preview is beside the form. */
+  panel: Ref<boolean>
+  /** The form shows the selected block alone now: the panel is on and the selected block is in the form's value. */
+  focused: ComputedRef<boolean>
+  /** The history of the page-blocks field's changes while the editor is open. */
+  history: {
+    canUndo: Readonly<Ref<boolean>>
+    canRedo: Readonly<Ref<boolean>>
+    /** Keep a change of a page-blocks field (its whole value before and after; `group`: the field typed in, see typingGroup). Returns the step. */
+    record: (key: string, before: any[], after: any[], group?: string | null) => number
+    undo: () => void
+    redo: () => void
+    /** Undo only if `step` is still the last one (a toast's *Undo*). */
+    undoStep: (step: number) => void
+    /** The step an undo takes back now. */
+    top: () => number | null
+    /** The field's value was replaced from elsewhere (a newer version, a restored one): the steps no longer fit. */
+    clear: () => void
+  }
 }
 
 const KEY: InjectionKey<ShallowRef<CmsBuilder | null>> = Symbol('cmsBuilder')
@@ -105,8 +135,68 @@ function createBridge(): CmsBuilder {
   function changed() {
     void nextTick(() => panel?.postNow())
   }
+  function select(path: CmsBuilderPath | null) {
+    selectedPath.value = path
+    if (path) owner(path[0])?.reveal(path)
+    panel?.send(path ? { type: 'cms:builder:select', id: path[path.length - 1]!, path, scroll: true } : { type: 'cms:builder:select', id: null, scroll: false })
+  }
+
+  // ── the history (one per editor; the steps name the field they belong to) ──
+  const steps = createBuilderHistory<{ key: string; value: any[] }>()
+  // Plain copies: the form's values are reactive and may be changed in place by a field.
+  const copy = (v: unknown): any[] => JSON.parse(JSON.stringify(v ?? []))
+  const canUndo = ref(false)
+  const canRedo = ref(false)
+  const sync = () => {
+    canUndo.value = steps.canUndo
+    canRedo.value = steps.canRedo
+  }
+  /** Put a value back and select the block it changed (else the nearest block around it that is there). */
+  function restore(key: string, value: any[], other: any[]) {
+    const list = lists.value.find((l) => l.key === key)
+    if (!list) return
+    const defs = list.root().defs
+    const what = changedBlock(defs, other, value)
+    list.apply(copy(value))
+    changed()
+    if (!what) return
+    const tree: BlockList = { items: value, defs, max: list.root().max }
+    let path = pathOfId(tree, what.id)
+    for (let n = what.around.length; !path && n > 0; n--) path = pathOfId(tree, what.around[n - 1]!)
+    // The value comes back through the form's v-model on the next tick: select once it is there.
+    void nextTick(() => select(path))
+  }
+  const history: CmsBuilder['history'] = {
+    canUndo, canRedo,
+    record(key, before, after, group) {
+      const step = steps.record({ key, value: copy(before) }, { key, value: copy(after) }, { group: group ? `${key}:${group}` : null })
+      sync()
+      return step
+    },
+    undo() {
+      const step = steps.undo()
+      sync()
+      if (step) restore(step.before.key, step.before.value, step.after.value)
+    },
+    redo() {
+      const step = steps.redo()
+      sync()
+      if (step) restore(step.after.key, step.after.value, step.before.value)
+    },
+    undoStep(step) {
+      if (steps.top() === step) history.undo()
+    },
+    top: () => steps.top(),
+    clear() {
+      steps.clear()
+      sync()
+    },
+  }
+  const panelOn = ref(false)
+  const focused = computed(() => panelOn.value && !!selection.value && selection.value.along.length === selection.value.path.length)
   return {
-    lists, selected, selectedPath, selection, openPath, labels, kinds,
+    lists, selected, selectedPath, selection, openPath, labels, kinds, select, history,
+    panel: panelOn, focused,
     register(list) {
       lists.value = [...lists.value, list]
       return () => { lists.value = lists.value.filter((l) => l !== list) }
@@ -131,6 +221,10 @@ function createBridge(): CmsBuilder {
         const path = message.id === null ? null : cmsBuilderPathOf({ id: message.id, path: message.path })
         selectedPath.value = path
         if (path) owner(path[0])?.reveal(path)
+        return
+      }
+      if (message.type === 'cms:builder:history') {
+        history[message.action]()
         return
       }
       if (message.type === 'cms:builder:add') {

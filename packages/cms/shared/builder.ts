@@ -35,6 +35,8 @@ export interface CmsBuilderTexts {
   moveLeft?: string
   moveRight?: string
   addBlock?: string
+  /** Since 2c: what a block that draws nothing says while the tool is on. */
+  blank?: string
 }
 
 /** One type of block the page may hold in a list: its name, and its own list if it has one. */
@@ -62,11 +64,16 @@ export type CmsBuilderToPage =
    * Sent on every load of the frame. Since 2c also the page list's kinds (`lists`) and the
    * selected block's path.
    */
-  | { type: 'cms:builder:on'; labels: Record<string, string>; texts: CmsBuilderTexts; selected: string | null; selectedPath?: CmsBuilderPath | null; lists?: CmsBuilderListKinds }
+  | { type: 'cms:builder:on'; labels: Record<string, string>; texts: CmsBuilderTexts; selected: string | null; selectedPath?: CmsBuilderPath | null; lists?: CmsBuilderListKinds; scale?: number }
   /** Select a block (`null`: none); `scroll` brings it into view. `path` names a block inside another one. */
   | { type: 'cms:builder:select'; id: string | null; scroll: boolean; path?: CmsBuilderPath | null }
   /** A key pressed in the admin outside a text field, for the selected block. */
   | { type: 'cms:builder:key'; key: CmsBuilderKey }
+  /**
+   * Since 2c: how much smaller the admin draws the page than it lays it out (1: as large; 0.6: a page
+   * laid out 1280 px wide shown 768 px wide). The tools keep their size on the screen.
+   */
+  | { type: 'cms:builder:view'; scale: number }
 
 /** From the page to the admin. `path`, when given, names a block inside another one; its last id is `id`. */
 export type CmsBuilderToAdmin =
@@ -77,6 +84,8 @@ export type CmsBuilderToAdmin =
   | { type: 'cms:builder:duplicate'; id: string; path?: CmsBuilderPath }
   | { type: 'cms:builder:remove'; id: string; path?: CmsBuilderPath }
   | { type: 'cms:builder:add'; place: CmsBuilderPlace }
+  /** Since 2c: Ctrl/⌘ Z (`undo`) or Ctrl/⌘ ⇧ Z, Ctrl Y (`redo`) pressed in the page outside a text field. */
+  | { type: 'cms:builder:history'; action: 'undo' | 'redo' }
 
 const isObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
 const isId = (x: unknown): x is string => typeof x === 'string' && x.length > 0 && x.length <= 200
@@ -110,8 +119,9 @@ export function cmsBuilderPathOf(message: { id: string; path?: CmsBuilderPath })
 }
 
 const TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['drag', 'moveUp', 'moveDown', 'duplicate', 'remove', 'insertHere']
-const MORE_TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['moveLeft', 'moveRight', 'addBlock']
+const MORE_TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['moveLeft', 'moveRight', 'addBlock', 'blank']
 const KEYS: CmsBuilderKey[] = ['Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
+const isScale = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x >= 0.1 && x <= 4
 
 /** A list's kinds, as far down as `depth` lists. */
 export function isCmsBuilderListKinds(x: unknown, depth = 4): x is CmsBuilderListKinds {
@@ -132,12 +142,14 @@ export function isCmsBuilderToPage(x: unknown): x is CmsBuilderToPage {
       && (x.selected === null || isId(x.selected))
       && (x.selectedPath === undefined || x.selectedPath === null || isCmsBuilderPath(x.selectedPath))
       && (x.lists === undefined || isCmsBuilderListKinds(x.lists))
+      && (x.scale === undefined || isScale(x.scale))
   }
   if (x.type === 'cms:builder:select') {
     return (x.id === null || isId(x.id)) && typeof x.scroll === 'boolean'
       && (x.path === undefined || x.path === null || isCmsBuilderPath(x.path))
   }
   if (x.type === 'cms:builder:key') return KEYS.includes(x.key as CmsBuilderKey)
+  if (x.type === 'cms:builder:view') return isScale(x.scale)
   return false
 }
 
@@ -153,6 +165,7 @@ export function isCmsBuilderToAdmin(x: unknown): x is CmsBuilderToAdmin {
     case 'cms:builder:duplicate':
     case 'cms:builder:remove': return isId(x.id) && pathOk(x)
     case 'cms:builder:add': return isCmsBuilderPlace(x.place)
+    case 'cms:builder:history': return x.action === 'undo' || x.action === 'redo'
     default: return false
   }
 }
@@ -181,4 +194,39 @@ export function cmsBuilderMove<T extends { id: string }>(list: readonly T[], id:
   const next = [...rest]
   next.splice(at, 0, list[from]!)
   return next
+}
+
+// ── the preview's size ──
+
+/** The width a desktop page is laid out at in the preview, at least. */
+export const CMS_BUILDER_DESKTOP = 1280
+/** The width of a phone. */
+export const CMS_BUILDER_PHONE = 390
+
+/**
+ * How the preview draws the page in a stage `width` × `height` px: the width the page is laid out at,
+ * the scale it is drawn at (at most 1) and the height it is laid out at, so that scaled it fills the
+ * stage and scrolls inside itself. A desktop page is laid out at 1280 px, or at the stage's width when
+ * that is wider; a phone at 390 px, at full size unless even that does not fit.
+ */
+export function cmsBuilderFit(mode: 'desktop' | 'phone', width: number, height: number): { width: number; height: number; scale: number } {
+  const room = Math.max(1, Math.floor(width))
+  const logical = mode === 'phone' ? CMS_BUILDER_PHONE : Math.max(CMS_BUILDER_DESKTOP, room)
+  // Rounded down to a thousandth, so the page never ends up a fraction wider than the stage.
+  const scale = Math.max(0.1, Math.min(1, Math.floor((room / logical) * 1000) / 1000))
+  return { width: logical, height: Math.max(1, Math.round(Math.max(0, height) / scale)), scale }
+}
+
+/** Every block type's name in the admin's language, from the page list's kinds all the way down (the first name of a type wins). */
+export function cmsBuilderNames(labels: Record<string, string>, lists: CmsBuilderListKinds | null | undefined): Record<string, string> {
+  const out: Record<string, string> = { ...labels }
+  const walk = (list: CmsBuilderListKinds | undefined, depth: number) => {
+    if (!list || depth > 4) return
+    for (const [type, kind] of Object.entries(list.types)) {
+      if (!Object.hasOwn(out, type)) out[type] = kind.label
+      walk(kind.list, depth + 1)
+    }
+  }
+  walk(lists ?? undefined, 0)
+  return out
 }

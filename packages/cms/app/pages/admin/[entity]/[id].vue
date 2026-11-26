@@ -21,7 +21,7 @@ const isNew = computed(() => id.value === 'new')
 const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
 const meta = computed(() => (graph.value ?? []).find((e: any) => e.name === entity.value))
 // The editor in the preview (experimental, NUXT_CMS_BUILDER=on): provided only when the menu says it is on.
-provideCmsBuilder(useCmsBuilderOn())
+const builder = provideCmsBuilder(useCmsBuilderOn())
 // The manual-order position is set by arranging the list, never by this form (a stale
 // position saved from here would undo someone's reordering).
 const form = useCmsForm(computed(() => (meta.value?.fields ?? []).filter((f: any) => f.key !== meta.value?.orderField)), isNew)
@@ -454,6 +454,9 @@ function togglePreview() {
   catch { /* storage blocked: for this visit only */ }
 }
 const split = computed(() => wide.value && previewOpen.value && !!previewUrl.value)
+// The editor in the preview: while the page is beside the form, the form shows a selected block alone.
+watchEffect(() => { if (builder.value) builder.value.panel.value = split.value })
+const builderFocused = computed(() => !!builder.value?.focused.value)
 // Form and preview show every field in titled sections (admin.sections; tabs read as
 // sections there) with a details column; write keeps the text apart from the details.
 const sectioned = computed(() => arrangement.value !== 'write')
@@ -1071,6 +1074,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
             @load="loadNewest" @save-anyway="saveOnTop" @dismiss="live && (live.incoming.value = null)"
           />
 
+          <CmsBuilderFocus :entity="entity" :read-only="readOnly">
           <!-- form and preview: every field in titled sections -->
           <CmsFormSections
             v-if="sectioned" :fields="formFields" :sections="formSectionConfig" :state="state" :errors="fieldErrors"
@@ -1181,12 +1185,13 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" :fallback="fallbackOf(f)" />
             </div>
           </div>
+          </CmsBuilderFocus>
         </div>
       </div>
 
       </fieldset>
 
-      <aside v-if="showAside" class="cms-editor__aside" :aria-label="t('editor.details')">
+      <aside v-if="showAside" v-show="!builderFocused" class="cms-editor__aside" :aria-label="t('editor.details')">
         <div class="cms-editor__aside-inner space-y-5">
           <fieldset class="cms-fieldset min-w-0 space-y-5" :disabled="readOnly">
           <!-- the status itself is in the top bar; here only what it does not say -->

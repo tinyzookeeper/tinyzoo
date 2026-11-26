@@ -543,7 +543,7 @@ html[data-cms-admin] .cms-form__menu { display: none; }
 /* The menu needs room beside the column: it shows when the editor's main area is wide enough. */
 html[data-cms-admin] .cms-editor__main:has(.cms-form--menu) { container-type: inline-size; }
 @container (min-width: 58rem) {
-  html[data-cms-admin] .cms-editor__column:has(> .cms-form--menu) { max-width: 53.5rem; }
+  html[data-cms-admin] .cms-editor__column:has(.cms-form--menu) { max-width: 53.5rem; }
   html[data-cms-admin] .cms-form--menu {
     display: grid;
     grid-template-columns: 11rem minmax(0, 40rem);
@@ -697,6 +697,18 @@ html[data-cms-admin] .cms-preview__stage {
 }
 html[data-cms-admin] .cms-preview__frame { width: 100%; height: 100%; border: 0; background: white; }
 html[data-cms-admin] .cms-preview__frame--phone { width: 390px; max-width: 100%; border-left: 1px solid var(--ui-border); border-right: 1px solid var(--ui-border); }
+/* The editor in the preview (NUXT_CMS_BUILDER=on): the page laid out at a desktop width (or a phone's)
+   and drawn scaled to fit the stage (CmsPreviewPanel); the box is the page's size on the screen. */
+html[data-cms-admin] .cms-preview__stage--fit { position: relative; align-items: stretch; }
+html[data-cms-admin] .cms-preview__box { position: relative; flex: none; height: 100%; overflow: hidden; max-width: 100%; }
+html[data-cms-admin] .cms-preview__box--phone { box-shadow: -1px 0 0 var(--ui-border), 1px 0 0 var(--ui-border); }
+html[data-cms-admin] .cms-preview__frame--fit { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+html[data-cms-admin] .cms-preview__box--morph,
+html[data-cms-admin] .cms-preview__box--morph .cms-preview__frame--fit { transition: width 260ms cubic-bezier(.2,.7,.2,1), height 260ms cubic-bezier(.2,.7,.2,1), transform 260ms cubic-bezier(.2,.7,.2,1); }
+@media (prefers-reduced-motion: reduce) {
+  html[data-cms-admin] .cms-preview__box--morph,
+  html[data-cms-admin] .cms-preview__box--morph .cms-preview__frame--fit { transition: none; }
+}
 
 /* A date as a small calendar leaf (dated lists, "coming soon"). */
 html[data-cms-admin] .cms-date {

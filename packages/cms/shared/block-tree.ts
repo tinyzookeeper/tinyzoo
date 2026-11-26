@@ -286,3 +286,133 @@ export function treeMove(root: BlockList, path: CmsBuilderPath, place: CmsBuilde
   const next = treeInsert({ ...root, items: removed }, place, found.block, def)
   return next ? { items: next, path: [...target, found.block.id], back } : null
 }
+
+/** The block at `path` with its field `key` set to `value`. `null` when the block is not there. */
+export function treeSet(root: BlockList, path: CmsBuilderPath, key: string, value: unknown): any[] | null {
+  const found = findBlock(root, path)
+  if (!found || key === 'id' || key === 'type') return null
+  const siblings = [...found.list.items]
+  siblings[found.index] = { ...found.block, [key]: value }
+  return withList(root, found.parent, siblings)
+}
+
+// ── the focus panel: where a block is in the form ──
+
+/**
+ * The form's key of the block at `path` in the field `rootKey`: `sections.2` for a block of the page,
+ * `sections.2.items.0` for a small block in it. Errors are kept by such keys. `null` when not there.
+ */
+export function keyOfPath(rootKey: string, root: BlockList, path: CmsBuilderPath): string | null {
+  let key = rootKey
+  for (let depth = 1; depth <= path.length; depth++) {
+    const list = listAt(root, path.slice(0, depth - 1))
+    if (!list) return null
+    const index = list.items.findIndex((b) => isRec(b) && b.id === path[depth - 1])
+    if (index < 0) return null
+    key += `${list.key ? `.${list.key}` : ''}.${index}`
+  }
+  return key
+}
+
+/** The path of the block with this id, at any depth; `null` when the tree has none. */
+export function pathOfId(root: BlockList, id: string): CmsBuilderPath | null {
+  const walk = (list: BlockList, above: string[]): CmsBuilderPath | null => {
+    for (const b of list.items) {
+      if (!isRec(b) || typeof b.id !== 'string') continue
+      if (b.id === id) return [...above, b.id]
+      const field = blockListField(list.defs[b.type])
+      if (!field || !Array.isArray(b[field.key])) continue
+      const inner = walk({ items: b[field.key], defs: field.meta!.blocks as BlockDefs, max: blockListMax(field) }, [...above, b.id])
+      if (inner) return inner
+    }
+    return null
+  }
+  return walk(root, [])
+}
+
+const under = (key: string, prefix: string) => key === prefix || key.startsWith(`${prefix}.`)
+
+/**
+ * The errors a panel that shows the block at `path` alone does not show where they are, counted where
+ * they lead from: `outside` (the rest of the form, behind the way back to all sections) and one count
+ * per block along the path but the last (its own fields, or its other blocks, behind that part of the
+ * breadcrumb). The selected block's own fields and its list's rows show their errors themselves.
+ */
+export function issueCounts(rootKey: string, root: BlockList, path: CmsBuilderPath, issueKeys: readonly string[]): { outside: number; along: number[] } {
+  const keys = path.map((_, i) => keyOfPath(rootKey, root, path.slice(0, i + 1)))
+  const along = path.slice(0, -1).map((_, i) => {
+    const mine = keys[i]
+    const next = keys[i + 1]
+    return mine ? issueKeys.filter((k) => under(k, mine) && !(next && under(k, next))).length : 0
+  })
+  const first = keys[0]
+  return { outside: first ? issueKeys.filter((k) => !under(k, first)).length : issueKeys.length, along }
+}
+
+const idsOf = (items: readonly any[]) => items.filter((b) => isRec(b) && typeof b.id === 'string').map((b) => b.id as string)
+
+/**
+ * The block a change between two values of a list made a difference to, at any depth: one added or
+ * removed (`around`: the blocks whose list it is in), the one moved within its list, else the deepest
+ * block whose own fields changed. For undo and redo, which select it afterwards. `null`: no difference.
+ */
+export function changedBlock(defs: BlockDefs, a: readonly any[], b: readonly any[], around: CmsBuilderPath = []): { id: string; around: CmsBuilderPath } | null {
+  const ia = idsOf(a)
+  const ib = idsOf(b)
+  const added = ib.find((id) => !ia.includes(id))
+  if (added) return { id: added, around }
+  const removed = ia.find((id) => !ib.includes(id))
+  if (removed) return { id: removed, around }
+  if (ia.join('\n') !== ib.join('\n')) {
+    const moved = ia.find((id) => ia.filter((x) => x !== id).join('\n') === ib.filter((x) => x !== id).join('\n'))
+    return { id: moved ?? ia.find((id, i) => ib[i] !== id)!, around }
+  }
+  for (const x of a) {
+    if (!isRec(x) || typeof x.id !== 'string') continue
+    const y = b.find((v) => isRec(v) && v.id === x.id)
+    if (JSON.stringify(x) === JSON.stringify(y)) continue
+    const field = blockListField(defs[x.type])
+    if (field && JSON.stringify(x[field.key] ?? []) !== JSON.stringify(y?.[field.key] ?? [])) {
+      const inner = changedBlock(field.meta!.blocks as BlockDefs, Array.isArray(x[field.key]) ? x[field.key] : [], Array.isArray(y?.[field.key]) ? y[field.key] : [], [...around, x.id])
+      if (inner) return inner
+    }
+    return { id: x.id, around }
+  }
+  return null
+}
+
+/** Field types whose changes are typing: in the history, one step per field per pause. */
+const TYPED = new Set(['text', 'textarea', 'richtext', 'number', 'slug', 'email', 'url', 'string', 'markdown', 'code', 'group'])
+
+/**
+ * The field being typed in, when a change between two values of a list is typing: the same blocks in
+ * the same places at every depth, and one field of one block changed, a text (or a list's item's text,
+ * or a group's), not a setting. `block id:field key`, else `null` (a step of its own: a setting, a
+ * choice, a picture, a block added, moved or removed).
+ */
+export function typingGroup(defs: BlockDefs, a: readonly any[], b: readonly any[]): string | null {
+  if (a.length !== b.length || idsOf(a).join('\n') !== idsOf(b).join('\n')) return null
+  const differ = a.map((x, i) => JSON.stringify(x) !== JSON.stringify(b[i]))
+  if (differ.filter(Boolean).length !== 1) return null
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]
+    const y = b[i]
+    if (!differ[i]) continue
+    if (!isRec(x) || !isRec(y) || x.type !== y.type) return null
+    const fields = defs[x.type]?.fields ?? []
+    const keys = [...new Set([...Object.keys(x), ...Object.keys(y)])].filter((k) => JSON.stringify(x[k]) !== JSON.stringify(y[k]))
+    if (keys.length !== 1) return null
+    const field = fields.find((f) => f.key === keys[0])
+    if (!field || field.meta?.setting) return null
+    const list = blockListField(defs[x.type])
+    if (list && list.key === field.key) return typingGroup(list.meta!.blocks as BlockDefs, Array.isArray(x[field.key]) ? x[field.key] : [], Array.isArray(y[field.key]) ? y[field.key] : [])
+    if (field.type === 'blocks') {
+      // A list's items (questions, cards): typing when they are the same items in the same order.
+      const ia = Array.isArray(x[field.key]) ? x[field.key] : []
+      const ib = Array.isArray(y[field.key]) ? y[field.key] : []
+      return ia.length === ib.length && idsOf(ia).join('\n') === idsOf(ib).join('\n') ? `${x.id}:${field.key}` : null
+    }
+    return TYPED.has(field.type) ? `${x.id}:${field.key}` : null
+  }
+  return null
+}

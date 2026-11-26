@@ -3,7 +3,7 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 import { isLinkRef } from '../../src/linkref'
 import type { CmsBuilderPath, CmsBuilderPlace } from '../../shared/builder'
 import {
-  blankBlock, blockListFull, blockListKinds, blockListMax, findBlock, isLockedBlock, listOfPlaceIn, treeDuplicate, treeInsert, treeMove, treeRemove, withNewIds,
+  blankBlock, blockListFull, blockListKinds, blockListMax, findBlock, isLockedBlock, listOfPlaceIn, treeDuplicate, treeInsert, treeMove, treeRemove, treeSet, typingGroup, withNewIds,
   type BlockList,
 } from '../../shared/block-tree'
 
@@ -47,6 +47,10 @@ const takesPart = !list.value && !inside
 /** The path (ids from the page's list down) of the block whose list this is: `[]` for the page's own list. */
 const above = computed<CmsBuilderPath | null>(() => (takesPart ? [] : inside ? builderRef.value?.pathOf(props.field.key) ?? null : null))
 const pathTo = (id: string): CmsBuilderPath | null => (above.value ? [...above.value, id] : null)
+// The focus panel (the preview beside the form): a list of the page's blocks, at any depth, is a list of
+// rows; a click selects the block, in the page too, and the form shows it alone (CmsBuilderPanel). A
+// list of items (`f.list()`) keeps its rows that open in place.
+const panelMode = computed(() => !!builderRef.value?.panel.value && !list.value && above.value !== null)
 function opened(id: string) {
   const path = pathTo(id)
   if (path) builderRef.value?.opened(path)
@@ -71,8 +75,43 @@ watchEffect(() => {
   if (refs.length) requestTargets(refs)
 })
 
-function update(next: any[]) {
+// The page-blocks field keeps the history of its changes (useCmsBuilder): every change is a step, typing
+// in one field within a pause one step (typingGroup). A value put there from elsewhere (a newer version,
+// a restored one) ends the history: its steps no longer fit.
+let lastSet: unknown = null
+let undoToast: string | number | null = null
+/** Set the list's value; returns the step of the history it went into (the page-blocks field, with the editor in the preview on). */
+function update(next: any[]): number | null {
+  const bridge = builderRef.value
+  let step: number | null = null
+  if (bridge && takesPart) {
+    const before = toRaw(blocks.value)
+    step = bridge.history.record(props.field.key, before, next, typingGroup(defs.value, before, next))
+    // A toast's *Undo* belongs to the step before this one.
+    if (undoToast !== null) toast.remove(undoToast)
+    undoToast = null
+  }
+  lastSet = next
   model.value = next
+  return bridge ? step ?? bridge.history.top() : null
+}
+if (takesPart) {
+  watch(() => toRaw(model.value), (value) => {
+    if (lastSet !== null && value !== lastSet) builderRef.value?.history.clear()
+    lastSet = value ?? null
+  })
+}
+/** *Undo* on a toast: the history's undo when the editor in the preview keeps one (only while this is still the last step), else `fallback`. */
+function undoAction(step: number | null, fallback: () => void) {
+  return () => {
+    const bridge = builderRef.value
+    if (bridge && step !== null) bridge.history.undoStep(step)
+    else fallback()
+  }
+}
+function showUndo(message: Parameters<typeof toast.add>[0]) {
+  const added = toast.add(message)
+  if (takesPart) undoToast = added.id
 }
 function insertAt(index: number, type: string) {
   if (full.value) return
@@ -106,16 +145,16 @@ function duplicate(index: number) {
 function remove(index: number) {
   const next = [...blocks.value]
   const [gone] = next.splice(index, 1)
-  update(next)
+  const step = update(next)
   if (!gone) return
-  toast.add({
+  showUndo({
     title: t('blocks.removed', { label: shortName(gone, index) }),
     icon: 'i-lucide-trash-2',
-    actions: [{ label: t('blocks.undo'), color: 'neutral', variant: 'outline', onClick: () => {
+    actions: [{ label: t('blocks.undo'), color: 'neutral', variant: 'outline', onClick: undoAction(step, () => {
       const back = [...blocks.value]
       back.splice(Math.min(index, back.length), 0, gone)
       update(back)
-    } }],
+    }) }],
   })
 }
 
@@ -153,16 +192,16 @@ function builderMove(path: CmsBuilderPath, place: CmsBuilderPlace) {
   if (props.readOnly) return
   const done = treeMove(tree(), path, place)
   if (!done) return
-  update(done.items)
-  toast.add({
+  const step = update(done.items)
+  showUndo({
     title: t('blocks.moved'),
     icon: 'i-lucide-arrow-up-down',
-    actions: [{ label: t('blocks.undo'), color: 'neutral', variant: 'outline', onClick: () => {
+    actions: [{ label: t('blocks.undo'), color: 'neutral', variant: 'outline', onClick: undoAction(step, () => {
       const undone = treeMove(tree(), done.path, done.back)
       if (!undone) return
       update(undone.items)
       builderRef.value?.changed()
-    } }],
+    }) }],
   })
   // A block that went into another list stays selected there (the page selected it already, where it was dropped).
   if (done.path.join('/') !== path.join('/') && builderRef.value) {
@@ -183,16 +222,16 @@ function builderRemove(path: CmsBuilderPath) {
   if (props.readOnly || !found || isLockedBlock(found.list.defs, found.block)) return
   const done = treeRemove(tree(), path)
   if (!done) return
-  update(done.items)
-  toast.add({
+  const step = update(done.items)
+  showUndo({
     title: t('blocks.removed', { label: nameIn(done.removed, found.list.defs) }),
     icon: 'i-lucide-trash-2',
-    actions: [{ label: t('blocks.undo'), color: 'neutral', variant: 'outline', onClick: () => {
+    actions: [{ label: t('blocks.undo'), color: 'neutral', variant: 'outline', onClick: undoAction(step, () => {
       const back = treeInsert(tree(), done.place, done.removed)
       if (!back) return
       update(back)
       builderRef.value?.changed()
-    } }],
+    }) }],
   })
 }
 /** Add a new block of `type` at `place` (in this field's value, at any depth), open it and select it on the page. */
@@ -229,6 +268,14 @@ if (takesPart) {
       kinds: () => blockListKinds({ defs: defs.value, max: max.value }, (def, type) => tl(def.label as any, type)),
       reveal: builderReveal, collapse: builderCollapse,
       move: builderMove, duplicate: builderDuplicate, remove: builderRemove, add: builderAdd,
+      set(path, key, value) {
+        const next = props.readOnly ? null : treeSet(tree(), path, key, value)
+        if (next) update(next)
+      },
+      apply(items) {
+        lastSet = items
+        model.value = items
+      },
     })
     onCleanup(unregister)
   }, { immediate: true })
@@ -393,6 +440,7 @@ function blockIssue(index: number): string {
   return ''
 }
 const hasIssue = (index: number) => Object.keys(form?.issues ?? {}).some((k) => k.startsWith(`${props.field.key}.${index}.`) || k === `${props.field.key}.${index}`)
+const issueCount = (index: number) => Object.keys(form?.issues ?? {}).filter((k) => k.startsWith(`${props.field.key}.${index}.`) || k === `${props.field.key}.${index}`).length
 // A block with a problem opens itself.
 watch(() => ({ ...(form?.issues ?? {}) }), () => {
   blocks.value.forEach((b, i) => { if (hasIssue(i)) open[b.id] = true })
@@ -499,10 +547,10 @@ const choices = computed(() => {
           ><UIcon name="i-lucide-grip-vertical" class="size-4" /></span>
           <button
             type="button" class="flex flex-1 min-w-0 items-center gap-2.5 text-left"
-            :aria-expanded="!!open[b.id]"
-            @click="toggle(b.id)"
+            :aria-expanded="panelMode ? undefined : !!open[b.id]"
+            @click="panelMode ? opened(b.id) : toggle(b.id)"
           >
-            <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0 transition-transform" :class="open[b.id] ? 'rotate-90' : ''" />
+            <UIcon v-if="!panelMode" name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0 transition-transform" :class="open[b.id] ? 'rotate-90' : ''" />
             <template v-if="list">
               <UIcon v-if="indented(b)" name="i-lucide-corner-down-right" class="size-4 text-dimmed shrink-0" />
               <span class="text-sm font-medium text-highlighted truncate">{{ summary(b) || itemLabel(b, i) }}</span>
@@ -510,17 +558,18 @@ const choices = computed(() => {
             <template v-else>
               <UIcon :name="defs[b.type]?.icon ?? 'i-lucide-square'" class="size-4 text-muted shrink-0" />
               <span class="text-sm font-medium text-highlighted shrink-0">{{ tl(defs[b.type]?.label, b.type) }}</span>
-              <span v-if="!open[b.id] && summary(b)" class="text-sm text-muted truncate">{{ summary(b) }}</span>
+              <span v-if="(panelMode || !open[b.id]) && summary(b)" class="text-sm text-muted truncate">{{ summary(b) }}</span>
             </template>
             <span v-if="hasIssue(i)" class="ml-auto shrink-0 inline-flex items-center gap-1 text-xs text-error">
-              <span class="size-1.5 rounded-full bg-error" aria-hidden="true" />{{ t('blocks.hasErrors') }}
+              <span class="size-1.5 rounded-full bg-error" aria-hidden="true" />{{ panelMode ? t('builderPanel.toFix', { count: issueCount(i) }) : t('blocks.hasErrors') }}
             </span>
+            <UIcon v-if="panelMode" name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0" :class="hasIssue(i) ? '' : 'ml-auto'" aria-hidden="true" />
           </button>
           <UDropdownMenu :items="menu(i)" :content="{ align: 'end' }">
             <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-ellipsis" class="pointer-coarse:size-11" :aria-label="t('blocks.actions')" />
           </UDropdownMenu>
         </div>
-        <div v-if="open[b.id]" class="border-t border-default px-4 py-4 space-y-5">
+        <div v-if="open[b.id] && !panelMode" class="border-t border-default px-4 py-4 space-y-5">
           <p v-if="blockIssue(i)" role="alert" class="flex items-start gap-1.5 text-sm text-error">
             <UIcon name="i-lucide-circle-alert" class="mt-0.5 size-4 shrink-0" aria-hidden="true" />{{ blockIssue(i) }}
           </p>
@@ -550,6 +599,9 @@ const choices = computed(() => {
     <UButton v-if="(blocks.length || onlyType || inside) && !full" color="neutral" variant="ghost" icon="i-lucide-plus" size="sm" @click="openPicker(blocks.length)">
       {{ addLabel }}
     </UButton>
+    <p v-if="panelMode && takesPart && blocks.length" class="flex items-start gap-1.5 text-xs text-muted">
+      <UIcon name="i-lucide-mouse-pointer-click" class="mt-px size-3.5 shrink-0 text-dimmed" aria-hidden="true" />{{ t('builderPanel.hint') }}
+    </p>
 
     <UModal v-model:open="pickerOpen" :title="t('blocks.pickerTitle')">
       <template #body>
