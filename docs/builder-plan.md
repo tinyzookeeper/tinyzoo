@@ -1,6 +1,6 @@
 # Sections and layout as data, the builder: a first design of step 5
 
-**Status (2026-11-25):** a first design, not a detailed one. Part 1 of section 5, the frame, is built and checked (section 4). What is counted here was counted on the branch `feat/builder` (cut from `feat/look-as-data`, step 4). Nothing else is built. The owner made the four decisions of section 6 on 2026-11-25, each as picked there, and added one rule: the limits are there so that every site stays responsive (3.4). It is step 5 of `docs/one-app-plan.md` (2.11, levels 3 and 4).
+**Status (2026-11-26):** a first design, not a detailed one. On 2026-11-26 the owner turned the page editor into a builder with a limited layout tree (section 8); part 1 of it, editing a page's blocks in the preview, is built behind an experimental switch. Part 1 of section 5, the frame, is built and checked (section 4). What is counted here was counted on the branch `feat/builder` (cut from `feat/look-as-data`, step 4). Nothing else of section 5 is built. The owner made the four decisions of section 6 on 2026-11-25, each as picked there, and added one rule: the limits are there so that every site stays responsive (3.4). It is step 5 of `docs/one-app-plan.md` (2.11, levels 3 and 4).
 
 **Words.** A *block* is one part of a page, as today. A *section* is a block that belongs to no template: the kit draws it once for every look. A look's *frame* is what its own Text part gives every section: the container, the space above and below, the heading.
 
@@ -77,7 +77,7 @@ On the branch: the slot in all 52 Text parts, slots passed on by `LookPart`, and
 
 All four were made by the owner on 2026-11-25, as picked.
 
-1. **Sections with choices, not a free layout tree.** Example: an owner adds "Cards", picks three columns and a tinted background; they cannot move a card 20 pixels to the left. The owner's reason: the sites must be responsive, and limits are how that is reached (3.4).
+1. **Sections with choices, not a free layout tree.** Example: an owner adds "Cards", picks three columns and a tinted background; they cannot move a card 20 pixels to the left. The owner's reason: the sites must be responsive, and limits are how that is reached (3.4). Replaced on 2026-11-26 by a limited layout tree (section 8).
 2. **The prefix of the kit's sections is `section_`.**
 3. **A website without a template comes after the sections,** as the last part; it is the largest, and the only part that needs new looks.
 4. **Step 4 is merged as built** (one own colour). Typefaces, corners and spacing wait for part 7 here.
@@ -88,3 +88,36 @@ All four were made by the owner on 2026-11-25, as picked.
 - Copying a section to another page, and saved sections.
 - What the sections cost in the main stylesheet.
 - Translations of a section's texts on sites with more languages.
+
+## 8. The editor in the preview, and a limited layout tree (decided 2026-11-26)
+
+**The decision.** The owner turned the page editor into a builder. The owner of a site works in the page's preview: selects a block, drags it, adds one. Later small blocks go into layout containers, and later a container takes one of the site's own content types. This replaces decision 1 of section 6 ("sections with choices, not a free layout tree") by a limited layout tree. The limits stay what keeps a site responsive: no pixel positions, sizes and gaps from a scale, two or three levels at most.
+
+**The three parts, in this order.**
+
+1. **Editing in the preview** for the blocks a page has today.
+2. **The layout container:** a row, a stack or a grid of small blocks, its sizes and gaps from a scale.
+3. **A container bound to a content type:** it repeats for the type's entries, and its small blocks show the entry's fields.
+
+**Rules taken from the prototype** (`templates/app/.data/builder-editor/editor-prototype.html`, approved by the owner).
+
+- The tools float on a layer above the page. They never move the page's content.
+- Hover shows a soft outline and a small name chip.
+- A click selects: a clear outline and a small toolbar at the top edge, with a drag handle, the name, up, down, duplicate and delete.
+- A "+" between blocks adds a block at that spot.
+- Dragging lifts the block, the others make room, and a line shows where it lands.
+- Motion takes 150 to 250 ms, eases out and respects `prefers-reduced-motion`.
+- Nothing is set per screen size.
+
+**Field kinds and small blocks** (part 3). A text block takes text, number and date fields. A picture block takes picture fields. A button takes link fields.
+
+**Part 1. Built (2026-11-26).** Behind `NUXT_CMS_BUILDER=on`, read from the environment like `NUXT_CMS_CUSTOM_TYPES`. The cloud gives it to the one app's process with `CLOUD_BUILDER=on`. Off, nothing changes in the admin or on the page.
+
+- **The messages.** One typed file for both sides, `packages/cms/shared/builder.ts`: `cms:builder:on` and `cms:builder:select` to the page; `ready`, `select`, `move`, `duplicate`, `remove` and `add` to the admin. A block is named by its id and a place by "before" or "after" a block, never by an index, because the page draws only the blocks it has a component for. Both sides check the origin and the window, as the preview did already. The page says `ready` once it listens, because the frame's load can come before its listener.
+- **The page.** The admin learns of the switch from its menu (`GET /api/cms/_menu` says `builder: true`) and tells the page. Only then does `<CmsBlocks>` mark each block's root element (`data-cms-block`, `-type`, `-list`) and the page load the overlay (`packages/cms/app/builder/overlay.ts`): one layer in a shadow root, in the document's coordinates, so it scrolls with the page. Its colours are its own. A block whose component has no single root element is not marked and cannot be selected: on the Medical home page 3 of 19 blocks, all lists of a site's own entries with nothing to show. Links and buttons in the page do not act; a click selects. Escape lets go, Alt+↑ and Alt+↓ move the selected block.
+- **The admin.** The form's own list of page blocks registers with a bridge (`useCmsBuilder`) and does every change with its own functions, so ids, checks and limits stay in one place. A block selected in the page opens its row and closes the others; a row opened in the form selects the block in the page and scrolls the page to it. A move from the page shows *Block moved* with *Undo*; a delete has the *Undo* it had. After a change from the page the panel sends the values at once.
+- **The preview, for everyone.** In a list of blocks, a block not filled in yet no longer sends the whole list back to its saved state; the others show as they are. Without this, adding a block from the page undid the new order until the block was filled in.
+- **Checked.** 15 unit tests of the protocol and the drag arithmetic (`test/unit/builder-protocol.spec.ts`), with 161 tests in 12 spec files around it; the type checks of the package, the playground and the cloud; the content API spec of the preview (19 tests; the new rule for a list of blocks has no test of its own). In a real browser on two seeded sites, Medical (Čekárna) and Photographer (Atelier), admin light and dark, the preview at 1440 and 390 px: hover, select from the page and from the form, the toolbar's four actions, drag on a page of 19 blocks with the page scrolling under the pointer, Escape during a drag, add at a spot, *Undo*, the keyboard, a direct load and a reload of the editor and arriving from the list, and that saving stores the new order. With the switch off: no marks, no layer, no `builder` in the menu. The 376 pictures of all 20 templates (switch off) against those of the commit before: 368 identical, 8 with 1 to 6 differing pixels, none failing.
+- **Differs from the prototype.** The tools are drawn in the real page, so their name chip and toolbar sit above the block's top edge and may cover the site's header. A block is lifted with its own page background. There is no dashed slot where the dragged block came from: the others make room and a line shows the place. The "+" shows only near the edge between two blocks. A new block that is still empty is not in the preview until it is valid. *Undo* is the admin's toast, not a history.
+- **Not done or not checked.** Touch was not tried on a real phone. A phone-sized admin has nothing new (as decided). Typing in the page is not part of it. A page with two lists of blocks was not tried. Keyboard focus moves to the page only once it was clicked.
+
