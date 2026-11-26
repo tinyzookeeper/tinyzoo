@@ -11,6 +11,7 @@ export const looks = defineLooks([
   {
     // The finish-line clock: a dark page where every number that matters is lit in a dot-matrix face.
     id: 'casomira',
+    heading: 'h2 mb-8 lg:mb-10',
     name: { cs: 'Časomíra', en: 'Race Clock' },
     own: { main: '--led', against: ['--bg', '--led-ink', '--panel'], fixed: ['#050606', '#eef0ec'] },
     presets: [
@@ -22,6 +23,7 @@ export const looks = defineLooks([
   {
     // A hand-printed poster in three inks: overprinted hills, a round photo, section edges cut as hills.
     id: 'soutisk',
+    heading: 'h2 mb-8 lg:mb-10',
     name: { cs: 'Soutisk', en: 'Overprint' },
     own: { main: '--c1', against: ['--c2', '--ink', '--paper', '--paper2'] },
     presets: [

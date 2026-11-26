@@ -2,7 +2,8 @@
 // Block "section_text_picture" (kitSections()): a text with a button, and a picture beside it,
 // drawn by the kit for every look inside the look's own frame (KitSection). The picture is beside
 // the text when the section is wide enough, and above it when it is not (a phone).
-// Nothing at all when the section has nothing in it.
+// Nothing at all when the section has nothing in it. Its texts and its picture are marked for the editor
+// in the preview (cmsField; the heading by KitSection).
 const props = defineProps<{ block: Record<string, any>; index?: number }>()
 const plan = computed(() => textPicturePlan(props.block))
 const look = computed(() => sectionLook(props.block))
@@ -14,10 +15,10 @@ const SIZES = { half: '(min-width: 64rem) 40rem, 100vw', third: '(min-width: 64r
   <KitSection v-if="plan" :id="`section-${block.id ?? index ?? ''}`" :heading="plan.heading" :narrow="look.narrow" :close="look.close">
     <div class="kit-tp" :class="[`kit-tp-${plan.side}`, `kit-tp-${plan.size}`, { 'kit-tp-solo': !plan.image }]">
       <div v-if="plan.body || plan.button" class="kit-tp-text">
-        <CmsContent v-if="plan.body" :doc="plan.body" class="prose-look" />
-        <KitSectionButton v-if="plan.button" :to="siteHref(plan.button.href)" :label="plan.button.label" />
+        <CmsContent v-if="plan.body" :doc="plan.body" class="prose-look" v-bind="cmsField('body')" />
+        <KitSectionButton v-if="plan.button" :to="siteHref(plan.button.href)" :label="plan.button.label" field="buttonLabel" />
       </div>
-      <CmsImage v-if="plan.image" :media="plan.image" class="kit-tp-pic" :sizes="SIZES[plan.size]" :style="{ aspectRatio: plan.ratio ?? '4 / 3' }" />
+      <CmsImage v-if="plan.image" :media="plan.image" class="kit-tp-pic" :sizes="SIZES[plan.size]" :style="{ aspectRatio: plan.ratio ?? '4 / 3' }" v-bind="cmsField('image')" />
     </div>
   </KitSection>
 </template>

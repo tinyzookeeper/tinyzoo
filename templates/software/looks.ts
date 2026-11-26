@@ -12,6 +12,7 @@ export const looks = defineLooks([
     // The page as a well-made instruction manual: numbered figures, green callout pins, ruled tables.
     id: 'navod',
     button: 'btn btn-main',
+    heading: 'mb-8 text-[32px] font-semibold leading-[1.1] tracking-[-0.03em] text-ink lg:mb-10 lg:text-[42px]',
     name: { cs: 'Návod', en: 'Manual' },
     own: { against: ['--am', '--brand-ink', '--ground', '--pm', '--tint'], fixed: ['#2e3536', '#ffffff'] },
     presets: [
@@ -24,6 +25,7 @@ export const looks = defineLooks([
     // The rota board from the back room: the product's afternoon orange, headlines set as shift bars on a week grid.
     id: 'magnety',
     button: 'btn btn-brand',
+    heading: 'q mb-8 text-[40px] sm:text-[52px] lg:mb-10 lg:text-[64px]',
     name: { cs: 'Magnety', en: 'Magnets' },
     own: { calm: true, against: ['--ink'] },
     presets: [
@@ -36,6 +38,7 @@ export const looks = defineLooks([
     // One working day: a time rail down the left edge, the background going from dawn to night.
     id: 'jeden-den',
     button: 'btn btn-brand',
+    heading: 'h2 mb-8 text-[36px] sm:text-[46px] lg:mb-10 lg:text-[52px]',
     name: { cs: 'Jeden den', en: 'One Day' },
     own: { against: ['--afternoon', '--am', '--dawn', '--ink', '--lamp', '--late', '--morning', '--noon', '--pm'], fixed: ['#fbf1dc', '#fffdf8', '#ffffff'] },
     presets: [

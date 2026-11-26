@@ -7,6 +7,7 @@
 // made from the text colour.
 // A look may refine it with `--custom-radius` (the pictures' corners), `--custom-line` (the lines) and
 // `--custom-gap` (the space between cards); each has a fallback, so no look has to.
+import type { ComponentPublicInstance } from 'vue'
 import type { CustomCard, CustomColumns, CustomLayout, CustomPicture, CustomTable } from '../utils/customTypes'
 
 const props = defineProps<{
@@ -26,12 +27,18 @@ const props = defineProps<{
   anchor?: string
   /** The cards' texts in full, not cut to three lines (the Cards section). */
   fullText?: boolean
+  /** The cards are items of the block's own list (the Cards section), not entries: their texts are marked for the editor in the preview. */
+  ownCards?: boolean
   /** The settings every section has (KitSection): a narrow width, close to the section above. */
   narrow?: boolean
   close?: boolean
 }>()
 
 const NuxtLink = resolveComponent('NuxtLink')
+// The heading (the look's) and the short text are marked for the editor in the preview, so they are typed in the page.
+const frame = ref<ComponentPublicInstance | null>(null)
+const wrap = ref<HTMLElement | null>(null)
+useFrameHeading(frame, wrap)
 const sectionId = computed(() => `${props.anchor ?? 'custom'}-${props.id}`)
 const intro = computed(() => paragraphs(props.text))
 // Rows keep the column of the quiet line only when an entry has one.
@@ -46,9 +53,9 @@ const cols = computed(() => props.columns ?? 3)
 </script>
 
 <template>
-  <LookPart :id="sectionId" part="Text" :block="{ heading, body: null }" :first="false" class="custom-block" :class="{ 'kit-section': narrow || close, 'kit-section-narrow': narrow, 'kit-section-close': close }" :aria-label="heading || undefined">
-    <div class="custom-wrap">
-      <div v-if="intro.length" class="custom-intro prose-look">
+  <LookPart ref="frame" :id="sectionId" part="Text" :block="{ heading, body: null }" :first="false" class="custom-block" :class="{ 'kit-section': narrow || close, 'kit-section-narrow': narrow, 'kit-section-close': close }" :aria-label="heading || undefined">
+    <div ref="wrap" class="custom-wrap">
+      <div v-if="intro.length" class="custom-intro prose-look" v-bind="cmsField('text')">
         <p v-for="(p, i) in intro" :key="i">{{ p }}</p>
       </div>
 
@@ -57,10 +64,10 @@ const cols = computed(() => props.columns ?? 3)
           <component :is="c.href ? NuxtLink : 'div'" v-bind="c.href ? { to: c.href } : {}" class="custom-card">
             <CmsImage v-if="c.image" :media="c.image" class="custom-pic" :sizes="PICTURE_SIZES[cols]" />
             <div class="custom-head prose-look">
-              <h3 class="custom-title">{{ c.title }}</h3>
+              <h3 class="custom-title" v-bind="ownCards ? cmsField('title', c.id) : {}">{{ c.title }}</h3>
             </div>
             <p v-if="c.meta" class="custom-meta">{{ c.meta }}</p>
-            <p v-if="c.text" class="custom-text">{{ c.text }}</p>
+            <p v-if="c.text" class="custom-text" v-bind="ownCards ? cmsField('text', c.id) : {}">{{ c.text }}</p>
             <ul v-if="c.more.length" class="custom-more">
               <li v-for="(m, i) in c.more" :key="i"><span v-if="m.label" class="custom-more-label">{{ m.label }}</span> {{ m.value }}</li>
             </ul>

@@ -12,6 +12,7 @@ export const looks = defineLooks([
     // A building drawing: a cool white sheet, black lines in two weights, durations set as dimension lines.
     id: 'vykres',
     button: 'btn btn-ink',
+    heading: 'font-display text-[32px] font-light leading-tight tracking-[-.02em] text-ink sm:text-[42px]',
     name: { cs: 'Výkres', en: 'Drawing' },
     own: { against: ['--brand-ink', '--sheet', '--tint'], fixed: ['#ffffff'] },
     presets: [
@@ -24,6 +25,7 @@ export const looks = defineLooks([
     // The build schedule as the website: a graphite page levelled to one laser line, durations as bars on a week grid.
     id: 'harmonogram',
     button: 'btn btn-brand',
+    heading: 'mb-8 text-[40px] font-extrabold leading-[.95] tracking-[-.04em] text-text sm:text-[64px] lg:mb-10',
     name: { cs: 'Harmonogram', en: 'Schedule' },
     own: { against: ['--bg', '--brand-ink', '--raised', '--surface'], fixed: ['#eef0ea'] },
     presets: [
@@ -36,6 +38,7 @@ export const looks = defineLooks([
     // A wall of terracotta blocks in a running bond on plaster, and the build as a house that grows from the footing up.
     id: 'zdivo',
     button: 'btn btn-brand',
+    heading: 'h2 mb-8 lg:mb-10',
     name: { cs: 'Zdivo', en: 'Brickwork' },
     own: { against: ['--card', '--plaster', '--timber'], fixed: ['#47372d', '#fff8ec', '#ffffff'] },
     presets: [

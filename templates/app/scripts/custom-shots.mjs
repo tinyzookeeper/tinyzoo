@@ -31,7 +31,7 @@
 // picture and a group of heading, text and button, in a row), `laygrid` (three groups in a grid), `laystack`
 // (a centred stack), `layend` (a text that fills and a long button as wide as its content, bottom-aligned),
 // `laypics` (four square pictures in a grid with small space), `laylong` (a row with large space, a long
-// word in a heading and a wide button). Sheets: `<template>-<width>-sections.png` (all) and
+// word in a large heading and a wide button). Sheets: `<template>-<width>-sections.png` (all) and
 // `<template>-<width>-layouts.png` (the six layouts). Same arguments otherwise.
 //
 // `--prefix` must start with `tzx_`: the databases it names are dropped at the end, unless
@@ -328,11 +328,11 @@ function layoutBlocks(pictures) {
     }),
     // (e) four square pictures in a grid with small space.
     b({ arrangement: 'grid', columns: '4', space: 'small', items: [0, 1, 2, 3].map((i) => pic(i + 2, { shape: 'square' })) }),
-    // (f) a row with large space: a heading with a long word, a text, and a wide button that fills.
+    // (f) a row with large space: a large heading with a long word, a text, and a wide button that fills.
     b({
       space: 'large',
       items: [
-        small('heading', { text: 'Nejnezdevětadevadesáteronásobitelnějšího', level: 'medium' }),
+        small('heading', { text: 'Nejnezdevětadevadesáteronásobitelnějšího', level: 'large' }),
         small('text', { body: rich('Dlouhé slovo se musí zalomit uvnitř, a nic nesmí přečnívat ze stránky ani na telefonu.') }),
         small('button', { label: 'Zobrazit všechny služby a ceník ordinace', link: '/sluzby' }),
       ],

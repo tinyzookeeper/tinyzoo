@@ -11,6 +11,7 @@ export const looks = defineLooks([
   {
     // A well-printed business card grown into a page: one solid panel of colour beside a portrait, a price list.
     id: 'vizitka',
+    heading: 'text-[2.1rem] md:text-[2.75rem] leading-[1.12] mb-8 lg:mb-10',
     name: { cs: 'Vizitka', en: 'Business Card' },
     own: { calm: true, against: ['--brand-ink', '--paper', '--tint'] },
     presets: [
@@ -23,6 +24,7 @@ export const looks = defineLooks([
     // A headline writer's poster: a field of marker colour, enormous type, black on white with the marker on the words that matter.
     id: 'zvyraznovac',
     button: 'btn btn-brand',
+    heading: 'text-[2.9rem] md:text-[4.5rem] lg:text-[5.6rem] tracking-[-0.05em] mb-10 lg:mb-14',
     name: { cs: 'Zvýrazňovač', en: 'Highlighter' },
     own: { calm: true, against: ['--brand-ink', '--paper'], fixed: ['#121211'] },
     presets: [
@@ -34,6 +36,7 @@ export const looks = defineLooks([
   {
     // The page as a conversation: each section opens with the visitor's question in a speech bubble; soft, rounded, warm.
     id: 'rozhovor',
+    heading: 'bubble bubble-q mb-8 lg:mb-10',
     name: { cs: 'Rozhovor', en: 'Conversation' },
     own: { against: ['--body', '--brand-ink', '--card', '--paper', '--tint'] },
     presets: [

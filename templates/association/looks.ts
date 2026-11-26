@@ -15,6 +15,7 @@ export const looks = defineLooks([
   {
     // The association's year: a strip of twelve months, and every project and month in the tint of its season.
     id: 'ctvero-dob',
+    heading: 'h2 mb-8',
     name: { cs: 'Čtvero dob', en: 'Four Seasons' },
     own: { against: ['--brand-ink', '--jaro', '--leto', '--podzim', '--sand', '--zima'], fixed: ['#ffffff'] },
     presets: [

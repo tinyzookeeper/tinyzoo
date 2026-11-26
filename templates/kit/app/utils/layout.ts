@@ -141,7 +141,12 @@ export function layoutPlan(block: unknown, editing = false): LayoutPlan | null {
   return items.length || editing ? { ...layoutBox(b), items } : null
 }
 
-/** The classes of the element that holds a list of small blocks (the section's, or a group's). */
-export function layoutClasses(box: LayoutBox): string[] {
-  return ['kit-lay', `kit-lay-${box.arrangement}`, `kit-lay-gap-${box.space}`, `kit-lay-align-${box.align}`, ...(box.arrangement === 'grid' ? [`kit-lay-cols-${box.columns}`] : [])]
+/**
+ * The classes of the element that holds a list of small blocks (the section's, or a group's). A grid
+ * that holds only pictures (`items`) is `kit-lay-pics`: its cells may be narrower, so a phone shows two
+ * side by side (one under another is right for blocks with text, wasteful for pictures).
+ */
+export function layoutClasses(box: LayoutBox, items?: readonly { type: string }[]): string[] {
+  const pictures = box.arrangement === 'grid' && !!items?.length && items.every((i) => i.type === 'picture')
+  return ['kit-lay', `kit-lay-${box.arrangement}`, `kit-lay-gap-${box.space}`, `kit-lay-align-${box.align}`, ...(box.arrangement === 'grid' ? [`kit-lay-cols-${box.columns}`] : []), ...(pictures ? ['kit-lay-pics'] : [])]
 }

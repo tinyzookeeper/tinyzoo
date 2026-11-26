@@ -55,6 +55,12 @@ export interface LookDef<Id extends string = string, PresetId extends string = s
    * out: set it only where plain `btn` is not the full button. A look with no `.btn` of its own leaves it out.
    */
   button?: string
+  /**
+   * The classes the look's Text part gives its heading when the section is not the first block of the page
+   * (`text-[2.5rem] sm:text-[3rem] mb-8`), for a large heading of a Layout section. The kit takes away its
+   * margins and its alignment. test/unit/template-kit-sections.spec.ts keeps it equal to the Text part.
+   */
+  heading?: string
 }
 
 /** The owner's own choices beside a look and a preset (Site settings). */

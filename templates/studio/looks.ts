@@ -11,6 +11,7 @@ export const looks = defineLooks([
   {
     // The room in daylight: a pale green-grey page, a bookish serif, soft rounded photographs and white cards.
     id: 'sal',
+    heading: 'h2 mb-8',
     name: { cs: 'Sál', en: 'Hall' },
     own: { against: ['--body', '--brand-ink', '--card', '--paper', '--tint'] },
     presets: [
@@ -22,6 +23,7 @@ export const looks = defineLooks([
   {
     // A departures board: the whole page in the studio's colour, wide capitals, mono numerals, square edges, today's classes in the opening.
     id: 'tabule',
+    heading: 'h2 h2s mb-8',
     name: { cs: 'Tabule', en: 'Board' },
     own: { calm: true, against: ['--accent', '--brand-ink', '--ink', '--paper'], fixed: ['#ffffff'] },
     presets: [
@@ -33,6 +35,7 @@ export const looks = defineLooks([
   {
     // The striped wool blanket from the shelf: every kind of class has a thread colour, and the week's timetable is woven from them.
     id: 'deka',
+    heading: 'h2 mb-8',
     name: { cs: 'Deka', en: 'Blanket' },
     own: { against: ['--brand-ink', '--card', '--paper'] },
     presets: [

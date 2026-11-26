@@ -11,6 +11,7 @@ export const looks = defineLooks([
   {
     // The painted wooden shopfront: the name on a fascia board, the opening as a shop window, panels of joinery.
     id: 'portal',
+    heading: 'mb-8 text-[2.2rem] md:mb-10 md:text-[3.1rem]',
     name: { cs: 'Portál', en: 'Shopfront' },
     own: { main: '--wood', calm: true, against: ['--brass', '--cream', '--wood-lo'], fixed: ['#ffb3a8'] },
     presets: [
@@ -22,6 +23,7 @@ export const looks = defineLooks([
   {
     // The shelf and its price rail: things stand on a board, the rail under them carries the labels.
     id: 'regal',
+    heading: 'mb-8 text-[2.3rem] font-bold tracking-[-0.035em] md:mb-10 md:text-[3.5rem]',
     name: { cs: 'Regál', en: 'Shelf' },
     own: { main: '--rail', calm: true, against: ['--paper', '--rail-ink', '--tint'], fixed: ['#ffffff'] },
     presets: [
@@ -33,6 +35,7 @@ export const looks = defineLooks([
   {
     // The pegboard behind the counter: everything hangs on wooden pegs, a little crooked, and straightens when touched.
     id: 'na-hacku',
+    heading: 'mb-8 text-[2.3rem] md:mb-10 md:text-[3.3rem]',
     name: { cs: 'Na háčku', en: 'On the Hook' },
     own: { against: ['--board', '--brand-ink', '--ink', '--tint'], fixed: ['#ffffff'] },
     presets: [

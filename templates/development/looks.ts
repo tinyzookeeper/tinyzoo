@@ -12,6 +12,7 @@ export const looks = defineLooks([
   {
     // The architect's blueprint: white linework on one deep blue sheet, the building drawn as an elevation.
     id: 'modrotisk',
+    heading: 'text-[2.5rem] lg:text-[3.6rem] mb-8',
     name: { cs: 'Modrotisk', en: 'Blueprint' },
     own: { main: '--paper', calm: true, against: ['--accent', '--ink', '--quiet'] },
     presets: [
@@ -23,6 +24,7 @@ export const looks = defineLooks([
   {
     // The building read floor by floor: a calm white page, a narrow serif, the price list under four floor numerals.
     id: 'patra',
+    heading: 'h2 mb-8',
     name: { cs: 'Patra', en: 'Floors' },
     own: { against: ['--brand-ink', '--ink', '--soft'], fixed: ['#ffffff'] },
     presets: [
@@ -34,6 +36,7 @@ export const looks = defineLooks([
   {
     // The house follows the sun: a friendly white page of circles and rounded panels, every flat described by its light.
     id: 'po-slunci',
+    heading: 'h2 mb-8',
     name: { cs: 'Po slunci', en: 'By the Sun' },
     own: { also: ['--sun'], against: ['--brand-ink', '--ink', '--soft'], fixed: ['#ffffff'] },
     presets: [

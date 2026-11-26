@@ -14,6 +14,7 @@ export const looks = defineLooks([
     // The careful firm's page: warm white paper, hairlines, a real price list, photographs in plain frames.
     id: 'mistr',
     button: 'btn btn-brand',
+    heading: 'h2 mb-8 lg:mb-10',
     name: { cs: 'Mistr', en: 'Master' },
     own: { against: ['--brand-ink', '--paper', '--tint'], fixed: ['#ffffff'] },
     presets: [
@@ -26,6 +27,7 @@ export const looks = defineLooks([
     // A hi-vis vest as a website: a field of signal colour, black slabs, heavy type, the phone number the largest thing on the page.
     id: 'reflex',
     button: 'btn btn-ink',
+    heading: 'h2 mb-8 lg:mb-10 !text-[clamp(2.6rem,6vw,5rem)]',
     name: { cs: 'Reflex', en: 'Hi-Vis' },
     own: { calm: true, against: ['--brand-ink', '--paper'], fixed: ['#ffffff'] },
     presets: [

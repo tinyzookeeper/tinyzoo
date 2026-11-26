@@ -13,6 +13,7 @@ export const looks = defineLooks([
     // The waiting room in daylight: a white page with a lot of air, large calm type, rounded photographs, today's hours in one soft band.
     id: 'cekarna',
     button: 'btn btn-brand',
+    heading: 'text-[2.5rem] sm:text-[3rem] lg:text-[3.5rem] mb-8 lg:mb-10',
     name: { cs: 'Čekárna', en: 'Waiting Room' },
     own: { against: ['--body', '--brand-ink', '--brand-tint', '--tint'], fixed: ['#fdf4de', '#ffffff'] },
     presets: [
@@ -25,6 +26,7 @@ export const looks = defineLooks([
     // The waiting-room clock: every day is a dial, coloured where the practice is open, and the colour says for whom.
     id: 'cifernik',
     button: 'btn btn-brand',
+    heading: 'text-[2.5rem] sm:text-[3.2rem] lg:text-[3.6rem] mb-8 lg:mb-10',
     name: { cs: 'Ciferník', en: 'Clock Face' },
     own: { against: ['--body', '--brand-ink', '--card', '--paper', '--soft', '--track'] },
     presets: [

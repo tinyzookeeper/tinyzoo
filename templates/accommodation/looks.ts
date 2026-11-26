@@ -12,6 +12,7 @@ export const looks = defineLooks([
   {
     // A quiet dark lodge page: one full-bleed photograph, and the year as a ribbon of twelve months coloured by season.
     id: 'cely-rok',
+    heading: 'h2 mb-8 lg:mb-10',
     name: { cs: 'Celý rok', en: 'All Year' },
     own: { against: ['--bg', '--brand-ink', '--raised', '--surface', '--text'] },
     presets: [
@@ -23,6 +24,7 @@ export const looks = defineLooks([
   {
     // A light, airy page that lets the photographs and rooms lead; everything is measured from the door.
     id: 'ode-dveri',
+    heading: 'h2 mb-8 lg:mb-10',
     name: { cs: 'Ode dveří', en: 'From the Door' },
     own: { against: ['--brand-ink', '--soft'], fixed: ['#ffffff'] },
     presets: [

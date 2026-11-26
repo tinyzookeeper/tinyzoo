@@ -25,7 +25,7 @@ const look = computed(() => sectionLook(props.block))
 
 <template>
   <KitSection v-if="plan" :id="`section-${block.id ?? index ?? ''}`" heading="" :narrow="look.narrow" :close="look.close" class="kit-lay-section">
-    <div :class="[...layoutClasses(plan), plan.items.length ? '' : 'kit-lay-ghost-list']">
+    <div :class="[...layoutClasses(plan, plan.items), plan.items.length ? '' : 'kit-lay-ghost-list']">
       <CmsBlocks :blocks="plan.items" prefix="KitLayout" />
     </div>
   </KitSection>
@@ -71,15 +71,19 @@ const look = computed(() => sectionLook(props.block))
 .kit-section .kit-lay-grid.kit-lay-align-center { justify-items: center; text-align: center; }
 .kit-section .kit-lay-grid.kit-lay-align-end { justify-items: end; text-align: end; }
 .kit-section .kit-lay-grid > .kit-lay-fill { justify-self: stretch; }
+/* A grid of pictures only: a cell may be as narrow as 9rem, so a phone holds two side by side. */
+.kit-section .kit-lay-grid.kit-lay-pics { --kit-lay-cell: 9rem; }
 
 /* A row inside a centred (or end-aligned) stack or grid stands in the middle (at the end) too. */
 .kit-section .kit-lay-align-center > .kit-lay-row { justify-content: center; }
 .kit-section .kit-lay-align-end > .kit-lay-row { justify-content: flex-end; }
 
-/* A heading: the look's h2 (large) or h3 (medium, small) from .prose-look, without its margins and
-   its measure; small is a quieter h3. */
+/* A heading: large is the heading of the look's own sections (.kit-lay-h-look, the classes of its Text
+   part), medium the look's h3 from .prose-look, small a quieter h3; without their margins and measure.
+   A large heading follows the layout's alignment, not the look's. */
 .kit-section .kit-lay .kit-lay-heading.prose-look { max-width: none; }
 .kit-section .kit-lay-heading .kit-lay-h { margin: 0; }
+.kit-section .kit-lay-heading.kit-lay-h-look .kit-lay-h { max-width: none; text-align: inherit; }
 .kit-section .kit-lay-heading.kit-lay-h-small .kit-lay-h { font-size: 1.125rem; line-height: 1.35; }
 
 /* A text: the look's body text. It keeps the look's measure; in a stack it stands at the alignment. */
@@ -115,6 +119,9 @@ const look = computed(() => sectionLook(props.block))
 .kit-section .kit-lay-heading.kit-lay-h-small .kit-lay-ghost-title { height: 1.15rem; }
 /* An empty heading: its name in the admin's language, in the look's heading type, quiet. */
 .kit-section .kit-lay-heading .kit-lay-ghost-words { opacity: 0.3; user-select: none; }
+.kit-section .kit-lay-button .kit-lay-ghost-words { opacity: 0.45; user-select: none; }
+/* Typed in (the editor in the preview): what is typed is not quiet. */
+.kit-section .kit-lay .kit-lay-ghost-words[data-cms-typing] { opacity: 1; }
 .kit-section .kit-lay-picture .kit-lay-ghost-frame { display: grid; place-items: center; width: 100%; min-width: min(100%, 12rem); max-height: 16rem; border-radius: var(--custom-radius, 0); background: color-mix(in srgb, currentColor 7%, transparent); border: 1.5px dashed color-mix(in srgb, currentColor 25%, transparent); }
 .kit-section .kit-lay-picture .kit-lay-ghost-frame svg { width: 2rem; height: 2rem; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; opacity: 0.35; }
 .kit-section .kit-lay-button .kit-lay-ghost-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 8rem; min-height: 2.75rem; padding: 0.5rem 1.25rem; border: 1.5px dashed color-mix(in srgb, currentColor 35%, transparent); border-radius: max(var(--custom-radius, 0px), 6px); opacity: 0.8; }

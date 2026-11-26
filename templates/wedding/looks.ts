@@ -11,6 +11,7 @@ export const looks = defineLooks([
   {
     // A letterpress announcement: one Caslon family, centred names, hairlines, matted photographs.
     id: 'oznameni',
+    heading: 'text-[2.6rem] lg:text-[3.4rem] leading-[1.08] mb-8 lg:mb-10 text-center',
     name: { cs: 'Oznámení', en: 'Announcement' },
     own: { against: ['--brand-ink', '--card', '--line', '--paper', '--tint'] },
     presets: [
@@ -22,6 +23,7 @@ export const looks = defineLooks([
   {
     // The evening of the wedding: a dark page under strings of lights, champagne hairlines, one ivory reply card.
     id: 'vecer',
+    heading: 'h2 mb-8 lg:mb-10',
     name: { cs: 'Večer', en: 'Evening' },
     own: { against: ['--body', '--brand-ink', '--card-ink', '--night', '--panel'] },
     presets: [
@@ -33,6 +35,7 @@ export const looks = defineLooks([
   {
     // A spread in a wedding magazine: a white page, a Didone set large, photographs given whole columns.
     id: 'magazin',
+    heading: 'h2 mb-8 lg:mb-12 max-w-[52rem]',
     name: { cs: 'Magazín', en: 'Magazine' },
     own: { against: ['--brand-ink', '--tint'], fixed: ['#ffffff'] },
     presets: [

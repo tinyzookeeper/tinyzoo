@@ -1,12 +1,13 @@
 <script setup lang="ts">
 // The button of a section: in the look's own main button (its `button` classes), else a plain link
-// with an arrow, for a look that has no button of its own.
-defineProps<{ to: string; label: string }>()
+// with an arrow, for a look that has no button of its own. `field` names the block's field of its
+// text, for the editor in the preview (cmsField): the text is then typed right in the page.
+defineProps<{ to: string; label: string; field?: string }>()
 const classes = await useLookButton()
 </script>
 
 <template>
-  <NuxtLink :to="to" class="kit-btn" :class="classes || 'kit-btn-plain'">{{ label }}</NuxtLink>
+  <NuxtLink :to="to" class="kit-btn" :class="classes || 'kit-btn-plain'" v-bind="field ? cmsField(field) : {}">{{ label }}</NuxtLink>
 </template>
 
 <style>

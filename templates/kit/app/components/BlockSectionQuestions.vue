@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // Block "section_questions" (kitSections()): questions with their answers, folded (the answer opens
 // on a click) or open, drawn by the kit for every look inside the look's own frame (KitSection).
-// Nothing at all when no question is written.
+// Nothing at all when no question is written. Its texts are marked for the editor in the preview
+// (cmsField; the heading by KitSection), so they are typed right in the page.
 const props = defineProps<{ block: Record<string, any>; index?: number }>()
 const plan = computed(() => questionsPlan(props.block))
 const look = computed(() => sectionLook(props.block))
@@ -11,21 +12,21 @@ const intro = computed(() => paragraphs(plan.value?.text))
 <template>
   <KitSection v-if="plan" :id="`section-${block.id ?? index ?? ''}`" :heading="plan.heading" :narrow="look.narrow" :close="look.close">
     <div class="kit-q-wrap">
-      <div v-if="intro.length" class="kit-q-intro prose-look">
+      <div v-if="intro.length" class="kit-q-intro prose-look" v-bind="cmsField('text')">
         <p v-for="(p, i) in intro" :key="i">{{ p }}</p>
       </div>
 
       <div class="kit-q-list" :class="plan.open ? 'kit-q-open' : 'kit-q-folded'">
         <template v-if="plan.open">
           <div v-for="q in plan.items" :key="q.id" class="kit-q">
-            <div class="kit-q-head prose-look"><h3 class="kit-q-title">{{ q.question }}</h3></div>
-            <p v-if="q.answer" class="kit-q-answer">{{ q.answer }}</p>
+            <div class="kit-q-head prose-look"><h3 class="kit-q-title" v-bind="cmsField('question', q.id)">{{ q.question }}</h3></div>
+            <p v-if="q.answer" class="kit-q-answer" v-bind="cmsField('answer', q.id)">{{ q.answer }}</p>
           </div>
         </template>
         <template v-else>
           <details v-for="q in plan.items" :key="q.id" class="kit-q">
-            <summary class="kit-q-sum prose-look"><h3 class="kit-q-title">{{ q.question }}</h3></summary>
-            <div v-if="q.answer" class="kit-q-answer">{{ q.answer }}</div>
+            <summary class="kit-q-sum prose-look"><h3 class="kit-q-title" v-bind="cmsField('question', q.id)">{{ q.question }}</h3></summary>
+            <div v-if="q.answer" class="kit-q-answer" v-bind="cmsField('answer', q.id)">{{ q.answer }}</div>
           </details>
         </template>
       </div>

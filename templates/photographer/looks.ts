@@ -11,6 +11,7 @@ export const looks = defineLooks([
   {
     // A quiet gallery wall: white paper, hairlines, a thin serif.
     id: 'atelier',
+    heading: 'text-[2.4rem] md:text-[3.4rem] leading-[1.04] mb-8 md:mb-10 max-w-[44rem]',
     name: { cs: 'Ateliér', en: 'Atelier' },
     own: { against: ['--brand-ink', '--paper', '--tint'] },
     presets: [
@@ -22,6 +23,7 @@ export const looks = defineLooks([
   {
     // A contact sheet turned poster: black, edge-to-edge photographs, condensed capitals.
     id: 'negativ',
+    heading: 'd text-[13vw] md:text-[6vw] wide:text-[min(6vw,6rem)] max-w-[18ch] mb-8 md:mb-12',
     name: { cs: 'Negativ', en: 'Negative' },
     own: { against: ['--bg', '--brand-ink'] },
     presets: [
@@ -33,6 +35,7 @@ export const looks = defineLooks([
   {
     // The photographer's own album: prints with white borders, tape, handwritten notes.
     id: 'zapisnik',
+    heading: 'text-[2.4rem] md:text-[3.6rem] leading-[1.06] mb-8 md:mb-10 max-w-[44rem]',
     name: { cs: 'Zápisník', en: 'Notebook' },
     own: { against: ['--brand-ink', '--paper', '--tint'], fixed: ['#ffffff'] },
     presets: [
