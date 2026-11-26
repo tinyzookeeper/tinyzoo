@@ -6,6 +6,8 @@
    Written in the cascade layers the design was written in: utilities win over these rules
    where both speak. */
 html[data-look="modrotisk"] {
+  /* The space above a kit section "close to the section above": this look keeps its space above a section only. */
+  --custom-close: 2rem;
   color-scheme: dark;
   --font-display: "Outfit", system-ui, sans-serif;
   --font-sans: "IBM Plex Sans", system-ui, sans-serif;

@@ -22,6 +22,13 @@
 // per look, one row per block) and `<template>-<width>-entry.png`. 1440 pictures are halved.
 // report.json lists every shot, every failure, browser errors and the seconds each phase took.
 //
+// `--sections` makes pictures of the kit's three page blocks instead (`section_text_picture`, `section_cards`,
+// `section_questions`): no type, no entries; eleven blocks at the end of the home page (eight that draw
+// something, three empty ones that must draw nothing; the home page must hold exactly eight of `.kit-section, section.custom-block`
+// and not scroll sideways). Shots: `tp`, `tpleft`, `cards`, `cardsplain`, `faq` (first question opened),
+// `faqopen`, `narrow`, and `close` (the `narrow` and `close` sections together). Sheets:
+// `<template>-<width>-sections.png`. Same arguments otherwise.
+//
 // `--prefix` must start with `tzx_`: the databases it names are dropped at the end, unless
 // `--keep` (which keeps them and the data folder). `--templates` defaults to every template of
 // the one app, in the order of templates/app/designs.ts. `--port` defaults to the first free from 4900.
@@ -32,7 +39,10 @@ import { pathToFileURL } from 'node:url'
 import { arg, chooseLook, clean, dropSites, freePortFrom, log, makeSites, repoRoot, seedSiteAsync, signIn, sitesFor, sleep, startServer, writeDirectory } from './sites.mjs'
 
 const SEEDS_AT_ONCE = 4
-const SHOTS = ['cards', 'rows', 'chosen', 'four', 'two', 'table']
+const SECTIONS_MODE = process.argv.includes('--sections')
+// Cards are drawn by KitEntries, which has `.kit-section` only when it is narrow or close; its root is always `.custom-block`.
+const SECTION_SELECTOR = '.kit-section, section.custom-block'
+const SHOTS = SECTIONS_MODE ? ['tp', 'tpleft', 'cards', 'cardsplain', 'faq', 'faqopen', 'narrow', 'close'] : ['cards', 'rows', 'chosen', 'four', 'two', 'table']
 const WIDTHS = [{ width: 1440, height: 900, scale: 0.5 }, { width: 390, height: 844, scale: 1 }]
 const ENTRY_MAX_HEIGHT = 3000
 
@@ -198,6 +208,67 @@ async function changeModel(base, cookie, ops) {
   }
 }
 
+const rich = (...texts) => ({ type: 'doc', content: texts.map(para) })
+const card = (pictures, i, title, text, link) => ({ id: crypto.randomUUID(), type: 'item', ...(pictures ? { image: pictures[i % pictures.length] } : {}), title, text, ...(link ? { link } : {}) })
+const question = (q, a) => ({ id: crypto.randomUUID(), type: 'item', question: q, answer: a })
+
+/** The eleven blocks of the kit's sections: eight that draw something, then one empty block of each type. */
+function kitSectionBlocks(pictures) {
+  const b = (type, fields) => ({ id: crypto.randomUUID(), type, ...fields })
+  return [
+    b('section_text_picture', {
+      heading: 'Pečujeme o vaše zdraví s nejrůznějšími vyšetřeními', image: pictures[0], side: 'right', size: 'half',
+      body: rich('Naše ordinace funguje už patnáct let a přijímáme pacienty všech věkových skupin. U nás se nemusíte ničeho bát.', 'Objednat se můžete telefonicky, e-mailem nebo přes formulář na webu. Na termín obvykle nečekáte déle než týden.'),
+      buttonLabel: 'Objednat se', buttonLink: '/kontakt',
+    }),
+    b('section_text_picture', {
+      heading: 'Bezbariérovost je u nás samozřejmost', image: pictures[1], side: 'left', size: 'third',
+      body: rich('K nám se dostanete bez schodů, výtahem i po rampě, a na místě je k dispozici i parkování pro vozíčkáře.'),
+    }),
+    b('section_cards', {
+      heading: 'Co u nás najdete', text: 'Tři věci, na které se u nás můžete spolehnout.',
+      items: [
+        card(pictures, 0, 'Osobní přístup', 'Každému se věnujeme tak dlouho, jak je potřeba. Nikam nespěcháme, nikoho neodbýváme a rádi si vše vysvětlíme znovu.', '/kontakt'),
+        card(pictures, 1, 'Moderní vybavení', 'Pracujeme s přístroji, které nám dovolují zjistit víc a rychleji. Vyšetření je pro vás příjemnější a výsledky máte hned. Všechny přístroje pravidelně servisujeme a každé ráno je ověřujeme, aby se na výsledky dalo spolehnout. Nově jsme pořídili také zařízení, které šetří čas a zkracuje čekání na výsledek na několik minut.', '/o-nas'),
+        card(pictures, 2, 'Rychlé termíny', 'Na většinu vyšetření se objednáte do týdne. Při akutních potížích vás vezmeme i ten samý den.'),
+      ],
+    }),
+    b('section_cards', {
+      items: ['Pondělí až čtvrtek', 'V pátek dopoledne', 'Večerní ordinace', 'Telefonická konzultace'].map((t, i) => card(null, 0, t, ['Od sedmi do šestnácti hodin.', 'Od osmi do dvanácti hodin.', 'Jednou za čtrnáct dní do osmi večer.', 'Kdykoli v ordinačních hodinách.'][i])),
+      columns: '4',
+    }),
+    b('section_questions', {
+      heading: 'Časté otázky', text: 'Odpovědi na to, na co se nás pacienti ptají nejčastěji.',
+      items: [
+        question('Jak se mohu objednat?', 'Zavolejte nám, napište e-mail, nebo použijte formulář na webu.'),
+        question('Musím mít doporučení?', 'Na většinu vyšetření ne. Vezměte si s sebou kartičku pojišťovny.'),
+        question('Kolik stojí první návštěva?', 'Hradí ji pojišťovna.\nPlatíte jen případné nadstandardní služby.'),
+        question('Můžu přijít s dítětem?', 'Samozřejmě, pro děti máme v čekárně hrací kout.'),
+        question('Kde zaparkuji?', 'Přímo před budovou je parkoviště zdarma pro naše pacienty.'),
+      ],
+    }),
+    b('section_questions', {
+      answers: 'open', heading: 'Před návštěvou',
+      items: [
+        question('Co si vzít s sebou?', 'Kartičku pojišťovny, občanský průkaz a seznam léků.'),
+        question('Mám přijít nalačno?', 'Jen když vám to řekneme při objednání.'),
+        question('Jak dlouho to potrvá?', 'První návštěva zabere zhruba hodinu.'),
+      ],
+    }),
+    b('section_cards', {
+      heading: 'Dva pohledy', width: 'narrow', columns: '2', picture: 'square',
+      items: [card(pictures, 3, 'Ráno', 'Klidná atmosféra a čas na vše.'), card(pictures, 4, 'Odpoledne', 'Kratší čekání na akutní případy.')],
+    }),
+    b('section_text_picture', {
+      heading: 'Ozvěte se nám', close: true, buttonLabel: 'Napsat zprávu', buttonLink: '/kontakt',
+      body: rich('Rádi odpovíme na každou otázku.'),
+    }),
+    b('section_text_picture', {}),
+    b('section_cards', {}),
+    b('section_questions', {}),
+  ]
+}
+
 /** Make the type and its entries, and put the nine blocks at the end of the home page. Returns the long entry's slug. */
 async function setUpSite(row) {
   const s = row._site
@@ -205,12 +276,14 @@ async function setUpSite(row) {
   const cookie = await signIn(base)
   await chooseLook(base, cookie, s.look, s.presets[0])
 
-  await changeModel(base, cookie, [{
+  if (!SECTIONS_MODE) await changeModel(base, cookie, [{
     op: 'type.add', name: 'custom_course', label: { cs: 'Kurzy', en: 'Courses' }, labelSingular: { cs: 'Kurz', en: 'Course' },
     page: { prefix: 'kurzy' }, publish: true,
   }])
-  await changeModel(base, cookie, TYPE_FIELDS.map((field) => ({ op: 'field.add', type: 'custom_course', field })))
-  await changeModel(base, cookie, [{ op: 'type.update', type: 'custom_course', page: { image: 'cover', summary: 'perex' } }])
+  if (!SECTIONS_MODE) {
+    await changeModel(base, cookie, TYPE_FIELDS.map((field) => ({ op: 'field.add', type: 'custom_course', field })))
+    await changeModel(base, cookie, [{ op: 'type.update', type: 'custom_course', page: { image: 'cover', summary: 'perex' } }])
+  }
 
   // The pictures the seed uploaded (images only), a different one for each entry, round again when there are few.
   const media = await call(base, cookie, 'GET', '/api/cms/_media?accept=image/*&limit=60')
@@ -220,7 +293,7 @@ async function setUpSite(row) {
 
   const made = []
   let n = 0
-  for (const c of courses()) {
+  for (const c of SECTIONS_MODE ? [] : courses()) {
     const body = {
       title: c.title, slug: c.slug, status: 'published', perex: c.perex, level: c.level, price: c.price, program: c.program,
       ...(c.picture ? { cover: pictures[n++ % pictures.length] } : {}),
@@ -236,6 +309,11 @@ async function setUpSite(row) {
   if (pages.status !== 200) throw new Error(`page list on ${base}: ${pages.status} ${pages.text.slice(0, 300)}`)
   const home = (pages.body.rows ?? []).find((p) => p.slug === 'home')
   if (!home) throw new Error(`no home page on ${base}`)
+  if (SECTIONS_MODE) {
+    const saved = await call(base, cookie, 'PATCH', `/api/cms/page/${home.id}`, { sections: [...(home.sections ?? []), ...kitSectionBlocks(pictures)] })
+    if (saved.status !== 200) throw new Error(`home page of ${base}: ${saved.status} ${saved.text.slice(0, 600)}`)
+    return null
+  }
   const block = (type, heading, text, source, layout, choices = {}) => ({ id: crypto.randomUUID(), type, heading, text, source, layout, ...choices })
   const sections = [
     ...(home.sections ?? []),
@@ -314,7 +392,7 @@ async function main() {
   const pgUrl = arg('pg')
   const prefix = arg('prefix')
   if (!entry || !out || !pgUrl || typeof prefix !== 'string') {
-    console.error('usage: custom-shots.mjs --entry <server> --out <folder> --pg <postgres url> --prefix tzx_ [--templates a,b] [--keep] [--port <n>]')
+    console.error('usage: custom-shots.mjs --entry <server> --out <folder> --pg <postgres url> --prefix tzx_ [--templates a,b] [--keep] [--port <n>] [--sections]')
     process.exit(2)
   }
   if (!prefix.startsWith('tzx_')) {
@@ -403,9 +481,11 @@ async function main() {
           const homeErrors = await visit(browser, s.url, size, async (page, response) => {
             if (response?.status() !== 200) fail(key('home'), `the home page answered ${response?.status()}`)
             await settle(page)
-            const blocks = page.locator('section.custom-block')
+            const blocks = page.locator(SECTIONS_MODE ? SECTION_SELECTOR : 'section.custom-block')
             const count = await blocks.count()
-            if (count !== SHOTS.length) fail(key('home'), `${count} blocks of section.custom-block, expected ${SHOTS.length}`)
+            if (count !== SHOTS.length) fail(key('home'), `${count} blocks of ${SECTIONS_MODE ? SECTION_SELECTOR : 'section.custom-block'}, expected ${SHOTS.length}: ${(await blocks.evaluateAll((els) => els.map((e) => (e.textContent ?? '').trim().slice(0, 20)))).join(' | ')}`)
+            const over = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth])
+            if (over[0] > over[1]) fail(key('home'), `sideways overflow: scrollWidth ${over[0]} > ${over[1]}`)
             // A header that stays on screen would lie over a block's picture: hidden, without moving anything.
             await page.evaluate(() => {
               for (const el of document.querySelectorAll('body *')) {
@@ -414,11 +494,19 @@ async function main() {
               }
             })
             for (let i = 0; i < Math.min(count, SHOTS.length); i++) {
-              await blocks.nth(i).screenshot({ path: shot(SHOTS[i]), animations: 'disabled', caret: 'hide' })
+              if (SHOTS[i] === 'faq') await blocks.nth(i).locator('details').first().evaluate((el) => { el.open = true })
+              if (SHOTS[i] === 'close') {
+                // The narrow section and the one that follows it, in one picture.
+                const [a, b] = await Promise.all([blocks.nth(i - 1).boundingBox(), blocks.nth(i).boundingBox()])
+                const y = a.y + await page.evaluate(() => window.scrollY)
+                await page.screenshot({ path: shot('close'), animations: 'disabled', caret: 'hide', fullPage: true, clip: { x: Math.min(a.x, b.x), y, width: Math.max(a.width, b.width), height: b.y + b.height - a.y } })
+              }
+              else await blocks.nth(i).screenshot({ path: shot(SHOTS[i]), animations: 'disabled', caret: 'hide' })
             }
           })
           if (homeErrors.length) report.browserErrors[key('home')] = homeErrors
 
+          if (SECTIONS_MODE) continue
           const entryErrors = await visit(browser, `${s.url}/kurzy/${row._entrySlug}`, size, async (page, response) => {
             if (response?.status() !== 200) fail(key('entry'), `the entry page answered ${response?.status()}`)
             await settle(page)
@@ -455,8 +543,8 @@ async function main() {
           }
           catch (e) { fail(`sheet ${name}`, e.message) }
         }
-        await sheet('blocks', (s) => SHOTS.map((w) => `${s.slug}-${w}-${size.width}.png`))
-        await sheet('entry', (s) => [`${s.slug}-entry-${size.width}.png`])
+        await sheet(SECTIONS_MODE ? 'sections' : 'blocks', (s) => SHOTS.map((w) => `${s.slug}-${w}-${size.width}.png`))
+        if (!SECTIONS_MODE) await sheet('entry', (s) => [`${s.slug}-entry-${size.width}.png`])
       }
     }
     endPhase('sheets')

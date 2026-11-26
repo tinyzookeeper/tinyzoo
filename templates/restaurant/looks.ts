@@ -11,6 +11,7 @@ export const looks = defineLooks([
   {
     // A first-republic dining room: a dark page the colour of the wainscoting, brass hairlines, menus on cream cards.
     id: 'salon',
+    button: 'btn btn-brand',
     name: { cs: 'Salon', en: 'Dining Room' },
     own: { against: ['--bg', '--brand-ink', '--panel', '--text'] },
     presets: [
@@ -22,6 +23,7 @@ export const looks = defineLooks([
   {
     // A poster: one loud colour, a headline as wide as the page, 2 px tables, food from above cut into plates.
     id: 'talir',
+    button: 'btn btn-ink',
     name: { cs: 'Talíř', en: 'Plate' },
     own: { calm: true, against: ['--brand-ink', '--paper'] },
     presets: [

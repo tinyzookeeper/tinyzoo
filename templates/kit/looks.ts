@@ -50,6 +50,11 @@ export interface LookDef<Id extends string = string, PresetId extends string = s
    * templates/kit/scripts/look-pairs.mjs; test/unit/template-palette.spec.ts keeps them true.
    */
   own?: OwnColours
+  /**
+   * The classes of the look's main button, for the kit's sections (`btn btn-brand`). `btn` when left
+   * out: set it only where plain `btn` is not the full button. A look with no `.btn` of its own leaves it out.
+   */
+  button?: string
 }
 
 /** The owner's own choices beside a look and a preset (Site settings). */

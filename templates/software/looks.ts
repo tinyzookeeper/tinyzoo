@@ -11,6 +11,7 @@ export const looks = defineLooks([
   {
     // The page as a well-made instruction manual: numbered figures, green callout pins, ruled tables.
     id: 'navod',
+    button: 'btn btn-main',
     name: { cs: 'Návod', en: 'Manual' },
     own: { against: ['--am', '--brand-ink', '--ground', '--pm', '--tint'], fixed: ['#2e3536', '#ffffff'] },
     presets: [
@@ -22,6 +23,7 @@ export const looks = defineLooks([
   {
     // The rota board from the back room: the product's afternoon orange, headlines set as shift bars on a week grid.
     id: 'magnety',
+    button: 'btn btn-brand',
     name: { cs: 'Magnety', en: 'Magnets' },
     own: { calm: true, against: ['--ink'] },
     presets: [
@@ -33,6 +35,7 @@ export const looks = defineLooks([
   {
     // One working day: a time rail down the left edge, the background going from dawn to night.
     id: 'jeden-den',
+    button: 'btn btn-brand',
     name: { cs: 'Jeden den', en: 'One Day' },
     own: { against: ['--afternoon', '--am', '--dawn', '--ink', '--lamp', '--late', '--morning', '--noon', '--pm'], fixed: ['#fbf1dc', '#fffdf8', '#ffffff'] },
     presets: [

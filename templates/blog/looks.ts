@@ -11,6 +11,7 @@ export const looks = defineLooks([
   {
     // A magazine cover: the lead photograph fills the first screen under the name, and the issue opens as a contents page.
     id: 'obalka',
+    button: '',
     name: { cs: 'Obálka', en: 'Cover' },
     own: { against: ['--brand-ink', '--deep-ink', '--tint'], fixed: ['#ffffff'] },
     presets: [
@@ -22,6 +23,7 @@ export const looks = defineLooks([
   {
     // "How much time do you have?": every article carries a clock face whose wedge is its reading time.
     id: 'ctvrthodinka',
+    button: '',
     name: { cs: 'Čtvrthodinka', en: 'Quarter of an Hour' },
     own: { against: ['--brand-ink', '--ground', '--panel'] },
     presets: [

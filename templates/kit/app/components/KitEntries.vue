@@ -22,10 +22,17 @@ const props = defineProps<{
   cards: CustomCard[]
   /** The entries as a table (customTable), drawn when the layout is a table. */
   table?: CustomTable
+  /** Another start of the section's id than `custom` (`section`: the Cards section). */
+  anchor?: string
+  /** The cards' texts in full, not cut to three lines (the Cards section). */
+  fullText?: boolean
+  /** The settings every section has (KitSection): a narrow width, close to the section above. */
+  narrow?: boolean
+  close?: boolean
 }>()
 
 const NuxtLink = resolveComponent('NuxtLink')
-const sectionId = computed(() => `custom-${props.id}`)
+const sectionId = computed(() => `${props.anchor ?? 'custom'}-${props.id}`)
 const intro = computed(() => paragraphs(props.text))
 // Rows keep the column of the quiet line only when an entry has one.
 const plainRows = computed(() => props.cards.every((c) => !c.meta))
@@ -39,13 +46,13 @@ const cols = computed(() => props.columns ?? 3)
 </script>
 
 <template>
-  <LookPart :id="sectionId" part="Text" :block="{ heading, body: null }" :first="false" class="custom-block" :aria-label="heading || undefined">
+  <LookPart :id="sectionId" part="Text" :block="{ heading, body: null }" :first="false" class="custom-block" :class="{ 'kit-section': narrow || close, 'kit-section-narrow': narrow, 'kit-section-close': close }" :aria-label="heading || undefined">
     <div class="custom-wrap">
       <div v-if="intro.length" class="custom-intro prose-look">
         <p v-for="(p, i) in intro" :key="i">{{ p }}</p>
       </div>
 
-      <ul v-if="layout === 'cards'" class="custom-list custom-cards" :class="[`custom-cols-${cols}`, `custom-pic-${picture ?? 'landscape'}`]">
+      <ul v-if="layout === 'cards'" class="custom-list custom-cards" :class="[`custom-cols-${cols}`, `custom-pic-${picture ?? 'landscape'}`, { 'custom-full': fullText }]">
         <li v-for="c in cards" :key="c.id">
           <component :is="c.href ? NuxtLink : 'div'" v-bind="c.href ? { to: c.href } : {}" class="custom-card">
             <CmsImage v-if="c.image" :media="c.image" class="custom-pic" :sizes="PICTURE_SIZES[cols]" />
@@ -123,6 +130,7 @@ const cols = computed(() => props.columns ?? 3)
 .custom-block .custom-wrap .custom-cards { --custom-cols: 3; --custom-min: 16rem; --custom-col-gap: var(--custom-gap, clamp(1.5rem, 3vw, 2.5rem)); display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(var(--custom-min), calc((100% - (var(--custom-cols) - 1) * var(--custom-col-gap)) / var(--custom-cols) - 0.02px))), 1fr)); gap: var(--custom-gap, clamp(2rem, 3.5vw, 2.75rem)) var(--custom-col-gap); }
 .custom-block .custom-wrap .custom-cols-2 { --custom-cols: 2; --custom-min: 18rem; }
 .custom-block .custom-wrap .custom-cols-4 { --custom-cols: 4; --custom-min: 13rem; }
+.custom-block .custom-cards.custom-full .custom-text { display: block; overflow: visible; }
 .custom-block .custom-cards .custom-card { display: block; height: 100%; color: inherit; text-decoration: none; }
 .custom-block .custom-card .custom-pic { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--custom-radius, 0); margin: 0 0 1.1rem; }
 .custom-block .custom-pic-square .custom-card .custom-pic { aspect-ratio: 1; }
@@ -202,6 +210,11 @@ const cols = computed(() => props.columns ?? 3)
   .custom-block .custom-table-n6 .custom-tcell.custom-tempty { display: none; }
   .custom-block .custom-table-n6 .custom-tcell[data-label]::before { content: attr(data-label) ': '; font-size: 0.8125rem; letter-spacing: 0.02em; opacity: 0.68; }
 }
+/* the settings every section has (KitSection has the same two for its own sections) */
+.custom-block.kit-section-narrow .custom-wrap { max-width: 44rem; margin-inline: var(--custom-center, 0); }
+.custom-block.kit-section-close,
+.custom-block.kit-section-close > :first-child { padding-top: 0; margin-top: 0; border-top-width: 0; }
+.custom-block.kit-section-close.kit-section-close { padding-top: var(--custom-close, 0); }
 /* a link: the title underlined on hover, a visible ring for the keyboard */
 .custom-block a.custom-card:hover .custom-title,
 .custom-block a.custom-row:hover .custom-title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }

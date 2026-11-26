@@ -4,6 +4,8 @@
    photographs. Written in the cascade layers the design was written in: utilities win over
    these rules where both speak. */
 html[data-look="oznameni"] {
+  /* The kit's narrow columns stand in the middle, under the centred heading. */
+  --custom-center: auto;
   --font-display: "Libre Caslon Display", "Libre Caslon Text", Georgia, serif;
   --font-serif: "Libre Caslon Text", Georgia, serif;
   /* The colours of the first preset (Šalvěj); a preset from the settings overrides them. */

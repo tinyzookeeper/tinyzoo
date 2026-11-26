@@ -22,6 +22,7 @@ export const looks = defineLooks([
   {
     // A headline writer's poster: a field of marker colour, enormous type, black on white with the marker on the words that matter.
     id: 'zvyraznovac',
+    button: 'btn btn-brand',
     name: { cs: 'Zvýrazňovač', en: 'Highlighter' },
     own: { calm: true, against: ['--brand-ink', '--paper'], fixed: ['#121211'] },
     presets: [

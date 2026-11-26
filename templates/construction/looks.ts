@@ -11,6 +11,7 @@ export const looks = defineLooks([
   {
     // A building drawing: a cool white sheet, black lines in two weights, durations set as dimension lines.
     id: 'vykres',
+    button: 'btn btn-ink',
     name: { cs: 'Výkres', en: 'Drawing' },
     own: { against: ['--brand-ink', '--sheet', '--tint'], fixed: ['#ffffff'] },
     presets: [
@@ -22,6 +23,7 @@ export const looks = defineLooks([
   {
     // The build schedule as the website: a graphite page levelled to one laser line, durations as bars on a week grid.
     id: 'harmonogram',
+    button: 'btn btn-brand',
     name: { cs: 'Harmonogram', en: 'Schedule' },
     own: { against: ['--bg', '--brand-ink', '--raised', '--surface'], fixed: ['#eef0ea'] },
     presets: [
@@ -33,6 +35,7 @@ export const looks = defineLooks([
   {
     // A wall of terracotta blocks in a running bond on plaster, and the build as a house that grows from the footing up.
     id: 'zdivo',
+    button: 'btn btn-brand',
     name: { cs: 'Zdivo', en: 'Brickwork' },
     own: { against: ['--card', '--plaster', '--timber'], fixed: ['#47372d', '#fff8ec', '#ffffff'] },
     presets: [

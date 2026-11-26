@@ -2,7 +2,7 @@ import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
 import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
-import { kitEntryBlocks } from 'tinyzoo-template-kit/sections'
+import { kitEntryBlocks, kitSections } from 'tinyzoo-template-kit/sections'
 
 // The content model of the Event template: what the organisers of a race or a festival can
 // write and change. One model for both looks (looks.ts): a look decides how a block is drawn,
@@ -514,7 +514,7 @@ const richText = defineBlock({
 
 // Pages built from blocks: title, address, status, blocks, SEO, preview.
 export const Page = definePages({
-  blocks: { opening, routes, programme, fees, results, gallery, practical, venue, news, faq, partners, closing, contact, text: richText, ...kitEntryBlocks() },
+  blocks: { opening, routes, programme, fees, results, gallery, practical, venue, news, faq, partners, closing, contact, text: richText, ...kitEntryBlocks(), ...kitSections() },
 })
 
 // ── menus ──

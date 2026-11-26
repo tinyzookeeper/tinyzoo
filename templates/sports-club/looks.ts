@@ -13,6 +13,7 @@ export const looks = defineLooks([
   {
     // The club bulletin: warm white paper, hairlines, a Clarendon headline face, framed photographs with captions.
     id: 'zpravodaj',
+    button: 'btn btn-fill',
     name: { cs: 'Zpravodaj', en: 'Bulletin' },
     own: { against: ['--brand-ink', '--line', '--paper', '--tint'], fixed: ['#1c1a18', '#ffffff'] },
     presets: [
@@ -24,6 +25,7 @@ export const looks = defineLooks([
   {
     // The page wears the kit: blocks of the club colour with shirt stripes, very wide capitals, huge numbers.
     id: 'dres',
+    button: 'btn btn-ink',
     name: { cs: 'Dres', en: 'Jersey' },
     own: { calm: true, against: ['--brand-ink', '--ink'] },
     presets: [

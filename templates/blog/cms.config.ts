@@ -2,7 +2,7 @@ import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
 import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
-import { kitEntryBlocks } from 'tinyzoo-template-kit/sections'
+import { kitEntryBlocks, kitSections } from 'tinyzoo-template-kit/sections'
 
 // The content model of the Blog template: what a magazine's editors can write and change. One
 // model for both looks (looks.ts): a look decides how a block is drawn, never what it holds.
@@ -335,7 +335,7 @@ const richText = defineBlock({
 
 // Pages built from blocks: title, address, status, blocks, SEO, preview.
 export const Page = definePages({
-  blocks: { front, picks, list, series, sections, newsletter, authors, about, search, text: richText, ...kitEntryBlocks() },
+  blocks: { front, picks, list, series, sections, newsletter, authors, about, search, text: richText, ...kitEntryBlocks(), ...kitSections() },
 })
 
 // ── menus ──

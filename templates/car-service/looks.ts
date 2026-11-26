@@ -11,6 +11,7 @@ export const looks = defineLooks([
   {
     // A bright page with one deep colour: large calm type, big photographs, the repair as four stops on a road.
     id: 'cesta',
+    button: 'btn btn-brand',
     name: { cs: 'Cesta', en: 'Road' },
     own: { against: ['--brand-ink', '--paper', '--tint'], fixed: ['#14181b', '#ffffff'] },
     presets: [
@@ -22,6 +23,7 @@ export const looks = defineLooks([
   {
     // The dashboard at dusk: six warning lights lead into the price guide, a gear pattern shows the repair.
     id: 'kontrolky',
+    button: 'btn btn-brand',
     name: { cs: 'Kontrolky', en: 'Warning Lights' },
     own: { against: ['--bg', '--brand-ink', '--panel'], fixed: ['#0a0c0e', '#eceff1'] },
     presets: [
@@ -33,6 +35,7 @@ export const looks = defineLooks([
   {
     // The red tool chest of the workshop: a drawer for every group of the price guide, the page speaks of three mechanics.
     id: 'supliky',
+    button: 'btn btn-brand',
     name: { cs: 'Šuplíky', en: 'Drawers' },
     own: { against: ['--brand-ink', '--card', '--paper', '--tint'], fixed: ['#1f1b19', '#ffffff'] },
     presets: [

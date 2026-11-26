@@ -11,6 +11,7 @@ export const looks = defineLooks([
   {
     // The salon mirror in daylight: cool paper, photographs in oval mirrors, services timed on small clock faces.
     id: 'zrcadlo',
+    button: 'btn btn-brand',
     name: { cs: 'Zrcadlo', en: 'Mirror' },
     own: { against: ['--accent', '--body', '--brand-ink', '--paper', '--surface'] },
     presets: [
@@ -22,6 +23,7 @@ export const looks = defineLooks([
   {
     // The black-and-white tiled salon floor: one loud colour, very wide lowercase type, square tiles.
     id: 'sachovnice',
+    button: 'btn btn-ink',
     name: { cs: 'Šachovnice', en: 'Chessboard' },
     own: { calm: true, against: ['--brand-ink', '--ink', '--paper'], fixed: ['#ffffff'] },
     presets: [
@@ -33,6 +35,7 @@ export const looks = defineLooks([
   {
     // Lettering painted on the shop window: a dark green page, cream and brass sign-painter's type, enamel plates.
     id: 'vyloha',
+    button: 'plate btn btn-cream',
     name: { cs: 'Výloha', en: 'Shop Window' },
     own: { main: '--glass', calm: true, against: ['--brass', '--cream'], fixed: ['#8a1c1c'] },
     presets: [

@@ -2,7 +2,7 @@ import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
 import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
-import { kitEntryBlocks } from 'tinyzoo-template-kit/sections'
+import { kitEntryBlocks, kitSections } from 'tinyzoo-template-kit/sections'
 
 // The content model of the Restaurant template: what the owner can write and change. One model
 // for all three looks (looks.ts): a look decides how a block is drawn, never what it holds.
@@ -390,7 +390,7 @@ const richText = defineBlock({
 
 // Pages built from blocks: title, address, status, blocks, SEO, preview.
 export const Page = definePages({
-  blocks: { opening, lunch, menu, kitchen, gallery, events, hours, reservation, text: richText, ...kitEntryBlocks() },
+  blocks: { opening, lunch, menu, kitchen, gallery, events, hours, reservation, text: richText, ...kitEntryBlocks(), ...kitSections() },
 })
 
 // ── menus ──

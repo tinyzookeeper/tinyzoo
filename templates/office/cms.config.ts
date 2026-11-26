@@ -2,7 +2,7 @@ import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
 import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
-import { kitEntryBlocks } from 'tinyzoo-template-kit/sections'
+import { kitEntryBlocks, kitSections } from 'tinyzoo-template-kit/sections'
 
 // The content model of the Office template: what a small professional office (accountants, a
 // law firm, architects) can write and change. One model for both looks (looks.ts): a look
@@ -441,7 +441,7 @@ const richText = defineBlock({
 
 // Pages built from blocks: title, address, status, blocks, SEO, preview.
 export const Page = definePages({
-  blocks: { opening, deadlines, photo: photoBlock, services, audience, people, steps, cases, articles, questions, contact, text: richText, ...kitEntryBlocks() },
+  blocks: { opening, deadlines, photo: photoBlock, services, audience, people, steps, cases, articles, questions, contact, text: richText, ...kitEntryBlocks(), ...kitSections() },
 })
 
 // ── menus ──
