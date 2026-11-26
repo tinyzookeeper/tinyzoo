@@ -3,11 +3,11 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { CUSTOM_PREFIX, defineEntity, defineSingleton, emitSchema, f } from 'tinyzoo'
 import {
-  customBlockPlan, customCards, customChosenEntries, customEntryHref, customEntryView, customFieldText, customPageFor, customShow,
+  customBlockPlan, customCards, customChosenEntries, customEntryHref, customEntryView, customFieldText, customPageFor, customShow, customTable,
   type CustomPage, type CustomType, type CustomTypeField,
 } from '../../templates/kit/app/utils/customTypes'
 import { customPrefixProblems, exportedTypeNames } from '../../templates/kit/design-build'
-import { ENTRY_COLUMNS, ENTRY_PICTURES, kitEntryBlocks } from '../../templates/kit/sections'
+import { ENTRY_COLUMNS, ENTRY_LAYOUTS, ENTRY_PICTURES, kitEntryBlocks } from '../../templates/kit/sections'
 import { repoRoot } from '../setup/database'
 
 // What the kit decides about a site's own content types before it draws them
@@ -250,7 +250,7 @@ describe('the cards of a block', () => {
     const [card] = customCards([entry], plan({ image: 'cover', date: 'startsAt', label: 'level', text: 'about', more: ['price', 'full'] }), opts)
     expect(card).toEqual({
       id: 'e1', title: 'Jóga', href: '/kurzy/j%C3%B3ga', image: entry.cover, meta: '14. března 2027, 18.30 · Lehký', text: 'Text',
-      more: [{ label: 'Cena', value: '2490' }, { label: '', value: 'Obsazeno' }],
+      more: [{ key: 'price', label: 'Cena', value: '2490' }, { key: 'full', label: '', value: 'Obsazeno' }],
     })
   })
 
@@ -268,7 +268,64 @@ describe('the cards of a block', () => {
 
   it('leave out extra facts without a value', () => {
     const [card] = customCards([{ ...entry, price: null, full: false }], plan({ more: ['price', 'full', 'level'] }), opts)
-    expect(card!.more).toEqual([{ label: 'Úroveň', value: 'Lehký' }])
+    expect(card!.more).toEqual([{ key: 'level', label: 'Úroveň', value: 'Lehký' }])
+  })
+})
+
+describe('the layout of a block', () => {
+  const layout = (l: unknown) => { const p = customBlockPlan({ source: { type: 'custom_course' }, layout: l }, types, 'entries'); return p.ok ? p.layout : null }
+
+  it('is a table when the block says table, and cards for anything else it does not know', () => {
+    expect(layout('table')).toBe('table')
+    expect(layout('rows')).toBe('rows')
+    expect(layout('grid')).toBe('cards')
+    expect(layout(3)).toBe('cards')
+    expect(layout(null)).toBe('cards')
+  })
+})
+
+describe('the table of a block', () => {
+  const plan = (show: Record<string, unknown>) => {
+    const p = customBlockPlan({ source: { type: 'custom_course', show }, layout: 'table' }, types, 'entries')
+    if (!p.ok) throw new Error(p.reason)
+    return p
+  }
+  const entries = [
+    { id: 'e1', slug: 'jóga', name: 'Jóga', startsAt: '2027-03-14T17:30:00.000Z', price: 2490, level: 'easy', full: true },
+    { id: 'e2', slug: 'box', name: 'Box', price: null, level: null },
+  ]
+  const table = (show: Record<string, unknown>, lang = 'cs', list: unknown[] = entries) => {
+    const p = plan(show)
+    return customTable(customCards(list, p, { lang, types }), p, { lang })
+  }
+
+  it('has the title first, headed with the title field\'s label, and nothing more for a bare block', () => {
+    const t = table({})
+    expect(t.columns).toEqual([{ key: ':title', label: 'name' }])
+    expect(t.rows).toEqual([
+      { id: 'e1', title: 'Jóga', href: '/kurzy/j%C3%B3ga', cells: { ':title': 'Jóga' } },
+      { id: 'e2', title: 'Box', href: '/kurzy/box', cells: { ':title': 'Box' } },
+    ])
+  })
+
+  it('adds the date and label as one column and a column per extra fact, headed in the language', () => {
+    const cs = table({ date: 'startsAt', label: 'level', more: ['price', 'full'] })
+    expect(cs.columns.map((c) => c.label)).toEqual(['name', 'Začátek · Úroveň', 'Cena', 'Obsazeno'])
+    expect(cs.columns.map((c) => c.key)).toEqual([':title', ':meta', 'price', 'full'])
+    expect(cs.rows[0]!.cells).toEqual({ ':title': 'Jóga', ':meta': '14. března 2027, 18.30 · Lehký', price: '2490', full: 'Obsazeno' })
+    expect(cs.rows[1]!.cells).toEqual({ ':title': 'Box', ':meta': '', price: '', full: '' })
+    const en = table({ date: 'startsAt', label: 'level', more: ['price'] }, 'en')
+    expect(en.columns.map((c) => c.label)).toEqual(['name', 'Starts · Level', 'Price'])
+  })
+
+  it('leaves out the date column and a fact column when no entry has a value for them', () => {
+    const t = table({ date: 'startsAt', label: 'level', more: ['price', 'full'] }, 'cs', [entries[1]])
+    expect(t.columns.map((c) => c.key)).toEqual([':title'])
+    expect(table({ more: ['price', 'full'] }, 'cs', [entries[0]]).columns.map((c) => c.key)).toEqual([':title', 'price', 'full'])
+  })
+
+  it('is empty for no entries, with the title column only', () => {
+    expect(table({ more: ['price'] }, 'cs', [])).toEqual({ columns: [{ key: ':title', label: 'name' }], rows: [] })
   })
 })
 
@@ -465,6 +522,13 @@ describe('the kit\'s blocks of a site\'s own types', () => {
     for (const def of Object.values(blocks)) expect(Object.keys(def.fields)).toEqual(['heading', 'text', 'source', 'layout', 'columns', 'picture'])
   })
 
+  it('offer cards, rows and a table, in the layout\'s place', () => {
+    for (const def of Object.values(blocks)) {
+      expect((def.fields as unknown as Record<string, { meta: { options: readonly string[] } }>).layout!.meta.options).toEqual(['cards', 'rows', 'table'])
+    }
+    expect(ENTRY_LAYOUTS).toEqual(['cards', 'rows', 'table'])
+  })
+
   it('offer two, three or four columns and three picture shapes, the default first', () => {
     const { columns, picture } = blocks.custom_entries.fields as unknown as Record<string, { meta: { options: readonly string[] } }>
     expect(columns!.meta.options).toEqual(['2', '3', '4'])
@@ -479,5 +543,16 @@ describe('the kit\'s blocks of a site\'s own types', () => {
       .map((d) => ({ id: d.name, source: readFileSync(join(repoRoot, 'templates', d.name, 'cms.config.ts'), 'utf8') }))
     expect(configs).toHaveLength(20)
     expect(configs.filter((c) => !c.source.includes('...kitEntryBlocks()') || c.source.includes('customTypeBlocks')).map((c) => c.id)).toEqual([])
+  })
+})
+
+describe('the page of one entry, drawn in the look\'s frame', () => {
+  const source = readFileSync(join(repoRoot, 'templates', 'kit', 'app', 'components', 'KitCustomEntry.vue'), 'utf8')
+
+  it('is the look\'s Text part as the first section, not a container of the kit\'s own', () => {
+    expect(source).toContain('part="Text"')
+    expect(source).toContain(':first="true"')
+    expect(source).not.toContain('max-width: 80rem')
+    expect(source).not.toContain('custom-wrap')
   })
 })

@@ -87,8 +87,6 @@ html[data-look="zdivo"] {
     .prose-look { max-width: 42rem; font-size: 17px; line-height: 1.55; }
     .prose-look > * + * { margin-top: 1rem; }
     .prose-look h2 { font-family: var(--font-display); font-weight: 800; font-size: 2rem; line-height: 1; letter-spacing: -.015em; color: var(--ink); margin-top: 2.4rem; word-spacing: -.12em; }
-    /* the title of an entry's page (the kit's KitCustomEntry) in the type of these headings */
-    .custom-entry .custom-entry-title { font-family: var(--font-display); font-weight: 800; letter-spacing: -.015em; word-spacing: -.12em; color: var(--ink); }
     .prose-look h3 { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; line-height: 1.05; color: var(--ink); margin-top: 1.8rem; word-spacing: -.12em; }
     .prose-look a { color: var(--brand); font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
     .prose-look a:hover { text-decoration: none; }

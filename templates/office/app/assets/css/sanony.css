@@ -89,8 +89,6 @@ html[data-look="sanony"] {
     .prose-look { max-width: 46rem; font-size: 17px; line-height: 1.6; }
     .prose-look > * + * { margin-top: 1rem; }
     .prose-look h2 { font-family: var(--font-display); font-weight: 800; font-size: 34px; line-height: 1.05; letter-spacing: -0.03em; margin-top: 2.6rem; }
-    /* the title of an entry's page (the kit's KitCustomEntry) in the type of these headings */
-    .custom-entry .custom-entry-title { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.03em; }
     .prose-look h3 { font-family: var(--font-display); font-weight: 700; font-size: 25px; line-height: 1.15; letter-spacing: -0.015em; margin-top: 2rem; }
     .prose-look a { text-decoration: underline; text-decoration-color: var(--brand); text-decoration-thickness: 2px; text-underline-offset: 4px; }
     .prose-look a:hover { color: var(--brand); }

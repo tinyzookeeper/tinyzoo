@@ -1,25 +1,27 @@
 <script setup lang="ts">
 // The entries of one of the site's own types, as the two generic blocks draw them (BlockCustomEntries,
-// BlockCustomChosen): a heading and a short text, then the entries as cards or as rows. It is drawn
+// BlockCustomChosen): a heading and a short text, then the entries as cards, as rows or as a table. It is drawn
 // inside the look's frame, its own Text part (LookPart): the container, the space above and below
 // and the heading are the look's. Inside, the same markup in every look, made from what all looks
 // share: texts sit in the look's `.prose-look`, colours are inherited, lines and quiet text are
 // made from the text colour.
 // A look may refine it with `--custom-radius` (the pictures' corners), `--custom-line` (the lines) and
 // `--custom-gap` (the space between cards); each has a fallback, so no look has to.
-import type { CustomCard, CustomColumns, CustomPicture } from '../utils/customTypes'
+import type { CustomCard, CustomColumns, CustomLayout, CustomPicture, CustomTable } from '../utils/customTypes'
 
 const props = defineProps<{
   /** The block's id: the section's id is made from it. */
   id: string
   heading: string
   text: string
-  layout: 'cards' | 'rows'
+  layout: CustomLayout
   /** Cards side by side at most; the page shows fewer on narrow screens, one on a phone. */
   columns?: CustomColumns
   /** The shape every card's picture is cut to. */
   picture?: CustomPicture
   cards: CustomCard[]
+  /** The entries as a table (customTable), drawn when the layout is a table. */
+  table?: CustomTable
 }>()
 
 const NuxtLink = resolveComponent('NuxtLink')
@@ -58,6 +60,25 @@ const cols = computed(() => props.columns ?? 3)
           </component>
         </li>
       </ul>
+
+      <div v-else-if="layout === 'table' && table" class="custom-table-wrap" :class="`custom-table-n${Math.min(table.columns.length, 6)}`">
+        <table class="custom-table" role="table">
+          <thead class="custom-thead" role="rowgroup">
+            <tr class="custom-hrow" role="row">
+              <th v-for="col in table.columns" :key="col.key" class="custom-thcell" scope="col" role="columnheader">{{ col.label }}</th>
+            </tr>
+          </thead>
+          <tbody class="custom-tbody" role="rowgroup">
+            <tr v-for="row in table.rows" :key="row.id" class="custom-tr" role="row">
+              <th class="custom-tcell custom-ttitle" scope="row" role="rowheader">
+                <NuxtLink v-if="row.href" :to="row.href">{{ row.title }}</NuxtLink>
+                <template v-else>{{ row.title }}</template>
+              </th>
+              <td v-for="col in table.columns.slice(1)" :key="col.key" class="custom-tcell" :class="{ 'custom-tempty': !row.cells[col.key] }" role="cell" :data-label="col.label">{{ row.cells[col.key] }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <ul v-else class="custom-list custom-rows" :class="{ 'custom-rows-plain': plainRows }">
         <li v-for="c in cards" :key="c.id">
@@ -119,8 +140,71 @@ const cols = computed(() => props.columns ?? 3)
   .custom-block .custom-rows .custom-row .custom-meta { margin-top: 0; }
 }
 
+/* a table: the lines are horizontal only, the header is the quiet style of .custom-meta. The wrapper
+   is a container of its own (never .custom-wrap, so cards and rows stay as they are): when it is
+   narrower than about 9.5rem a column, the rows stack as "label: value" (the roles in the markup
+   keep the table for screen readers). A wide table wraps only between words, so a short value (a price) never breaks; stacked, a long word may break anywhere. One block per column count (2 to 6 or more); one column never stacks. */
+.custom-block .custom-wrap .custom-table-wrap { position: relative; container-type: inline-size; margin: clamp(1.75rem, 3.5vw, 2.75rem) 0 0; }
+.custom-block .custom-wrap .custom-table-wrap:first-child { margin-top: 0; }
+.custom-block .custom-table-wrap .custom-table { width: 100%; border-collapse: collapse; font: inherit; text-align: left; }
+.custom-block .custom-table .custom-thcell { padding: 0 1.5rem 0.7rem 0; font-size: 0.8125rem; line-height: 1.5; letter-spacing: 0.02em; font-weight: 400; text-align: left; vertical-align: bottom; opacity: 0.68; border-bottom: 1px solid var(--custom-line, color-mix(in oklab, currentColor 16%, transparent)); }
+.custom-block .custom-tbody .custom-tcell { padding-block: 0.85rem; padding-inline: 0 1.5rem; font: inherit; text-align: left; vertical-align: top; overflow-wrap: break-word; border-bottom: 1px solid var(--custom-line, color-mix(in oklab, currentColor 16%, transparent)); }
+.custom-block .custom-tbody .custom-ttitle { font-weight: 600; }
+.custom-block .custom-ttitle a { color: inherit; text-decoration: none; }
+.custom-block .custom-ttitle a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+@container (max-width: 19rem) {
+  .custom-block .custom-table-n2 .custom-table, .custom-block .custom-table-n2 .custom-tbody, .custom-block .custom-table-n2 .custom-tr, .custom-block .custom-table-n2 .custom-tcell { display: block; }
+  .custom-block .custom-table-n2 .custom-table { border-top: 1px solid var(--custom-line, color-mix(in oklab, currentColor 16%, transparent)); }
+  .custom-block .custom-table-n2 .custom-thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .custom-block .custom-table-n2 .custom-tr { padding-block: 0.9rem; border-bottom: 1px solid var(--custom-line, color-mix(in oklab, currentColor 16%, transparent)); }
+  .custom-block .custom-table-n2 .custom-tbody .custom-tcell { padding: 0.1rem 0; border-bottom: 0; overflow-wrap: anywhere; }
+  .custom-block .custom-table-n2 .custom-tbody .custom-ttitle { padding-bottom: 0.3rem; }
+  .custom-block .custom-table-n2 .custom-tcell.custom-tempty { display: none; }
+  .custom-block .custom-table-n2 .custom-tcell[data-label]::before { content: attr(data-label) ': '; font-size: 0.8125rem; letter-spacing: 0.02em; opacity: 0.68; }
+}
+@container (max-width: 28.5rem) {
+  .custom-block .custom-table-n3 .custom-table, .custom-block .custom-table-n3 .custom-tbody, .custom-block .custom-table-n3 .custom-tr, .custom-block .custom-table-n3 .custom-tcell { display: block; }
+  .custom-block .custom-table-n3 .custom-table { border-top: 1px solid var(--custom-line, color-mix(in oklab, currentColor 16%, transparent)); }
+  .custom-block .custom-table-n3 .custom-thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .custom-block .custom-table-n3 .custom-tr { padding-block: 0.9rem; border-bottom: 1px solid var(--custom-line, color-mix(in oklab, currentColor 16%, transparent)); }
+  .custom-block .custom-table-n3 .custom-tbody .custom-tcell { padding: 0.1rem 0; border-bottom: 0; overflow-wrap: anywhere; }
+  .custom-block .custom-table-n3 .custom-tbody .custom-ttitle { padding-bottom: 0.3rem; }
+  .custom-block .custom-table-n3 .custom-tcell.custom-tempty { display: none; }
+  .custom-block .custom-table-n3 .custom-tcell[data-label]::before { content: attr(data-label) ': '; font-size: 0.8125rem; letter-spacing: 0.02em; opacity: 0.68; }
+}
+@container (max-width: 38rem) {
+  .custom-block .custom-table-n4 .custom-table, .custom-block .custom-table-n4 .custom-tbody, .custom-block .custom-table-n4 .custom-tr, .custom-block .custom-table-n4 .custom-tcell { display: block; }
+  .custom-block .custom-table-n4 .custom-table { border-top: 1px solid var(--custom-line, color-mix(in oklab, currentColor 16%, transparent)); }
+  .custom-block .custom-table-n4 .custom-thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .custom-block .custom-table-n4 .custom-tr { padding-block: 0.9rem; border-bottom: 1px solid var(--custom-line, color-mix(in oklab, currentColor 16%, transparent)); }
+  .custom-block .custom-table-n4 .custom-tbody .custom-tcell { padding: 0.1rem 0; border-bottom: 0; overflow-wrap: anywhere; }
+  .custom-block .custom-table-n4 .custom-tbody .custom-ttitle { padding-bottom: 0.3rem; }
+  .custom-block .custom-table-n4 .custom-tcell.custom-tempty { display: none; }
+  .custom-block .custom-table-n4 .custom-tcell[data-label]::before { content: attr(data-label) ': '; font-size: 0.8125rem; letter-spacing: 0.02em; opacity: 0.68; }
+}
+@container (max-width: 47.5rem) {
+  .custom-block .custom-table-n5 .custom-table, .custom-block .custom-table-n5 .custom-tbody, .custom-block .custom-table-n5 .custom-tr, .custom-block .custom-table-n5 .custom-tcell { display: block; }
+  .custom-block .custom-table-n5 .custom-table { border-top: 1px solid var(--custom-line, color-mix(in oklab, currentColor 16%, transparent)); }
+  .custom-block .custom-table-n5 .custom-thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .custom-block .custom-table-n5 .custom-tr { padding-block: 0.9rem; border-bottom: 1px solid var(--custom-line, color-mix(in oklab, currentColor 16%, transparent)); }
+  .custom-block .custom-table-n5 .custom-tbody .custom-tcell { padding: 0.1rem 0; border-bottom: 0; overflow-wrap: anywhere; }
+  .custom-block .custom-table-n5 .custom-tbody .custom-ttitle { padding-bottom: 0.3rem; }
+  .custom-block .custom-table-n5 .custom-tcell.custom-tempty { display: none; }
+  .custom-block .custom-table-n5 .custom-tcell[data-label]::before { content: attr(data-label) ': '; font-size: 0.8125rem; letter-spacing: 0.02em; opacity: 0.68; }
+}
+@container (max-width: 57rem) {
+  .custom-block .custom-table-n6 .custom-table, .custom-block .custom-table-n6 .custom-tbody, .custom-block .custom-table-n6 .custom-tr, .custom-block .custom-table-n6 .custom-tcell { display: block; }
+  .custom-block .custom-table-n6 .custom-table { border-top: 1px solid var(--custom-line, color-mix(in oklab, currentColor 16%, transparent)); }
+  .custom-block .custom-table-n6 .custom-thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .custom-block .custom-table-n6 .custom-tr { padding-block: 0.9rem; border-bottom: 1px solid var(--custom-line, color-mix(in oklab, currentColor 16%, transparent)); }
+  .custom-block .custom-table-n6 .custom-tbody .custom-tcell { padding: 0.1rem 0; border-bottom: 0; overflow-wrap: anywhere; }
+  .custom-block .custom-table-n6 .custom-tbody .custom-ttitle { padding-bottom: 0.3rem; }
+  .custom-block .custom-table-n6 .custom-tcell.custom-tempty { display: none; }
+  .custom-block .custom-table-n6 .custom-tcell[data-label]::before { content: attr(data-label) ': '; font-size: 0.8125rem; letter-spacing: 0.02em; opacity: 0.68; }
+}
 /* a link: the title underlined on hover, a visible ring for the keyboard */
 .custom-block a.custom-card:hover .custom-title,
 .custom-block a.custom-row:hover .custom-title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
-.custom-block .custom-list a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; border-radius: 2px; }
+.custom-block .custom-list a:focus-visible,
+.custom-block .custom-ttitle a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; border-radius: 2px; }
 </style>

@@ -15,7 +15,23 @@ export const ENTRY_COLUMNS = ['3', '2', '4'] as const
 /** The shape every card's picture is cut to. The default is the first. */
 export const ENTRY_PICTURES = ['landscape', 'square', 'portrait'] as const
 
-/** The choices both blocks get on top of tinyzoo's fields. They apply to cards; rows have neither. */
+/** How the entries are laid out. The default is the first. */
+export const ENTRY_LAYOUTS = ['cards', 'rows', 'table'] as const
+
+/** The layout field of both blocks: tinyzoo's two (cards, rows) and a table. It keeps the engine's key and place. */
+function entryLayout() {
+  return f.select({
+    options: [...ENTRY_LAYOUTS],
+    default: ENTRY_LAYOUTS[0],
+    labels: {
+      cards: { en: 'Cards', cs: 'Karty', de: 'Karten' },
+      rows: { en: 'Rows', cs: 'Řádky', de: 'Zeilen' },
+      table: { en: 'Table', cs: 'Tabulka', de: 'Tabelle' },
+    },
+  }).label({ en: 'Layout', cs: 'Vzhled', de: 'Darstellung' })
+}
+
+/** The choices both blocks get on top of tinyzoo's fields. They apply to cards; rows and the table have neither. */
 function entryChoices() {
   return {
     columns: f.select({
@@ -28,9 +44,9 @@ function entryChoices() {
       },
     }).label({ en: 'Cards side by side', cs: 'Karet vedle sebe', de: 'Karten nebeneinander' })
       .help({
-        en: 'On a wide screen. Narrow screens show fewer, a phone shows one.',
-        cs: 'Na široké obrazovce. Na užší jich je méně, na telefonu jedna.',
-        de: 'Auf einem breiten Bildschirm. Schmalere zeigen weniger, ein Telefon eine.',
+        en: 'For cards. On a wide screen; narrow screens show fewer, a phone shows one.',
+        cs: 'Pro karty. Na široké obrazovce; na užší jich je méně, na telefonu jedna.',
+        de: 'Für Karten. Auf einem breiten Bildschirm; schmalere zeigen weniger, ein Telefon eine.',
       }),
     picture: f.select({
       options: [...ENTRY_PICTURES],
@@ -42,9 +58,9 @@ function entryChoices() {
       },
     }).label({ en: 'Picture shape', cs: 'Tvar obrázku', de: 'Bildform' })
       .help({
-        en: 'Every card\'s picture is cut to this shape.',
-        cs: 'Obrázek každé karty se ořízne do tohoto tvaru.',
-        de: 'Das Bild jeder Karte wird auf diese Form zugeschnitten.',
+        en: 'For cards. Every card\'s picture is cut to this shape.',
+        cs: 'Pro karty. Obrázek každé karty se ořízne do tohoto tvaru.',
+        de: 'Für Karten. Das Bild jeder Karte wird auf diese Form zugeschnitten.',
       }),
   }
 }
@@ -56,7 +72,7 @@ function entryChoices() {
 export function kitEntryBlocks() {
   const { custom_entries, custom_chosen } = customTypeBlocks()
   return {
-    custom_entries: defineBlock({ ...custom_entries, fields: { ...custom_entries.fields, ...entryChoices() } }),
-    custom_chosen: defineBlock({ ...custom_chosen, fields: { ...custom_chosen.fields, ...entryChoices() } }),
+    custom_entries: defineBlock({ ...custom_entries, fields: { ...custom_entries.fields, layout: entryLayout(), ...entryChoices() } }),
+    custom_chosen: defineBlock({ ...custom_chosen, fields: { ...custom_chosen.fields, layout: entryLayout(), ...entryChoices() } }),
   }
 }

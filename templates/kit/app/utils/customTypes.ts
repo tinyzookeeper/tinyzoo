@@ -170,9 +170,12 @@ export type CustomColumns = 2 | 3 | 4
 /** The shape a card's picture is cut to (the block's choice). */
 export type CustomPicture = 'landscape' | 'square' | 'portrait'
 
+/** How a block lays its entries out (the block's choice): cards, rows, or a table. */
+export type CustomLayout = 'cards' | 'rows' | 'table'
+
 /** What a block of a site's type draws, or why it draws nothing. */
 export type CustomBlockPlan =
-  | { ok: true; type: CustomType; show: CustomShow; layout: 'cards' | 'rows'; columns: CustomColumns; picture: CustomPicture; request: CustomRequest; heading: string; text: string }
+  | { ok: true; type: CustomType; show: CustomShow; layout: CustomLayout; columns: CustomColumns; picture: CustomPicture; request: CustomRequest; heading: string; text: string }
   | { ok: false; reason: string }
 
 /** How many entries a list shows when the block says nothing, and the most it may show (tinyzoo's BINDING_LIMIT_*). */
@@ -231,7 +234,7 @@ export function customBlockPlan(block: unknown, types: CustomType[] | null | und
   const type = customTypeOf(types, binding.type)
   if (!type) return { ok: false, reason: `the site has no type "${binding.type}"` }
   const show = customShow(type, binding.show)
-  const layout = b.layout === 'rows' ? 'rows' : 'cards'
+  const layout: CustomLayout = b.layout === 'rows' ? 'rows' : b.layout === 'table' ? 'table' : 'cards'
   // The kit's choices (templates/kit/sections.ts). Empty or unknown is the default.
   const columns: CustomColumns = b.columns === '2' || b.columns === 2 ? 2 : b.columns === '4' || b.columns === 4 ? 4 : 3
   const picture: CustomPicture = b.picture === 'square' || b.picture === 'portrait' ? b.picture : 'landscape'
@@ -261,7 +264,7 @@ export interface CustomCard {
   /** The date and the label, joined with " · ". */
   meta: string
   text: string
-  more: { label: string; value: string }[]
+  more: { key: string; label: string; value: string }[]
 }
 
 /** The address of an entry's page, or null when the type has no pages or the entry no address. */
@@ -285,10 +288,46 @@ export function customCards(entries: unknown[], plan: Extract<CustomBlockPlan, {
       .map((f) => ({ field: f, value: text(f, entry) }))
       .filter((m) => m.value)
       // (a yes/no shows its label as the value: it needs no label beside it)
-      .map((m) => ({ label: m.field.type === 'boolean' ? '' : customLabel(m.field.label, opts.lang), value: m.value }))
+      .map((m) => ({ key: m.field.key, label: m.field.type === 'boolean' ? '' : customLabel(m.field.label, opts.lang), value: m.value }))
     out.push({ id: String(entry.id ?? title), title, href: customEntryHref(type, entry), image, meta, text: text(show.text, entry), more })
   }
   return out
+}
+
+/** The keys of the table's own columns; a colon cannot be in a field's key, so they never clash with one. */
+export const TABLE_TITLE = ':title'
+export const TABLE_META = ':meta'
+
+/** A block's entries as a table: the columns, and a row per entry with its cells by column key. */
+export interface CustomTable {
+  columns: { key: string; label: string }[]
+  rows: { id: string; title: string; href: string | null; cells: Record<string, string> }[]
+}
+
+/**
+ * The cards of a block as a table, with no picture and no long text: the title always (its column
+ * is headed with the title field's label), the date and label as one column and each extra fact as its
+ * own, the last two only when some entry has a value for them. A cell without a value is empty.
+ */
+export function customTable(cards: CustomCard[], plan: Extract<CustomBlockPlan, { ok: true }>, opts: { lang: string }): CustomTable {
+  const { type, show } = plan
+  const titleField = customFieldOf(type, type.titleField)
+  const columns: CustomTable['columns'] = [{ key: TABLE_TITLE, label: customLabel(titleField?.label, opts.lang) }]
+  if (cards.some((c) => c.meta)) {
+    const label = [show.date, show.label].filter((f): f is CustomTypeField => !!f).map((f) => customLabel(f.label, opts.lang)).filter(Boolean).join(' · ')
+    columns.push({ key: TABLE_META, label })
+  }
+  for (const f of show.more) {
+    if (cards.some((c) => c.more.some((m) => m.key === f.key))) columns.push({ key: f.key, label: customLabel(f.label, opts.lang) })
+  }
+  const rows = cards.map((c) => {
+    const cells: Record<string, string> = {}
+    for (const col of columns) {
+      cells[col.key] = col.key === TABLE_TITLE ? c.title : col.key === TABLE_META ? c.meta : (c.more.find((m) => m.key === col.key)?.value ?? '')
+    }
+    return { id: c.id, title: c.title, href: c.href, cells }
+  })
+  return { columns, rows }
 }
 
 /** The entries of chosen entries' answers, in the picked order: an entry that did not come (404, a failure) is left out. */

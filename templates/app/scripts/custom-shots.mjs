@@ -9,13 +9,14 @@
 // Every look gets a site of its own (the one app, content types switched on), seeded with its
 // template's demo content and set to the look. Each site then makes the type `custom_course` (courses
 // with a picture, a short text, a date, a level, a price and a programme) through the admin
-// routes, five entries of it, and puts seven blocks at the end of its home page: a list of cards,
+// routes, five entries of it, and puts nine blocks at the end of its home page: a list of cards,
 // three that must draw nothing (no source, a missing type, a chosen entry that does not exist),
-// a list of rows, a block of two chosen entries, and two with the kit's choices: a list in four
-// columns at most with square pictures, and two chosen entries in two columns with upright pictures.
+// a list of rows, a block of two chosen entries, two with the kit's choices: a list in four
+// columns at most with square pictures, and two chosen entries in two columns with upright pictures,
+// and a list as a table (date and level as the quiet line, price and short description as facts).
 //
 // Pictures (under <out>/shots): the home page at 1440 × 900 and 390 × 844 (it must hold exactly
-// five blocks), a picture of each block (`cards`, `rows`, `chosen`, `four`, `two`), the page of the entry with
+// six blocks), a picture of each block (`cards`, `rows`, `chosen`, `four`, `two`, `table`), the page of the entry with
 // the longest title (`entry`, at most 3 000 px high), and `/kurzy/neexistuje`, which must be a 404.
 // Sheets (under <out>/sheets): per template and width, `<template>-<width>-blocks.png` (one column
 // per look, one row per block) and `<template>-<width>-entry.png`. 1440 pictures are halved.
@@ -31,7 +32,7 @@ import { pathToFileURL } from 'node:url'
 import { arg, chooseLook, clean, dropSites, freePortFrom, log, makeSites, repoRoot, seedSiteAsync, signIn, sitesFor, sleep, startServer, writeDirectory } from './sites.mjs'
 
 const SEEDS_AT_ONCE = 4
-const SHOTS = ['cards', 'rows', 'chosen', 'four', 'two']
+const SHOTS = ['cards', 'rows', 'chosen', 'four', 'two', 'table']
 const WIDTHS = [{ width: 1440, height: 900, scale: 0.5 }, { width: 390, height: 844, scale: 1 }]
 const ENTRY_MAX_HEIGHT = 3000
 
@@ -197,7 +198,7 @@ async function changeModel(base, cookie, ops) {
   }
 }
 
-/** Make the type and its entries, and put the five blocks at the end of the home page. Returns the long entry's slug. */
+/** Make the type and its entries, and put the nine blocks at the end of the home page. Returns the long entry's slug. */
 async function setUpSite(row) {
   const s = row._site
   const base = s.url
@@ -258,6 +259,10 @@ async function setUpSite(row) {
     block('custom_chosen', 'Dva tipy na jaro', null, {
       type: 'custom_course', show: { image: 'cover', text: 'perex', date: 'startsAt', label: 'level' }, entries: [made[0].id, made[2].id],
     }, 'cards', { columns: '2', picture: 'portrait' }),
+    // The table layout: the date and the level as the quiet line, the price and the short description as facts.
+    block('custom_entries', 'Kurzy v tabulce', null, {
+      type: 'custom_course', show: { date: 'startsAt', label: 'level', more: ['price', 'perex'] }, limit: 5,
+    }, 'table'),
   ]
   const saved = await call(base, cookie, 'PATCH', `/api/cms/page/${home.id}`, { sections })
   if (saved.status !== 200) throw new Error(`home page of ${base}: ${saved.status} ${saved.text.slice(0, 600)}`)
