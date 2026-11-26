@@ -121,3 +121,21 @@ All four were made by the owner on 2026-11-25, as picked.
 - **Differs from the prototype.** The tools are drawn in the real page, so their name chip and toolbar sit above the block's top edge and may cover the site's header. A block is lifted with its own page background. There is no dashed slot where the dragged block came from: the others make room and a line shows the place. The "+" shows only near the edge between two blocks. A new block that is still empty is not in the preview until it is valid. *Undo* is the admin's toast, not a history.
 - **Not done or not checked.** Touch was not tried on a real phone. A phone-sized admin has nothing new (as decided). Typing in the page is not part of it. A page with two lists of blocks was not tried. Keyboard focus moves to the page only once it was clicked.
 
+**Part 2. The design (2026-11-26).**
+
+*What the engine already has.* A block may hold a list of blocks of several types (`f.blocks` inside a block), and the checks, the upgrades and the media walk already go down any depth (`validateBlockList`, `upgradeBlocks`, `mediaIdsInBlocks`). Only the definition is held to one level (`checkContainedFields`). So a container with small blocks needs no new way of storing a page: it is a block with a list of blocks.
+
+*Three levels, no more.* A page holds sections. The section "Layout" holds small blocks and groups. A group holds small blocks. It is written out, not recursive, so the types stay finite:
+
+    page → section_layout → heading | text | picture | button | group → heading | text | picture | button
+
+The engine lets a list inside a block hold one more list (two levels inside a block), and no deeper. That is the one change to how definitions are checked. Stored pages need no migration.
+
+*The pieces, in this order.*
+
+- **2a, the engine.** Lists two levels deep inside a block: the definition check, and everything that reads a block's lists (the admin form, the content API's media and links, search, the generated types, OpenAPI, the CLI). A field can be marked as a setting, so the form shows a block's content first and its settings under one quiet heading. A choice field can be drawn as a row of segments.
+- **2b, the kit.** The section `section_layout` and its small blocks (`heading`, `text`, `picture`, `button`, `group`), drawn in the look's frame with what all looks share. Choices only, from short lists: the arrangement (row, stack, grid), the space between (small, medium, large), the alignment, the most side by side for a grid, and for an item its size (fill, or as wide as its content). A row wraps and stacks by itself; a grid uses the rule of the cards. Pictured in all 52 looks at 1440 and 390 px.
+- **2c, the editor.** The tools in the page work inside a container: each click goes one level deeper, a drag moves a small block inside its list, the "+" and the drop line follow the direction of the container, an empty container says what to do. The form shows the selected thing alone, with a breadcrumb ("Layout › Picture") and a way back to all sections. The preview draws the desktop page at a desktop width and scales it to fit, so a row is seen as a row.
+- **2d, typing in the page.** A third click on a text of a small block edits it in place; the form follows.
+
+*What stays out.* No pixel values, no free positions, nothing per screen size, no fourth level.
