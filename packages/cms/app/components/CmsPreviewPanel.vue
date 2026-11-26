@@ -11,11 +11,14 @@
 // keep their size. Undo and redo (the bridge's history) sit in the panel's bar, with Ctrl/⌘ Z.
 // Reloaded after every save; the unsaved values are dropped when the editor closes.
 import { cmsBuilderFit, isCmsBuilderToAdmin, type CmsBuilderKey, type CmsBuilderToPage } from '../../shared/builder'
+import { cmsBuilderEntities } from '../../shared/builder-sources'
 
 const props = defineProps<{ url: string; entity: string; id: string; locale: string | null; data: Record<string, any>; version: string | null; sheet?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
-const { t, locale: adminLanguage } = useCmsI18n()
+const { t, locale: adminLanguage, entityLabel, fieldLabel } = useCmsI18n()
 const builder = useCmsBuilder()
+// The collections and globals, for content a block draws from them (since 2f): the admin's graph, as the layout loaded it.
+const { data: graph } = useNuxtData<any[]>('cms-graph')
 // The preview may take the form's room (a narrow admin): the editor's page hides the form column then.
 const { large, toggle: toggleLarge } = useCmsLargePreview()
 
@@ -130,6 +133,8 @@ function sendToPage(message: CmsBuilderToPage) {
 function sendOn() {
   const bridge = builder.value
   if (!bridge) return
+  const entities = cmsBuilderEntities(graph.value, { entity: (meta) => entityLabel(meta), field: (f) => fieldLabel(f) })
+  bridge.entities.value = entities
   sendToPage({
     type: 'cms:builder:on',
     labels: bridge.labels.value,
@@ -137,11 +142,14 @@ function sendOn() {
       drag: t('blocks.drag'), moveUp: t('blocks.moveUp'), moveDown: t('blocks.moveDown'),
       duplicate: t('blocks.duplicate'), remove: t('blocks.remove'), insertHere: t('blocks.insertHere'),
       moveLeft: t('blocks.moveLeft'), moveRight: t('blocks.moveRight'), addBlock: t('blocks.pickerTitle'), blank: t('builderPanel.blank'),
+      edit: t('builderSources.edit'), more: t('builderSources.more'), openIn: t('builderSources.openIn', { name: '{name}' }), untitled: t('common.untitled'),
     },
     selected: bridge.selected.value,
     selectedPath: bridge.selectedPath.value,
     lists: JSON.parse(JSON.stringify(bridge.kinds.value)),
     ...(fit.value ? { scale: fit.value.scale } : {}),
+    entities: JSON.parse(JSON.stringify(entities)),
+    self: { entity: props.entity, id: props.id },
   })
 }
 /** Ctrl/⌘ Z and Ctrl/⌘ ⇧ Z (or Ctrl Y), outside a text field (which keeps the browser's own undo). */
@@ -214,7 +222,7 @@ watch(builder, (bridge, _old, onCleanup) => {
   window.addEventListener('keydown', onHistoryKey)
   // The bridge came after the frame loaded: tell the page now.
   if (loaded || frameComplete()) sendOn()
-  const stop = watch([bridge.kinds, adminLanguage], () => sendOn(), { deep: true })
+  const stop = watch([bridge.kinds, adminLanguage, graph], () => sendOn(), { deep: true })
   onCleanup(() => {
     stop()
     detach()

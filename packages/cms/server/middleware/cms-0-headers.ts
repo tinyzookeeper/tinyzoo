@@ -9,6 +9,10 @@
 // tokens) in the Referer. A full script CSP is left to the host app: Nuxt's inline
 // hydration scripts need nonces, which belong in the app's security setup.
 // Uploaded files are served with their own stricter policy (_media/raw).
+//
+// One exception, only with the editor in the preview on (NUXT_CMS_BUILDER=on, since 2f): an editor page
+// asked as the sheet beside a page's preview (`?embed=builder`) may be framed by the admin itself, never
+// by another site (SAMEORIGIN, `frame-ancestors 'self'`).
 const ID_RE = /^[\w.-]{8,64}$/
 
 export default defineEventHandler((event) => {
@@ -24,14 +28,15 @@ export default defineEventHandler((event) => {
   const admin = path === '/admin' || path.startsWith('/admin/')
   const api = path.startsWith('/api/cms/') && !path.startsWith('/api/cms/_media/raw/')
   if (!admin && !api) return
+  const sheet = admin && cmsBuilderSwitch() && getQuery(event).embed === 'builder'
   setResponseHeaders(event, {
-    'X-Frame-Options': 'DENY',
+    'X-Frame-Options': sheet ? 'SAMEORIGIN' : 'DENY',
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'same-origin',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
     'Cross-Origin-Opener-Policy': 'same-origin',
   })
-  if (admin) setResponseHeader(event, 'Content-Security-Policy', "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'")
+  if (admin) setResponseHeader(event, 'Content-Security-Policy', `frame-ancestors ${sheet ? "'self'" : "'none'"}; base-uri 'self'; object-src 'none'; form-action 'self'`)
   // Signed-in data must never sit in a shared cache.
   if (api) setResponseHeader(event, 'Cache-Control', 'no-store')
 })

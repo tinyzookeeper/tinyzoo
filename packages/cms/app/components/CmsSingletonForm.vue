@@ -14,6 +14,8 @@ const { state, fieldErrors, editable, dirty, saving, conflict } = form
 const toast = useToast()
 // The editor in the preview (experimental, NUXT_CMS_BUILDER=on): provided only when the menu says it is on.
 const builder = provideCmsBuilder(useCmsBuilderOn())
+// Since 2f: this form as the sheet beside a page's preview shows it (`?embed=builder`): no breadcrumbs, no preview.
+const embedded = useCmsEmbedded()
 
 // ── content languages (as in the entry editor) ──
 const locales = computed(() => props.meta?.locales as { default: string; all: string[]; labels: Record<string, any> } | null)
@@ -159,7 +161,7 @@ function togglePreview() {
   }
   catch { /* storage blocked: for this visit only */ }
 }
-const split = computed(() => wide.value && previewOpen.value && !!previewUrl.value)
+const split = computed(() => wide.value && previewOpen.value && !!previewUrl.value && !embedded.value)
 // The editor in the preview: while the page is beside the form, the form shows a selected block alone.
 watchEffect(() => { if (builder.value) builder.value.panel.value = split.value })
 // A larger preview (chosen in the preview's bar): the form column is hidden, a selected block's panel is a sheet.
@@ -205,10 +207,27 @@ async function save() {
   }, t('editor.savedLive'))
 }
 defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value) save() } } })
+
+// Beside a page (the sheet): what is typed shows in the page's preview at once, the sheet hears when it is saved.
+/** Bring a field into view and give it the keyboard, with a short ring (as the entry editor does). */
+function focusField(key: string) {
+  const el = document.getElementById(`cms-field-${key}`)
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  setTimeout(() => (el as HTMLElement).focus?.({ preventScroll: true }), 350)
+  el.classList.remove('cms-flash')
+  void el.offsetWidth
+  el.classList.add('cms-flash')
+  setTimeout(() => el.classList.remove('cms-flash'), 2000)
+}
+useCmsEmbeddedEditor({
+  embedded, entity: computed(() => props.entity), id: computed(() => (data.value?.row?.id as string | undefined) ?? null),
+  locale: computed(() => (isTranslation.value ? currentLocale.value : null)), body: () => form.body(), dirty, saving, version, title, focus: focusField,
+})
 </script>
 
 <template>
-  <CmsPage flush :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: title }]">
+  <CmsPage flush :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: title }]" :embedded="embedded">
     <template #actions>
       <CmsPresence :people="others" />
       <UDropdownMenu v-if="locales && (meta?.fields ?? []).some((f: any) => f.localized)" :items="localeItems" :content="{ align: 'end' }">
@@ -219,7 +238,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       <span v-if="readOnly" class="inline-flex items-center gap-1 text-sm text-muted mr-1"><UIcon name="i-lucide-lock" class="size-3.5" />{{ t('readOnly.badge') }}</span>
       <span v-else-if="dirty" class="max-md:hidden text-sm cms-unsaved mr-1">{{ t('editor.unsaved') }}</span>
       <UButton
-        v-if="previewUrl" color="neutral" variant="outline" icon="i-lucide-eye"
+        v-if="previewUrl && !embedded" color="neutral" variant="outline" icon="i-lucide-eye"
         :class="split ? 'bg-(--cms-nav-active)' : ''" :aria-pressed="split" :aria-label="t('editor.preview')" @click="togglePreview"
       ><span class="max-sm:hidden">{{ t('editor.preview') }}</span></UButton>
       <UTooltip v-if="!readOnly" :text="t('editor.shortcutSave')">
@@ -285,6 +304,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       </div>
     </div>
 
+    <CmsBuilderEntrySheet v-if="builder && !embedded" />
     <UModal v-if="previewUrl && rowId" v-model:open="previewSheet" fullscreen :title="t('editor.preview')" :ui="{ header: 'hidden', body: 'p-3 sm:p-4 flex flex-col' }">
       <template #body>
         <CmsPreviewPanel

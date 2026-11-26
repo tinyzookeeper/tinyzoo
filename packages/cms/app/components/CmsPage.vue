@@ -32,33 +32,35 @@ defineProps<{
   wide?: boolean
   /** An icon drawn before the title (a content type's own). */
   icon?: string
+  /** Since 2f: shown in the sheet beside a page's preview (the editor in the preview): an editor's bar without its way back. */
+  embedded?: boolean
 }>()
 </script>
 
 <template>
   <UDashboardPanel :ui="{ body: 'p-0 sm:p-0 gap-0' }">
     <template #header>
-      <UDashboardNavbar :ui="{ root: 'bg-(--cms-page-bg)/85 backdrop-blur border-b border-default h-(--ui-header-height) gap-2 px-3 sm:px-6', left: 'min-w-0 gap-1.5', right: 'gap-1.5 sm:gap-2 shrink-0' }">
+      <UDashboardNavbar :toggle="!embedded" :ui="{ root: 'bg-(--cms-page-bg)/85 backdrop-blur border-b border-default h-(--ui-header-height) gap-2 px-3 sm:px-6', left: 'min-w-0 gap-1.5', right: 'gap-1.5 sm:gap-2 shrink-0' }">
         <!-- `left` (not `title`): the navbar would wrap the title slot in an <h1>, and the bar is not the page's heading -->
         <template #left>
           <div v-if="back" class="flex items-center gap-2 min-w-0 text-sm">
             <NuxtLink
-              :to="back.to" class="inline-flex items-center gap-1 -ml-1.5 px-1.5 py-1 rounded-md font-medium text-highlighted hover:bg-elevated/60 shrink-0 sm:max-w-[45vw] lg:max-w-none"
+              v-if="!embedded" :to="back.to" class="inline-flex items-center gap-1 -ml-1.5 px-1.5 py-1 rounded-md font-medium text-highlighted hover:bg-elevated/60 shrink-0 sm:max-w-[45vw] lg:max-w-none"
             >
               <UIcon name="i-lucide-chevron-left" class="size-4 shrink-0" />
               <!-- phones: the arrow alone (the bar is short); its name is still read out -->
               <span class="truncate max-sm:sr-only">{{ back.label }}</span>
             </NuxtLink>
             <div v-if="$slots.status" class="flex items-center gap-2 min-w-0 text-muted">
-              <span class="text-dimmed max-sm:hidden" aria-hidden="true">·</span>
+              <span v-if="!embedded" class="text-dimmed max-sm:hidden" aria-hidden="true">·</span>
               <slot name="status" />
             </div>
           </div>
           <template v-else>
-            <NuxtLink v-if="theme.logo.mark" to="/admin" class="lg:hidden shrink-0 rounded-md">
+            <NuxtLink v-if="theme.logo.mark && !embedded" to="/admin" class="lg:hidden shrink-0 rounded-md">
               <CmsBrandLogo room="compact" />
             </NuxtLink>
-            <nav v-if="breadcrumbs?.length" :aria-label="t('nav.breadcrumb')" class="min-w-0">
+            <nav v-if="breadcrumbs?.length && !embedded" :aria-label="t('nav.breadcrumb')" class="min-w-0">
               <ol class="flex items-center gap-1.5 text-sm min-w-0">
                 <li v-for="(c, i) in breadcrumbs" :key="i" class="flex items-center gap-1.5 min-w-0" :class="i < breadcrumbs.length - 1 ? 'shrink-0 max-sm:hidden' : ''">
                   <NuxtLink v-if="c.to && i < breadcrumbs.length - 1" :to="c.to" class="text-muted hover:text-highlighted transition-colors">{{ c.label }}</NuxtLink>

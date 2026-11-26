@@ -22,6 +22,8 @@ const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-gra
 const meta = computed(() => (graph.value ?? []).find((e: any) => e.name === entity.value))
 // The editor in the preview (experimental, NUXT_CMS_BUILDER=on): provided only when the menu says it is on.
 const builder = provideCmsBuilder(useCmsBuilderOn())
+// Since 2f: this editor as the sheet beside a page's preview shows it (`?embed=builder`): no way back, no preview, no history.
+const embedded = useCmsEmbedded()
 // The manual-order position is set by arranging the list, never by this form (a stale
 // position saved from here would undo someone's reordering).
 const form = useCmsForm(computed(() => (meta.value?.fields ?? []).filter((f: any) => f.key !== meta.value?.orderField)), isNew)
@@ -185,8 +187,8 @@ const menuGroups = computed(() => {
     const g: any[] = []
     if (phoneSave.value) g.push({ label: t('editor.publishEllipsis'), icon: 'i-lucide-send', onSelect: () => { reviewOpen.value = true } })
     else if (draftActions.value && !readOnly.value) g.push({ label: t('editor.saveDraft'), icon: 'i-lucide-save', onSelect: () => save() })
-    if (previewUrl.value) g.push({ label: t('editor.preview'), icon: 'i-lucide-eye', onSelect: togglePreview })
-    if (!isNew.value) g.push({ label: t('revisions.open'), icon: 'i-lucide-history', onSelect: () => { historyOpen.value = true } })
+    if (previewUrl.value && !embedded.value) g.push({ label: t('editor.preview'), icon: 'i-lucide-eye', onSelect: togglePreview })
+    if (!isNew.value && !embedded.value) g.push({ label: t('revisions.open'), icon: 'i-lucide-history', onSelect: () => { historyOpen.value = true } })
     if (locales.value && !isNew.value) g.push({ label: t('translation.language'), icon: 'i-lucide-languages', children: localeItems.value })
     if (g.length) groups.push(g)
   }
@@ -215,6 +217,8 @@ const moreItems = computed(() => {
 const entryItems = computed(() => {
   const items: any[] = []
   if (isNew.value || isTranslation.value) return items
+  // Beside a page, an entry is edited, never copied or deleted: that belongs to its collection.
+  if (embedded.value) return items
   if (liveHere.value && publicPath.value) items.push({ label: t('editor.viewOnSite'), icon: 'i-lucide-arrow-up-right', to: publicPath.value, target: '_blank' })
   if (meta.value?.can?.create !== false) items.push({ label: t('editor.duplicate'), icon: 'i-lucide-copy', onSelect: duplicateEntry })
   if (meta.value?.can?.delete !== false && !(readOnly.value && can.value.why !== 'published')) items.push({ label: t('editor.delete'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: deleteEntry })
@@ -453,7 +457,7 @@ function togglePreview() {
   }
   catch { /* storage blocked: for this visit only */ }
 }
-const split = computed(() => wide.value && previewOpen.value && !!previewUrl.value)
+const split = computed(() => wide.value && previewOpen.value && !!previewUrl.value && !embedded.value)
 // The editor in the preview: while the page is beside the form, the form shows a selected block alone.
 watchEffect(() => { if (builder.value) builder.value.panel.value = split.value })
 const builderFocused = computed(() => !!builder.value?.focused.value)
@@ -627,8 +631,9 @@ async function save(successTitle?: string | null) {
       const res: any = await $fetch(url, { method: 'POST', body: form.body() })
       dirty.value = false // before the redirect, so the leave-guard does not fire
       handedOver.value = momentAfterCreate.value
-      // Replace: Back then goes to where they came from, not to a blank "new" form.
-      await router.replace(`/admin/${entity.value}/${res.row.id}`)
+      embed.saved(res.row.id)
+      // Replace: Back then goes to where they came from, not to a blank "new" form. Beside a page it stays the sheet's.
+      await router.replace({ path: `/admin/${entity.value}/${res.row.id}`, query: embedded.value ? { embed: 'builder' } : {} })
     }
     else {
       const url: string = `/api/cms/${entity.value}/${id.value}`
@@ -943,6 +948,12 @@ const previewUrl = computed(() => {
 })
 
 defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value) save() } } })
+
+// Beside a page (the sheet): what is typed shows in the page's preview at once, the sheet hears when it is saved.
+const embed = useCmsEmbeddedEditor({
+  embedded, entity, id: computed(() => (isNew.value ? null : id.value)), locale: computed(() => (isTranslation.value ? currentLocale.value : null)),
+  body: () => form.body(), dirty, saving, version, title: heading, focus: (key) => { void goToField(key) },
+})
 </script>
 
 <template>
@@ -961,7 +972,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       </template>
     </CmsEmptyState>
   </CmsPage>
-  <CmsPage v-else :back="{ label: listLabel, to: `/admin/${entity}` }" :heading="heading" flush>
+  <CmsPage v-else :back="{ label: listLabel, to: `/admin/${entity}` }" :heading="heading" flush :embedded="embedded">
     <!-- one top bar for every arrangement: ‹ back · status · saved | language, history, details, preview, the primary action, … -->
     <template #status>
       <!-- phones: one thing — unsaved changes while there are any, else the status. With languages the status names
@@ -1000,7 +1011,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
           {{ (currentLocale ?? '').toUpperCase() }}
         </UButton>
       </UDropdownMenu>
-      <UTooltip v-if="!isNew" :text="t('revisions.open')">
+      <UTooltip v-if="!isNew && !embedded" :text="t('revisions.open')">
         <UButton variant="ghost" color="neutral" icon="i-lucide-history" :aria-label="t('revisions.open')" class="max-md:hidden" @click="() => { historyOpen = true }" />
       </UTooltip>
       <UButton
@@ -1013,7 +1024,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
         :aria-label="t('editor.details')" @click="toDetails"
       />
       <UButton
-        v-if="previewUrl" color="neutral" variant="outline" icon="i-lucide-eye" class="max-md:hidden"
+        v-if="previewUrl && !embedded" color="neutral" variant="outline" icon="i-lucide-eye" class="max-md:hidden"
         :class="split ? 'bg-(--cms-nav-active)' : ''" :aria-pressed="split" @click="togglePreview"
       >{{ t('editor.preview') }}</UButton>
 
@@ -1040,7 +1051,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
     </template>
 
     <CmsRevisions
-      v-if="!isNew" v-model:open="historyOpen" :entity="entity" :id="id"
+      v-if="!isNew && !embedded" v-model:open="historyOpen" :entity="entity" :id="id"
       :locale="isTranslation ? currentLocale : null" :fields="editable.filter((f: any) => !workflowFields.has(f.key))" :current="state" @restore="restoreRevision"
     />
 
@@ -1101,7 +1112,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
                 />
                 <p v-if="fieldErrors[titleField.key]" :id="`cms-field-${titleField.key}-error`" role="alert" class="mt-1 text-sm text-error">{{ fieldErrors[titleField.key] }}</p>
               <p v-else-if="titleIsAddress && fieldHelp(titleField)" class="mt-1.5 text-sm text-muted">{{ fieldHelp(titleField) }}</p>
-                <CmsEntryAddress v-else-if="publicPath" :path="publicPath" :live="liveHere" :can-preview="!!previewUrl && !split" @preview="togglePreview" />
+                <CmsEntryAddress v-else-if="publicPath" :path="publicPath" :live="liveHere" :can-preview="!!previewUrl && !split && !embedded" @preview="togglePreview" />
                 <CmsTranslationRef
                   v-if="isTranslation && titleField.localized" :field="titleField" :value="defaults[titleField.key]"
                   :lang="defaultLabel" :empty="!state[titleField.key]" @copy="state[titleField.key] = defaults[titleField.key]"
@@ -1143,7 +1154,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               />
               <p v-if="fieldErrors[titleField.key]" :id="`cms-field-${titleField.key}-error`" role="alert" class="mt-1 text-sm text-error">{{ fieldErrors[titleField.key] }}</p>
               <p v-else-if="titleIsAddress && fieldHelp(titleField)" class="mt-1.5 text-sm text-muted">{{ fieldHelp(titleField) }}</p>
-              <CmsEntryAddress v-else-if="publicPath" :path="publicPath" :live="liveHere" :can-preview="!!previewUrl && !split" @preview="togglePreview" />
+              <CmsEntryAddress v-else-if="publicPath" :path="publicPath" :live="liveHere" :can-preview="!!previewUrl && !split && !embedded" @preview="togglePreview" />
               <CmsTranslationRef
                 v-if="isTranslation && titleField.localized" :field="titleField" :value="defaults[titleField.key]"
                 :lang="defaultLabel" :empty="!state[titleField.key]" @copy="state[titleField.key] = defaults[titleField.key]"
@@ -1343,8 +1354,9 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       :description="moment === 'scheduled' ? t('moment.scheduledBody', { date: formatDate(publishedOn) }) : moment === 'waiting' ? t('moment.waitingBody', { lang: defaultLabel }) : t('moment.liveBody')"
     >
       <UButton v-if="moment === 'published' && publicPath" :to="publicPath" target="_blank" size="sm" color="neutral" variant="outline" icon="i-lucide-arrow-up-right">{{ t('moment.view') }}</UButton>
-      <UButton :to="`/admin/${entity}`" size="sm" color="neutral" variant="ghost">{{ t('moment.backTo', { list: listLabel }) }}</UButton>
+      <UButton v-if="!embedded" :to="`/admin/${entity}`" size="sm" color="neutral" variant="ghost">{{ t('moment.backTo', { list: listLabel }) }}</UButton>
     </CmsMoment>
+    <CmsBuilderEntrySheet v-if="builder && !embedded" />
   </CmsPage>
 </template>
 

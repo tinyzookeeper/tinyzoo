@@ -27,12 +27,24 @@
 // depth (it selects the path down to its block in the same gesture); over a text that can be typed in the
 // pointer is a text cursor and the text has a faint dotted outline; over another field of the selected
 // block, a pointer and the field's name. While the tools are on a press never selects the page's text.
+//
+// Since 2f the page knows what it loaded through the content API (sources.ts): a text or a picture of the
+// selected block that is no field of its own but an entry's (a notice, a dish) or a global's is found in
+// those records (shared/builder-sources.ts). Hovering the entry's card shows its collection and title; a
+// click selects it, a level below the block, with "Edit" and "Open in its section"; a double click on its
+// text edits it beside the page with that field in view. The admin's panel hears which sources the
+// selected block draws from.
 import { cmsBuilderFieldInfo, cmsBuilderFieldValue, cmsFieldOf, type CmsBuilderField, type CmsBuilderKey, type CmsBuilderKind, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace, type CmsBuilderTexts, type CmsBuilderToAdmin, type CmsBuilderToPage } from '../../shared/builder'
 import {
   cmsMatchAt, cmsMatchChain, cmsMatchElements, cmsMatchFields, cmsMatchPictureOf, cmsMatchPictures, cmsMatchReport, cmsMatchShown, cmsMatchUnmarked, cmsSrcsetUrls,
   type CmsMatchField, type CmsMatchPicture,
 } from '../../shared/builder-match'
-import { cmsBuilderBlocks, cmsBuilderMarkers } from './state'
+import {
+  cmsSourceCardAt, cmsSourceFields, cmsSourceFind, cmsSourcePartAt, cmsSourcePictureOf, cmsSourcesOf, cmsSourceTitle, cmsSourceWithRelated, cmsTextsReport,
+  type CmsBuilderEntity, type CmsSourceCard, type CmsSourceFound, type CmsSourcePicture, type CmsSourceRecord,
+} from '../../shared/builder-sources'
+import { cmsSourceChanges, cmsSourceRecords, cmsSourcesLoadedBy } from './sources'
+import { cmsBuilderBlocks, cmsBuilderInstances, cmsBuilderMarkers } from './state'
 import { endTyping, setupTyping, startTyping, typingEl } from './typing'
 import {
   addSlots, axisOf, cellShifts, dropPlace, droppedOrder, edgeSpeed, innerArea, leastHidden, nearestBoundary, nearestSlot, oneLine, placeInList, sameSizes, selectDepth,
@@ -78,6 +90,22 @@ let startedAt = 0
 /** Typing started on a double click's second press: the click that press makes is no click of the person's. */
 let swallow = 0
 const observed = new Set<Element>()
+/** Since 2f: the collections and globals as the admin describes them, and the entry being edited (its blocks are its own). */
+let entities: Record<string, CmsBuilderEntity> = {}
+let entitiesVersion = 0
+let self: { entity: string; id: string } | null = null
+/**
+ * The entry selected inside the selected block (a level below it), and its card's "…" menu. `piece`: the part
+ * of a card in several pieces that was clicked (a teacher's name, each time it stands in a timetable).
+ */
+let entry: { key: string; entity: string; id: string; piece: Node | null } | null = null
+let entryMenu = false
+/** The entry card the pointer is over, inside the selected block (and the piece of it under the pointer). */
+let cardHover: { key: string; entity: string; id: string; piece: Node | null } | null = null
+let cardHinted: HTMLElement | null = null
+/** What the admin last heard about the selected block's sources. */
+let sourcesSent = ''
+let sourcesAt = ''
 
 /** A marked block on the page: its elements (one, or a fragment's), its parent block and its path. */
 interface BNode {
@@ -112,6 +140,15 @@ interface Ui {
   cell: HTMLElement
   typing: HTMLElement
   hint: HTMLElement
+  card: HTMLElement
+  cardChip: HTMLElement
+  cardBox: HTMLElement
+  cardBar: HTMLElement
+  cardEdit: HTMLButtonElement
+  cardEditLabel: HTMLElement
+  cardMore: HTMLButtonElement
+  cardMenu: HTMLElement
+  cardOpen: HTMLElement
   adds: HTMLButtonElement[]
   empties: HTMLButtonElement[]
 }
@@ -319,6 +356,8 @@ function render() {
   drawDrop(host)
   drawTyping(host)
   drawHint(host, sticky)
+  drawCards(current, host, sticky)
+  sendSources(current)
   if (current && keepInView && !scrollToSelected && !drag) {
     keepInView = false
     const r = rectOf(current)
@@ -347,8 +386,11 @@ function drawSelection(current: BNode | null, host: DOMRect, sticky: number) {
   place(ui.box, host, rect)
   ui.box.classList.toggle('sub', !!current.parent)
   if (current.parent && !drag) place(ui.context, host, rectOf(current.parent))
+  // An entry selected inside it: the block is the place around it, and the entry has the toolbar.
+  const held = !!selectedCard(current)
+  ui.box.classList.toggle('held', held)
   // While a text is typed the toolbar steps aside: it never covers the line being typed.
-  if (drag || typingEl()) return
+  if (drag || typingEl() || held) return
   const list = siblingsOf(current)
   const at = list.indexOf(current)
   const axis = axisOfList(list, list.map(boxOf), current.parent)
@@ -638,6 +680,12 @@ function track(e: PointerEvent) {
   if (target !== hintTarget || e.type === 'pointerdown') {
     hintTarget = target
     setHint(drag || typingEl() ? null : hintAt(target, e.clientX, e.clientY))
+    // An entry's card in the selected block: its outline and name, and a pointer.
+    const current = nodeAt(selected)
+    const card = drag || typingEl() || (hint && hint.kind === 'text') ? null : cardAt(current, target)
+    cardHover = card && current ? { key: current.key, entity: card.entity, id: card.id, piece: pieceOf(card, target) } : null
+    const first = card?.els[0]
+    setCardHint(card ? (first?.nodeType === 3 ? first.parentElement : first as HTMLElement | undefined) ?? null : null)
   }
   schedule()
 }
@@ -670,6 +718,9 @@ function plusNear(x: number, y: number) {
 
 function choose(path: CmsBuilderPath | null) {
   selected = path
+  entry = null
+  entryMenu = false
+  sourcesAt = sourcesSent = ''
   // What the pointer's hint says depends on the selection: asked again at the next move.
   hintTarget = null
   if (hint?.kind === 'field') setHint(null)
@@ -715,6 +766,12 @@ function onClick(e: MouseEvent) {
       return
     }
   }
+  // An entry's card in the selected block (since 2f): selected, a level below the block.
+  const card = cardAt(current, target)
+  if (current && card) {
+    selectEntry(current, card, target)
+    return
+  }
   // A folded answer of the selected block opens and closes by its summary, as it does for a visitor.
   const summary = (target instanceof Element ? target : target.parentElement)?.closest('summary')
   if (summary && current && nodeOf(summary)?.key === current.key && summary.parentElement instanceof HTMLDetailsElement) {
@@ -728,6 +785,9 @@ function onClick(e: MouseEvent) {
 function begin(hit: FieldHit, x: number, y: number) {
   if (!hit.info?.text) return
   setHint(null)
+  // A text of the block itself is typed: an entry selected inside it is let go.
+  entry = null
+  entryMenu = false
   const data = cmsBuilderBlocks.get(`${hit.owner.list}\n${hit.owner.id}`)
   const drawn = data ? cmsBuilderFieldValue(data, [hit.owner.id], hit.field, hit.item) : undefined
   startTyping({ el: hit.node, range: hit.range, drawn, path: hit.owner.path, field: hit.field, item: hit.item, lines: hit.info.text === 'lines', max: hit.info.max, x, y })
@@ -756,6 +816,10 @@ function onMouseDown(e: MouseEvent) {
   if (e.detail !== 2) return
   nodes = scan()
   const hit = fieldAt(target, e.clientX, e.clientY)
+  if (!hit && entryPress(target, e.clientX, e.clientY)) {
+    swallow = performance.now()
+    return
+  }
   if (!hit || (hit.kind !== 'text' && hit.kind !== 'rich')) return
   if (!samePath(selected, hit.owner.path)) choose(hit.owner.path)
   if (hit.kind === 'rich') {
@@ -765,6 +829,25 @@ function onMouseDown(e: MouseEvent) {
   }
   begin(hit, e.clientX, e.clientY)
   swallow = performance.now()
+}
+
+/**
+ * The second press of a double click on an entry's text or picture (since 2f): its block and its card are
+ * selected, and the entry opens beside the page with that field in view.
+ */
+function entryPress(target: Node, x: number, y: number): boolean {
+  const node = nodeOf(target)
+  if (!node) return false
+  const start = target instanceof Element ? target : target.parentElement
+  const under = start ? textNodeAt(start, x, y) : null
+  const found = foundIn(node)
+  const at = cmsSourcePartAt(found, (under?.node ?? target) as Part)
+  if (!at) return false
+  const card = found.cards.find((c) => c.entity === at.part.entity && c.id === at.part.id)
+  if (!samePath(selected, node.path)) choose(node.path)
+  if (card) selectEntry(node, card, at.el)
+  editEntry(at.part.entity, at.part.id, at.part.field)
+  return true
 }
 
 /** A double click on a picture (or another field not typed in the page) of the selected block: the panel opens its chooser. */
@@ -830,7 +913,12 @@ const shown = (n: Node): string => {
   }
   return t
 }
-const changes = new MutationObserver(() => { shownCache = new WeakMap() })
+/** Bumped whenever the page's elements or texts change: what was found in a block is found again. */
+let domVersion = 0
+const changes = new MutationObserver(() => {
+  shownCache = new WeakMap()
+  domVersion++
+})
 const visible = (el: Element) => el.getClientRects().length > 0
 
 /** A block's texts and pictures the page may find, from its values (kept while they stay the same). */
@@ -870,7 +958,13 @@ function textNodeAt(el: Element, x: number, y: number): { node: Text; offset: nu
     n = r?.startContainer
     offset = r?.startOffset ?? 0
   }
-  return n && n.nodeType === 3 && el.contains(n) ? { node: n as Text, offset } : null
+  if (!n || n.nodeType !== 3 || !el.contains(n)) return null
+  // The browser's caret goes to the nearest text even from empty space: only a text under the pointer counts.
+  const range = document.createRange()
+  range.selectNodeContents(n)
+  const near = 2 * k()
+  const on = [...range.getClientRects()].some((r) => x >= r.left - near && x <= r.right + near && y >= r.top - near && y <= r.bottom + near)
+  return on ? { node: n as Text, offset } : null
 }
 
 /** The plain or rich text of the block that the element (or one around it, up to the block) shows. */
@@ -932,6 +1026,194 @@ function coverage() {
   })
 }
 
+// ---- content from elsewhere: entries of a collection, a global's values (since 2f)
+
+/** Everything the page loaded, with the entries put inside them through a relation (kept while the records stay the same). */
+let recordsCache: { at: string; all: Map<string, CmsSourceRecord> } | null = null
+function allRecords(): Map<string, CmsSourceRecord> {
+  const at = `${cmsSourceChanges.version}\n${entitiesVersion}`
+  if (recordsCache?.at !== at) recordsCache = { at, all: cmsSourceWithRelated(cmsSourceRecords, entities) }
+  return recordsCache.all
+}
+
+/** The texts and pictures of everything the page loaded (kept while the records stay the same). */
+let sourceCache: { at: string; texts: CmsMatchField[]; pictures: CmsSourcePicture[] } | null = null
+function sourceFields() {
+  const at = `${cmsSourceChanges.version}\n${entitiesVersion}`
+  if (sourceCache?.at !== at) sourceCache = { at, ...cmsSourceFields(allRecords().values(), entities, self) }
+  return sourceCache
+}
+
+type Part = HTMLElement | Text
+/** Whether entries of `child` come inside entries of `parent` through a relation (a lesson's teacher). */
+const related = (parent: string, child: string) => Object.values(entityOf(parent)?.fields ?? {}).some((f) => f.kind === 'relation' && f.to === child)
+/** What a block shows of entries and globals (kept until the page or the records change). */
+const foundCache = new Map<string, { at: string; found: CmsSourceFound<Part> }>()
+function foundIn(node: BNode): CmsSourceFound<Part> {
+  const at = `${domVersion}\n${cmsSourceChanges.version}\n${entitiesVersion}\n${node.els.length}`
+  const cached = foundCache.get(node.key)
+  if (cached && cached.at === at && node.els.every((el) => el.isConnected)) return cached.found
+  const { texts: own, pictures: ownPictures } = matchable(node)
+  const { texts, pictures } = sourceFields()
+  const picture = (n: Part): CmsSourcePicture | null => {
+    if (!(n instanceof HTMLImageElement) || !pictures.length) return null
+    const from = sourcesOf(n)
+    return ownPictures.length && cmsMatchPictureOf(from, ownPictures) ? null : cmsSourcePictureOf(from, pictures)
+  }
+  const found = texts.length || pictures.length
+    ? cmsSourceFind(node.els as Part[], texts, { own, text: shown as (n: Part) => string, visible: (n) => visible(n as Element), picture, related, prefer: new Set(cmsSourcesLoadedBy(cmsBuilderInstances.get(`${node.list}\n${node.id}`))) })
+    : { parts: new Map(), cards: [], own: [] }
+  if (foundCache.size > 60) foundCache.clear()
+  foundCache.set(node.key, { at, found })
+  return found
+}
+
+/** The selected entry's card, when it is in this block and the page shows it. */
+function selectedCard(node: BNode | null): CmsSourceCard<Part> | null {
+  if (!node || !entry || entry.key !== node.key) return null
+  return foundIn(node).cards.find((c) => c.entity === entry!.entity && c.id === entry!.id && c.els.every((el) => el.isConnected)) ?? null
+}
+
+/** The box (viewport px) around a card's elements, or around the one piece of it that is meant. */
+function cardRect(card: CmsSourceCard<Part>, piece: Node | null = null): DOMRect {
+  const els = piece && card.els.length > 1 ? card.els.filter((el) => el === piece) : card.els
+  const rects = (els.length ? els : card.els).map((el) => (el.nodeType === 3 ? el.parentElement! : el as HTMLElement).getBoundingClientRect()).filter((r) => r.width || r.height)
+  if (!rects.length) return new DOMRect()
+  const left = Math.min(...rects.map((r) => r.left))
+  const top = Math.min(...rects.map((r) => r.top))
+  return new DOMRect(left, top, Math.max(...rects.map((r) => r.right)) - left, Math.max(...rects.map((r) => r.bottom)) - top)
+}
+
+const entityOf = (name: string): CmsBuilderEntity | undefined => (Object.hasOwn(entities, name) ? entities[name] : undefined)
+/** "Oznámení · Dovolená od 21. do 31. prosince"; a global: its name. */
+function cardLabel(entity: string, id: string): string {
+  const info = entityOf(entity)
+  if (!info) return ''
+  if (info.global) return info.label
+  return `${info.label} · ${cmsSourceTitle(allRecords().get(entity)?.entries.get(id) ?? {}, info, words?.untitled ?? '')}`
+}
+
+/** The selected entry's outline and toolbar, and the card the pointer is over with its name. */
+function drawCards(current: BNode | null, host: DOMRect, sticky: number) {
+  if (!ui) return
+  ui.card.hidden = ui.cardChip.hidden = ui.cardBox.hidden = ui.cardBar.hidden = ui.cardMenu.hidden = true
+  if (!current || drag || typingEl()) return
+  const chosen = selectedCard(current)
+  const pad = 5 * k()
+  const padded = (r: DOMRect) => new DOMRect(r.left - pad, r.top - pad, r.width + pad * 2, r.height + pad * 2)
+  if (chosen) {
+    const rect = padded(cardRect(chosen, entry?.piece ?? null))
+    place(ui.cardBox, host, rect)
+    const info = entityOf(chosen.entity)
+    ui.cardEdit.hidden = info?.edit === false
+    ui.cardOpen.textContent = (words?.openIn ?? '{name}').replace('{name}', info?.label ?? chosen.entity)
+    leastHiddenAt(ui.cardBar, current, host, rect, BAR_HEIGHT, sticky)
+    if (entryMenu) {
+      ui.cardMenu.hidden = false
+      const bar = ui.cardBar.getBoundingClientRect()
+      ui.cardMenu.style.left = `${inPage(bar.right - ui.cardMenu.offsetWidth * k(), ui.cardMenu.offsetWidth * k()) - host.left}px`
+      ui.cardMenu.style.top = `${bar.bottom + 4 * k() - host.top}px`
+    }
+  }
+  if (!cardHover || cardHover.key !== current.key || (chosen && chosen.entity === cardHover.entity && chosen.id === cardHover.id && entry?.piece === cardHover.piece)) return
+  const card = foundIn(current).cards.find((c) => c.entity === cardHover!.entity && c.id === cardHover!.id)
+  if (!card) return
+  const rect = padded(cardRect(card, cardHover.piece))
+  place(ui.card, host, rect)
+  ui.cardChip.textContent = cardLabel(card.entity, card.id)
+  leastHiddenAt(ui.cardChip, current, host, rect, 20, sticky)
+}
+
+/**
+ * A card's toolbar or name where it hides the least of the block's text: above the card, inside its top edge
+ * (left or right) when it is tall enough, or below it, kept on the screen (as a block's toolbar is placed).
+ */
+function leastHiddenAt(el: HTMLElement, node: BNode, host: DOMRect, rect: DOMRect, height: number, sticky: number) {
+  el.hidden = false
+  const w = el.offsetWidth * k()
+  const h = height * k()
+  const gap = 6 * k()
+  const width = document.documentElement.clientWidth
+  const clampX = (x: number) => Math.min(Math.max(x, 4 * k()), Math.max(4 * k(), width - w - 4 * k()))
+  const tall = rect.height >= h * 2 + gap * 2
+  const places: { left: number; top: number }[] = [
+    { left: clampX(rect.left), top: rect.top - h - gap },
+    ...(tall ? [{ left: clampX(rect.left + gap), top: rect.top + gap }, { left: clampX(rect.right - w - gap), top: rect.top + gap }] : []),
+    { left: clampX(rect.left), top: rect.bottom + gap },
+  ]
+  const text = textAround(node)
+  const doc = (b: Box): Box => ({ left: b.left - scrollX, top: b.top - scrollY, right: b.right - scrollX, bottom: b.bottom - scrollY })
+  const covers = [...text.own.map((b) => ({ box: doc(b), weight: 4 })), ...text.other.map((b) => ({ box: doc(b), weight: 1 }))]
+  const boxes = places.map((p) => ({ left: p.left, top: p.top, right: p.left + w, bottom: p.top + h }))
+  const best = places[leastHidden(boxes, covers, { left: 0, top: sticky, right: width, bottom: innerHeight })]!
+  el.style.left = `${best.left - host.left}px`
+  el.style.top = `${best.top - host.top}px`
+}
+
+/** Tell the admin where the selected block's content comes from, when that changed. */
+function sendSources(current: BNode | null) {
+  if (!current || drag || holding || typingEl()) return
+  const at = `${current.key}\n${domVersion}\n${cmsSourceChanges.version}\n${entitiesVersion}`
+  if (at === sourcesAt) return
+  sourcesAt = at
+  const known = cmsSourcesLoadedBy(cmsBuilderInstances.get(`${current.list}\n${current.id}`)).filter((e) => e !== self?.entity)
+  const sources = cmsSourcesOf(foundIn(current), known, allRecords(), entities, words?.untitled ?? '', Date.now(), drawsNothing(current))
+  const said = `${current.key}\n${JSON.stringify(sources)}`
+  if (said === sourcesSent) return
+  sourcesSent = said
+  send({ type: 'cms:builder:sources', id: current.id, path: current.path, sources })
+}
+
+/** A block whose component draws nothing now: only <CmsBlocks>' placeholder stands for it. */
+const drawsNothing = (node: BNode) => node.els.every((el) => el.hasAttribute('data-cms-blank'))
+
+/** The piece of a card in several pieces that holds a node; `null` for a card of one element. */
+const pieceOf = (card: CmsSourceCard<Part>, target: Node | null): Node | null => (card.els.length > 1 && target ? card.els.find((el) => el.contains(target)) ?? null : null)
+
+function selectEntry(node: BNode, card: CmsSourceCard<Part>, target: Node | null = null) {
+  entry = { key: node.key, entity: card.entity, id: card.id, piece: pieceOf(card, target) }
+  entryMenu = false
+  setCardHint(null)
+  schedule()
+}
+
+/** Edit an entry beside the page (`field` in view), or open it in its own section. */
+function editEntry(entity: string, id: string, field?: string, open = false) {
+  const info = entityOf(entity)
+  if (!info || (!open && info.edit === false)) return
+  send({ type: 'cms:builder:entry', entity, id, ...(field ? { field } : {}), ...(open ? { open: true } : {}) })
+}
+
+/** The pointer is a pointer over an entry's card in the selected block. */
+function setCardHint(el: HTMLElement | null) {
+  if (cardHinted === el) return
+  cardHinted?.removeAttribute('data-cms-card-hint')
+  cardHinted = el
+  el?.setAttribute('data-cms-card-hint', '')
+}
+
+/** The entry's card under the pointer, in the selected block (not in a block inside it). */
+function cardAt(current: BNode | null, target: Node): CmsSourceCard<Part> | null {
+  if (!current || nodeOf(target)?.key !== current.key) return null
+  return cmsSourceCardAt(foundIn(current), target as Part)
+}
+
+/**
+ * For the measuring script: per block, every visible text and what it resolves to (a field of the block,
+ * of an entry, of a global, or nothing, with its kind), and the block's sources. Reads only.
+ */
+function textsCoverage() {
+  nodes = scan()
+  const all = sourceFields().texts.map((f) => f.norm)
+  return nodes.map((node) => {
+    const { texts } = matchable(node)
+    const found = foundIn(node)
+    const pieces = cmsTextsReport(node.els as Part[], texts, found, entities, { text: shown as (n: Part) => string, visible: (n) => visible(n as Element), values: [...texts.map((f) => f.norm), ...all] })
+    const known = cmsSourcesLoadedBy(cmsBuilderInstances.get(`${node.list}\n${node.id}`)).filter((e) => e !== self?.entity)
+    return { path: node.path, type: node.type, pieces: pieces.map((p) => ({ res: p.res, ...(p.rest ? { rest: p.rest } : {}), text: p.text.slice(0, 60) })), sources: cmsSourcesOf(found, known, allRecords(), entities, words?.untitled ?? '', Date.now(), drawsNothing(node)) }
+  })
+}
+
 function stop(e: Event) {
   if (e.composedPath().includes(ui!.host)) return
   e.preventDefault()
@@ -966,6 +1248,13 @@ function act(type: 'cms:builder:duplicate' | 'cms:builder:remove') {
 
 function key(name: CmsBuilderKey | string, alt: boolean): boolean {
   if (name === 'Escape') {
+    if (entry && !press) {
+      // An entry selected inside the block: back to the block.
+      entry = null
+      entryMenu = false
+      schedule()
+      return true
+    }
     if (press) {
       // The button is still down: its release makes a click on the page, which is not one of the person's.
       window.addEventListener('pointerup', () => { calledOff = performance.now() }, { once: true, capture: true })
@@ -1296,6 +1585,9 @@ const ICONS = {
   copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  open: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
 }
 const svg = (icon: string) => `<svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>`
 
@@ -1334,6 +1626,16 @@ svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .empty svg{width:14px;height:14px}
 .hint{border-radius:calc(3px * var(--k));outline:calc(1px * var(--k)) dotted rgba(47,98,214,.75);outline-offset:0}
 .typing{border-radius:calc(4px * var(--k));outline:calc(1.5px * var(--k)) solid rgba(47,98,214,.45);outline-offset:0;background:rgba(47,98,214,.04)}
+.sel.held{outline:calc(1.5px * var(--k)) dashed rgba(47,98,214,.55);outline-offset:calc(-1.5px * var(--k))}
+.card{border-radius:calc(8px * var(--k));outline:calc(1.5px * var(--k)) solid rgba(47,98,214,.45);outline-offset:0;background:rgba(47,98,214,.035);transition:opacity 150ms ease-out}
+.cardsel{border-radius:calc(8px * var(--k));outline:calc(2px * var(--k)) solid #2f62d6;outline-offset:0}
+.chip.entry{color:#1f1e1c;font-weight:500;max-width:min(30rem,calc(100vw - 16px));overflow:hidden;text-overflow:ellipsis}
+.chip.entry::before{content:'';display:inline-block;width:6px;height:6px;margin:0 6px 1px 0;border-radius:50%;background:#2f62d6;vertical-align:middle}
+.tool.wide{width:auto;gap:5px;padding:0 9px 0 7px;display:inline-flex;align-items:center;font:600 11.5px/1 system-ui,sans-serif;white-space:nowrap}
+.menu{position:absolute;z-index:3;pointer-events:auto;transform-origin:0 0;transform:scale(var(--k));min-width:180px;padding:4px;border-radius:9px;background:#fff;color:#1f1e1c;box-shadow:0 0 0 1px rgba(31,30,28,.1),0 10px 28px -8px rgba(0,0,0,.28)}
+.menu button{display:flex;align-items:center;gap:8px;width:100%;padding:7px 9px;border:0;border-radius:6px;background:none;color:inherit;font:500 12.5px/1.2 system-ui,sans-serif;text-align:left;white-space:nowrap;cursor:pointer}
+.menu button:hover,.menu button:focus-visible{background:rgba(47,98,214,.08);outline:none}
+.menu svg{width:14px;height:14px;flex:none;color:#5b5a56}
 .drop{position:absolute;pointer-events:none;border-radius:calc(3px * var(--k));background:#2f62d6;box-shadow:0 0 0 calc(2px * var(--k)) rgba(255,255,255,.75)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 `
@@ -1384,7 +1686,24 @@ function build(): Ui {
   const duplicate = tool(bar, ICONS.copy, 'tool')
   const remove = tool(bar, ICONS.trash, 'tool')
   const add = tool(root, ICONS.plus, 'add')
-  for (const el of [context, hoverBox, chip, box, into, from, cell, typing, hintBox, drop, line, bar, add]) el.hidden = true
+  // An entry inside the selected block (since 2f): the card the pointer is over with its name, the selected
+  // one with "Edit" and "…" ("Open in its section").
+  const card = make('div', 'o card', root)
+  const cardBox = make('div', 'o cardsel', root)
+  const cardChip = make('div', 'chip entry', root)
+  const cardBar = make('div', 'bar', root)
+  const cardEdit = tool(cardBar, ICONS.pencil, 'tool wide')
+  const cardEditLabel = make('span', '', cardEdit)
+  const cardMore = tool(cardBar, ICONS.more, 'tool')
+  cardMore.setAttribute('aria-haspopup', 'menu')
+  const cardMenu = make('div', 'menu', root)
+  cardMenu.setAttribute('role', 'menu')
+  const cardOpenItem = make('button', '', cardMenu) as HTMLButtonElement
+  cardOpenItem.type = 'button'
+  cardOpenItem.setAttribute('role', 'menuitem')
+  cardOpenItem.innerHTML = svg(ICONS.open)
+  const cardOpen = make('span', '', cardOpenItem)
+  for (const el of [context, hoverBox, chip, box, into, from, cell, typing, hintBox, drop, line, bar, add, card, cardBox, cardChip, cardBar, cardMenu]) el.hidden = true
   document.body.appendChild(host)
   handle.addEventListener('pointerdown', startPress)
   prev.addEventListener('click', () => step(-1))
@@ -1392,13 +1711,29 @@ function build(): Ui {
   duplicate.addEventListener('click', () => act('cms:builder:duplicate'))
   remove.addEventListener('click', () => act('cms:builder:remove'))
   add.addEventListener('click', () => { if (plus) send({ type: 'cms:builder:add', place: { after: plus.after } }) })
-  return { host, root, hover: hoverBox, chip, context, box, bar, name, prev, next, duplicate, remove, handle, line, add, drop, into, from, cell, typing, hint: hintBox, adds: [], empties: [] }
+  cardEdit.addEventListener('click', () => { if (entry) editEntry(entry.entity, entry.id) })
+  cardMore.addEventListener('click', () => {
+    entryMenu = !entryMenu
+    cardMore.setAttribute('aria-expanded', String(entryMenu))
+    schedule()
+    if (entryMenu) requestAnimationFrame(() => cardOpenItem.focus({ preventScroll: true }))
+  })
+  cardOpenItem.addEventListener('click', () => {
+    if (entry) editEntry(entry.entity, entry.id, undefined, true)
+    entryMenu = false
+    schedule()
+  })
+  return {
+    host, root, hover: hoverBox, chip, context, box, bar, name, prev, next, duplicate, remove, handle, line, add, drop, into, from, cell, typing, hint: hintBox,
+    card, cardChip, cardBox, cardBar, cardEdit, cardEditLabel, cardMore, cardMenu, cardOpen, adds: [], empties: [],
+  }
 }
 
 /** The page's cursor over what a click edits (the element carries `data-cms-hint`, set by the overlay). */
 const HINT_STYLE = `
 [data-cms-hint="text"],[data-cms-hint="text"] *{cursor:text!important}
 [data-cms-hint="field"],[data-cms-hint="field"] *{cursor:pointer!important}
+[data-cms-card-hint],[data-cms-card-hint] *{cursor:pointer!important}
 `
 
 function start() {
@@ -1410,6 +1745,9 @@ function start() {
   document.head.appendChild(style)
   changes.observe(document.body, { childList: true, subtree: true, characterData: true })
   ;(window as unknown as { __cmsBuilderCoverage?: typeof coverage }).__cmsBuilderCoverage = coverage
+  ;(window as unknown as { __cmsBuilderTexts?: typeof textsCoverage }).__cmsBuilderTexts = textsCoverage
+  ;(window as unknown as { __cmsBuilderRecords?: () => number }).__cmsBuilderRecords = () => cmsSourceRecords.size
+  cmsSourceChanges.listeners.add(schedule)
   window.addEventListener('mousedown', onMouseDown, true)
   window.addEventListener('click', onClick, true)
   window.addEventListener('dblclick', onDoubleClick, true)
@@ -1421,7 +1759,7 @@ function start() {
     keepInView = true
     schedule()
   })
-  document.documentElement.addEventListener('pointerleave', () => { hover = null; plus = null; hintTarget = null; setHint(null); schedule() })
+  document.documentElement.addEventListener('pointerleave', () => { hover = null; plus = null; hintTarget = null; setHint(null); cardHover = null; setCardHint(null); schedule() })
   sizes.observe(document.documentElement)
   new MutationObserver(() => {
     textCache = null
@@ -1432,6 +1770,8 @@ function start() {
 
 function setTexts(t: CmsBuilderTexts) {
   words = t
+  ui!.cardEditLabel.textContent = t.edit ?? ''
+  label(ui!.cardMore, t.more)
   label(ui!.handle, t.drag)
   label(ui!.duplicate, t.duplicate)
   label(ui!.remove, t.remove)
@@ -1447,6 +1787,12 @@ export function handleCmsBuilderMessage(message: CmsBuilderToPage) {
     setTexts(message.texts)
     selected = message.selectedPath ?? (message.selected === null ? null : [message.selected])
     if (message.scale) scale = message.scale
+    if (message.entities) {
+      entities = message.entities
+      entitiesVersion++
+    }
+    if (message.self !== undefined) self = message.self
+    sourcesAt = sourcesSent = ''
   }
   else if (message.type === 'cms:builder:view') {
     scale = message.scale
@@ -1456,7 +1802,12 @@ export function handleCmsBuilderMessage(message: CmsBuilderToPage) {
     const path = message.id === null ? null : message.path ?? [message.id]
     // Another block selected from the admin ends the typing (its text stays).
     if (typingEl() && !samePath(path, selected)) endTyping()
+    if (!samePath(path, selected)) {
+      entry = null
+      entryMenu = false
+    }
     selected = path
+    sourcesAt = sourcesSent = ''
     hintTarget = null
     if (hint?.kind === 'field') setHint(null)
     scrollToSelected = message.scroll && message.id !== null

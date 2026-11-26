@@ -291,6 +291,9 @@ export function cmsMatchBare(text: string): string {
 }
 
 /** The fields whose value is the text: exactly, else but for what a look adds around it (a period after a title, quotes around a quote), else but for upper and lower case. */
+export function cmsMatchFieldsWith(fields: CmsMatchField[], shown: string): CmsMatchField[] {
+  return fieldsWith(fields, shown)
+}
 function fieldsWith(fields: CmsMatchField[], shown: string): CmsMatchField[] {
   const exact = fields.filter((f) => f.norm === shown)
   if (exact.length) return exact

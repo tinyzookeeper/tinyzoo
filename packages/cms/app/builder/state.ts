@@ -2,6 +2,7 @@
 // it on (plugins/cmsLivePreview.client.ts); this folder is not auto-imported, so a site that
 // never gets that message never loads anything of the tool beyond this flag.
 import { shallowRef } from 'vue'
+import type { ComponentInternalInstance } from 'vue'
 
 export const cmsBuilderOn = shallowRef(false)
 
@@ -18,6 +19,12 @@ export const cmsBuilderMarkers = new Set<() => void>()
  * with them (shared/builder-match.ts).
  */
 export const cmsBuilderBlocks = new Map<string, Record<string, unknown>>()
+
+/**
+ * Since 2f: each marked block's component, by the same key: what it loads through the content API is found
+ * from what its drawing depends on (app/builder/sources.ts), also when it shows nothing of it now.
+ */
+export const cmsBuilderInstances = new Map<string, ComponentInternalInstance>()
 
 /** The admin's names of the block types and its word for a block that draws nothing, for what the page draws while the tool is on. */
 export const cmsBuilderWords = shallowRef<{ names: Record<string, string>; blank: string }>({ names: {}, blank: '' })

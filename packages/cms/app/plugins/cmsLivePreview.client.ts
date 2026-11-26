@@ -6,7 +6,8 @@
 // without code of its own; scroll position and page state stay as they are.
 //
 // The editor in the preview (NUXT_CMS_BUILDER=on) starts here too: only when the admin sends
-// `cms:builder:on` does the page load its overlay (builder/overlay.ts) and mark its blocks.
+// `cms:builder:on` does the page load its overlay (builder/overlay.ts) and mark its blocks, and
+// keep what it loads through the content API (builder/sources.ts, since 2f).
 //
 // A site that renders from something else can listen too: the message is
 // { type: 'cms:preview', entity, id, locale, data } with the form's values.
@@ -31,6 +32,8 @@ export default defineNuxtPlugin((nuxtApp) => {
         if (message.type === 'cms:builder:on') {
           cmsBuilderWords.value = { names: cmsBuilderNames(message.labels, message.lists), blank: message.texts.blank ?? '' }
           cmsBuilderOn.value = true
+          // What the page loads through the content API is kept while the tools are on (since 2f).
+          return import('../builder/sources').then((sources) => sources.recordCmsContent(nuxtApp)).then(() => import('../builder/overlay'))
         }
         return import('../builder/overlay')
       }).then((overlay) => overlay.handleCmsBuilderMessage(message))

@@ -12,7 +12,7 @@ import { defineComponent, Fragment, getCurrentInstance, h, onBeforeUnmount, onMo
 import type { ComponentPublicInstance, PropType } from 'vue'
 import type { CmsBlock } from '../../src/blocks'
 import type { CmsBlocksProps } from '../../src/frontend'
-import { cmsBuilderBlocks, cmsBuilderMarkers, cmsBuilderOn, cmsBuilderWords } from '../builder/state'
+import { cmsBuilderBlocks, cmsBuilderInstances, cmsBuilderMarkers, cmsBuilderOn, cmsBuilderWords } from '../builder/state'
 
 const props = withDefaults(defineProps<CmsBlocksProps>(), { prefix: 'Block' })
 const pascal = (s: string) => s.replace(/(^|[-_])(\w)/g, (_m, _s, c: string) => c.toUpperCase())
@@ -66,7 +66,11 @@ function mark() {
     const key = `${listId}\n${x.block.id}`
     cmsBuilderBlocks.set(key, x.block as Record<string, unknown>)
     now.add(key)
-    const els = rootElements(instances.get(x.block.id))
+    // Its component, for what it loads from elsewhere (since 2f).
+    const instance = instances.get(x.block.id)
+    if (instance && '$' in instance) cmsBuilderInstances.set(key, instance.$)
+    else cmsBuilderInstances.delete(key)
+    const els = rootElements(instance)
     if (!els.length && instances.has(x.block.id)) none.add(x.block.id)
     for (const el of els) {
       el.setAttribute('data-cms-block', x.block.id)
@@ -74,7 +78,11 @@ function mark() {
       el.setAttribute('data-cms-block-list', listId)
     }
   }
-  for (const key of kept) if (!now.has(key)) cmsBuilderBlocks.delete(key)
+  for (const key of kept) {
+    if (now.has(key)) continue
+    cmsBuilderBlocks.delete(key)
+    cmsBuilderInstances.delete(key)
+  }
   kept = now
   if (none.size !== blank.value.size || [...none].some((id) => !blank.value.has(id))) blank.value = none
 }
@@ -83,7 +91,7 @@ const BLANK = 'display:flex;flex-direction:column;align-items:center;justify-con
 const Blank = defineComponent({
   props: { block: { type: Object as PropType<CmsBlock>, required: true }, list: { type: String, required: true } },
   setup(p) {
-    return () => h('div', { 'style': BLANK, 'aria-hidden': 'true', 'data-cms-block': p.block.id, 'data-cms-block-type': p.block.type, 'data-cms-block-list': p.list }, [
+    return () => h('div', { 'style': BLANK, 'aria-hidden': 'true', 'data-cms-blank': '', 'data-cms-block': p.block.id, 'data-cms-block-type': p.block.type, 'data-cms-block-list': p.list }, [
       h('span', { style: 'opacity:0.75' }, cmsBuilderWords.value.names[p.block.type] ?? p.block.type),
       cmsBuilderWords.value.blank ? h('span', { style: 'font-size:0.8125rem;opacity:0.5' }, cmsBuilderWords.value.blank) : null,
     ])
@@ -104,7 +112,10 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   cmsBuilderMarkers.delete(mark)
-  for (const key of kept) cmsBuilderBlocks.delete(key)
+  for (const key of kept) {
+    cmsBuilderBlocks.delete(key)
+    cmsBuilderInstances.delete(key)
+  }
 })
 onUpdated(mark)
 watch(cmsBuilderOn, mark, { flush: 'post' })

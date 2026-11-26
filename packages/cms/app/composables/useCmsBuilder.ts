@@ -2,6 +2,7 @@ import type { ComputedRef, InjectionKey, Ref, ShallowRef } from 'vue'
 import { cmsBuilderPathOf, cmsBuilderPlaceAnchor, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace, type CmsBuilderToAdmin, type CmsBuilderToPage } from '../../shared/builder'
 import { changedBlock, findBlock, kindsAlong, pathOfId, pathOfListKey, textEdit, type BlockKindDef, type BlockList } from '../../shared/block-tree'
 import { createBuilderHistory } from '../../shared/builder-history'
+import { cmsBuilderEntryAddress, type CmsBuilderEntity, type CmsBuilderSource } from '../../shared/builder-sources'
 
 // The editor in the preview (experimental, NUXT_CMS_BUILDER=on), admin side: a bridge between the
 // page-blocks fields of the form and the preview panel that shows the page. The fields register
@@ -22,6 +23,11 @@ import { createBuilderHistory } from '../../shared/builder-history'
 // A plain text typed in the page (since 2d) is set through the field like any typing in the form, so it
 // is one step of the history per field per pause too. A click in the page on a field that is not typed
 // there (a rich text, a picture) asks the panel to bring that field into view (`fieldRequest`).
+//
+// Since 2f the page says where the selected block's content comes from besides its own fields (`sources`:
+// the collections and globals it shows, with the entries it shows now), and asks to edit an entry beside the
+// page (`entryRequest`, which the editor's sheet opens) or to open it in its own section. An entry is saved
+// on its own: the page's history never holds it.
 
 /** What a page-blocks field lets the bridge do. The changes do nothing on a field that is read-only. */
 export interface CmsBuilderList {
@@ -99,6 +105,18 @@ export interface CmsBuilder {
   fieldRequest: Readonly<ShallowRef<{ path: CmsBuilderPath; field: string; item: string | null; open: boolean; at: number } | null>>
   /** Since 2d: the panel takes the keyboard focus when it opens next (a row opened with the keyboard, not a click in the page). */
   focusPanel: Ref<boolean>
+  /** Since 2f: where each block's content comes from besides its own fields, as the page last said it (by the block's path). */
+  sources: Readonly<ShallowRef<Record<string, CmsBuilderSource[]>>>
+  /** Since 2f: the collections and globals as the page was told of them (the preview panel sets them). */
+  entities: ShallowRef<Record<string, CmsBuilderEntity>>
+  /** Since 2f: an entry (or a global) to edit beside the page; `id: null` a new entry; `field` to bring into view. */
+  entryRequest: Readonly<ShallowRef<{ entity: string; id: string | null; field: string | null; at: number } | null>>
+  /** Since 2f: edit an entry beside the page (`id: null`: add one). */
+  editEntry: (entity: string, id: string | null, field?: string | null) => void
+  /** Since 2f: the sheet closed (or opened another entry). */
+  closeEntry: () => void
+  /** Since 2f: the page shows its content anew (an entry beside it was typed in or saved). */
+  refresh: () => void
   /** The history of the page-blocks field's changes while the editor is open. */
   history: {
     canUndo: Readonly<Ref<boolean>>
@@ -128,6 +146,9 @@ function createBridge(): CmsBuilder {
   const openPath = shallowRef<{ path: CmsBuilderPath; at: number } | null>(null)
   const fieldRequest = shallowRef<{ path: CmsBuilderPath; field: string; item: string | null; open: boolean; at: number } | null>(null)
   const focusPanel = ref(false)
+  const sources = shallowRef<Record<string, CmsBuilderSource[]>>({})
+  const entities = shallowRef<Record<string, CmsBuilderEntity>>({})
+  const entryRequest = shallowRef<{ entity: string; id: string | null; field: string | null; at: number } | null>(null)
   let panel: CmsBuilderPanel | null = null
   const owner = (id: string | undefined) => (id === undefined ? lists.value[0] : lists.value.find((l) => l.ids().includes(id)))
   const labels = computed(() => Object.assign({}, ...lists.value.map((l) => l.labels())) as Record<string, string>)
@@ -204,9 +225,14 @@ function createBridge(): CmsBuilder {
   }
   const panelOn = ref(false)
   const focused = computed(() => panelOn.value && !!selection.value && selection.value.along.length === selection.value.path.length)
+  function editEntry(entity: string, id: string | null, field?: string | null) {
+    entryRequest.value = { entity, id, field: field ?? null, at: Date.now() }
+  }
   return {
     lists, selected, selectedPath, selection, openPath, labels, kinds, select, history, fieldRequest, focusPanel,
-    panel: panelOn, focused,
+    panel: panelOn, focused, sources, entities, entryRequest, editEntry,
+    closeEntry() { entryRequest.value = null },
+    refresh() { panel?.postNow() },
     register(list) {
       lists.value = [...lists.value, list]
       return () => { lists.value = lists.value.filter((l) => l !== list) }
@@ -256,6 +282,18 @@ function createBridge(): CmsBuilder {
           owner(path[0])?.reveal(path)
         }
         fieldRequest.value = { path, field: message.field, item: message.item ?? null, open: message.open === true, at: Date.now() }
+        return
+      }
+      if (message.type === 'cms:builder:sources') {
+        sources.value = { ...sources.value, [cmsBuilderPathOf(message).join('/')]: message.sources }
+        return
+      }
+      if (message.type === 'cms:builder:entry') {
+        if (message.open) {
+          window.open(cmsBuilderEntryAddress(message.entity, message.id, !!entities.value[message.entity]?.global), '_blank', 'noopener')
+          return
+        }
+        editEntry(message.entity, message.id, message.field ?? null)
         return
       }
       if (message.type === 'cms:builder:add') {

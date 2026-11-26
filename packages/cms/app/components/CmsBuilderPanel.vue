@@ -14,10 +14,15 @@
 // into view here with a short highlight; a rich text gets the cursor, a picture's chooser opens on a
 // double click (since 2d). The panel takes the keyboard focus when it was opened from the list with the
 // keyboard, and gives it back to the list's row with *All sections*.
+//
+// Since 2f, after the block's own fields and settings: where else its content comes from (*Content from
+// elsewhere*), as the page found it: each collection or global it shows, the entries it shows now (a click
+// edits one beside the page), *Add entry* and *All entries*. What the person may not do is not offered.
 import type { CmsBuilderPath } from '../../shared/builder'
 import { blockListFull, findBlock, isLockedBlock, issueCounts, keyOfPath } from '../../shared/block-tree'
 
 const props = defineProps<{ entity: string; readOnly?: boolean }>()
+const { data: graph } = useNuxtData<any[]>('cms-graph')
 // Text inside blocks is edited on its own (not shared), as in the form's list.
 provide('cmsCollab', null)
 // The rich-text editor's own undo says it undoes the text only (the preview's bar has the builder's undo).
@@ -128,6 +133,20 @@ onMounted(() => {
     heading.value?.focus({ preventScroll: true })
   }
 })
+// ── content from elsewhere (since 2f) ──
+const sources = computed(() => {
+  const all = builder.value?.sources.value[path.value.join('/')] ?? []
+  const known = builder.value?.entities.value ?? {}
+  return all.filter((src) => Object.hasOwn(known, src.entity)).map((src) => {
+    const info = known[src.entity]!
+    const meta = (graph.value ?? []).find((e: any) => e.name === src.entity)
+    return { ...src, info, icon: meta?.icon ?? (info.global ? 'i-lucide-settings-2' : 'i-lucide-folder') }
+  })
+})
+function editEntry(entity: string, id: string | null) {
+  builder.value?.editEntry(entity, id)
+}
+
 function go(depth: number) {
   builder.value?.select(path.value.slice(0, depth + 1))
 }
@@ -174,7 +193,7 @@ function remove() {
       <span class="cms-focus__icon"><UIcon :name="def?.icon ?? 'i-lucide-square'" class="size-[1.125rem]" aria-hidden="true" /></span>
       <div class="min-w-0">
         <h2 ref="heading" class="cms-focus__title" tabindex="-1">{{ name(path.length - 1) }}</h2>
-        <p class="text-xs text-muted truncate">{{ about }}</p>
+        <p class="text-xs text-muted text-pretty">{{ about }}</p>
       </div>
     </div>
 
@@ -211,6 +230,44 @@ function remove() {
         </div>
       </div>
     </template>
+
+    <section v-if="sources.length" :aria-labelledby="`cms-focus-${block.id}-sources`" class="cms-focus__settings">
+      <h3 :id="`cms-focus-${block.id}-sources`" class="cms-focus__sub">{{ t('builderSources.title') }}</h3>
+      <div class="space-y-5">
+        <div v-for="src in sources" :key="src.entity" class="cms-src" data-cms-source :data-entity="src.entity">
+          <div class="flex items-start gap-2.5">
+            <span class="cms-src__icon"><UIcon :name="src.icon" class="size-4" aria-hidden="true" /></span>
+            <div class="min-w-0">
+              <p class="cms-src__name">{{ src.info.label }}</p>
+              <p class="text-xs text-muted text-pretty">{{ src.info.global ? t('builderSources.fromGlobal', { name: src.info.label }) : t('builderSources.fromCollection', { name: src.info.label }) }}</p>
+            </div>
+          </div>
+          <template v-if="!src.info.global">
+            <ul v-if="src.entries.length" class="cms-src__rows">
+              <li v-for="e in src.entries" :key="e.id">
+                <button v-if="src.info.edit !== false" type="button" class="cms-src__row" @click="editEntry(src.entity, e.id)">
+                  <span class="min-w-0 flex-1 truncate">{{ e.title }}</span>
+                  <UBadge v-if="e.state" size="sm" variant="subtle" :color="e.state === 'scheduled' ? 'info' : 'neutral'">{{ e.state === 'scheduled' ? t('editor.scheduled') : t('editor.draft') }}</UBadge>
+                  <UIcon name="i-lucide-pencil" class="cms-src__pen size-3.5 shrink-0" aria-hidden="true" />
+                </button>
+                <span v-else class="cms-src__row cms-src__row--plain">
+                  <span class="min-w-0 flex-1 truncate">{{ e.title }}</span>
+                  <UBadge v-if="e.state" size="sm" variant="subtle" :color="e.state === 'scheduled' ? 'info' : 'neutral'">{{ e.state === 'scheduled' ? t('editor.scheduled') : t('editor.draft') }}</UBadge>
+                </span>
+              </li>
+            </ul>
+            <p v-else class="text-sm text-muted">{{ src.unmatched ? t('builderSources.notOneByOne') : t('builderSources.nothingNow') }}</p>
+          </template>
+          <div class="flex flex-wrap gap-2">
+            <UButton v-if="src.info.global && src.info.edit !== false" size="xs" color="neutral" variant="outline" icon="i-lucide-pencil" @click="editEntry(src.entity, src.entries[0]?.id ?? null)">{{ t('builderSources.edit') }}</UButton>
+            <UButton v-if="!src.info.global && src.info.create" size="xs" color="neutral" variant="outline" icon="i-lucide-plus" @click="editEntry(src.entity, null)">{{ t('builderSources.add') }}</UButton>
+            <UButton :to="`/admin/${src.entity}`" target="_blank" size="xs" color="neutral" variant="ghost" trailing-icon="i-lucide-arrow-up-right">
+              {{ src.info.global ? t('builderSources.openGlobal') : t('builderSources.all') }}
+            </UButton>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <div class="cms-focus__foot">
       <UButton v-if="!locked && !full" color="neutral" variant="outline" size="sm" icon="i-lucide-copy" @click="duplicate">{{ t('blocks.duplicate') }}</UButton>
@@ -256,5 +313,19 @@ button.cms-focus__crumb:hover { background: var(--ui-bg-elevated); color: var(--
 .cms-focus__title { margin: 0; font-family: var(--cms-font-display); font-size: 1.0625rem; font-weight: 700; line-height: 1.25; color: var(--ui-text-highlighted); }
 .cms-focus__settings { padding-top: 1rem; border-top: 1px solid var(--ui-border); }
 .cms-focus__sub { margin: 0 0 0.875rem; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ui-text-muted); }
+.cms-src { display: flex; flex-direction: column; gap: 0.75rem; }
+.cms-src__icon { display: grid; place-items: center; flex: none; width: 1.75rem; height: 1.75rem; border-radius: 0.5rem; background: var(--cms-moment-bg); color: var(--cms-moment-text); }
+.cms-src__name { margin: 0; font-size: 0.875rem; font-weight: 600; line-height: 1.35; color: var(--ui-text-highlighted); }
+.cms-src__rows { display: flex; flex-direction: column; border: 1px solid var(--ui-border); border-radius: 0.625rem; overflow: hidden; }
+.cms-src__rows > li + li { border-top: 1px solid var(--ui-border); }
+.cms-src__row {
+  display: flex; align-items: center; gap: 0.5rem; width: 100%; min-height: 2.5rem; padding: 0.5rem 0.75rem; text-align: left;
+  font-size: 0.875rem; color: var(--ui-text); transition: background-color 150ms ease-out;
+}
+button.cms-src__row:hover { background: var(--ui-bg-elevated); }
+button.cms-src__row:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: -2px; }
+.cms-src__pen { color: var(--ui-text-dimmed); opacity: 0; transition: opacity 150ms ease-out; }
+button.cms-src__row:hover .cms-src__pen, button.cms-src__row:focus-visible .cms-src__pen { opacity: 1; }
+@media (pointer: coarse) { .cms-src__pen { opacity: 1; } }
 .cms-focus__foot { display: flex; flex-wrap: wrap; gap: 0.5rem; padding-top: 1rem; border-top: 1px solid var(--ui-border); }
 </style>

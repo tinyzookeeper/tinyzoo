@@ -10,6 +10,8 @@
 // the ids from the page's list down to it, built on the page from the marks' ancestry. A path
 // of one id is a block of the page, so the messages of part 1 (an id, no path) stay valid.
 
+import type { CmsBuilderEntity, CmsBuilderSource } from './builder-sources'
+
 /** A block by the ids from the page's list down to it: `[sectionId]`, `[sectionId, groupId, itemId]`. */
 export type CmsBuilderPath = string[]
 
@@ -37,6 +39,11 @@ export interface CmsBuilderTexts {
   addBlock?: string
   /** Since 2c: what a block that draws nothing says while the tool is on. */
   blank?: string
+  /** Since 2f: an entry's toolbar ("Edit", "More", "Open in {name}") and the word for an entry without a title. */
+  edit?: string
+  more?: string
+  openIn?: string
+  untitled?: string
 }
 
 /** One type of block the page may hold in a list: its name, and its own list if it has one. */
@@ -82,7 +89,12 @@ export type CmsBuilderToPage =
    * Sent on every load of the frame. Since 2c also the page list's kinds (`lists`) and the
    * selected block's path.
    */
-  | { type: 'cms:builder:on'; labels: Record<string, string>; texts: CmsBuilderTexts; selected: string | null; selectedPath?: CmsBuilderPath | null; lists?: CmsBuilderListKinds; scale?: number }
+  | {
+    type: 'cms:builder:on'; labels: Record<string, string>; texts: CmsBuilderTexts; selected: string | null; selectedPath?: CmsBuilderPath | null; lists?: CmsBuilderListKinds; scale?: number
+    /** Since 2f: the collections and globals the person may read, for content a block draws from them, and the entry being edited (its blocks are its own). */
+    entities?: Record<string, CmsBuilderEntity>
+    self?: { entity: string; id: string } | null
+  }
   /** Select a block (`null`: none); `scroll` brings it into view. `path` names a block inside another one. */
   | { type: 'cms:builder:select'; id: string | null; scroll: boolean; path?: CmsBuilderPath | null }
   /** A key pressed in the admin outside a text field, for the selected block. */
@@ -111,6 +123,16 @@ export type CmsBuilderToAdmin =
   | { type: 'cms:builder:text'; id: string; path?: CmsBuilderPath; field: string; item?: string; value: string; end?: boolean }
   /** Since 2d: a marked field that is not typed in the page was clicked: the panel brings it into view (`open`: and opens its chooser). */
   | { type: 'cms:builder:field'; id: string; path?: CmsBuilderPath; field: string; item?: string; open?: boolean }
+  /**
+   * Since 2f: where the selected block's content comes from besides its own fields: the collections and
+   * globals it shows, with the entries it shows now, and the collections it loads but shows nothing of now.
+   */
+  | { type: 'cms:builder:sources'; id: string; path?: CmsBuilderPath; sources: CmsBuilderSource[] }
+  /**
+   * Since 2f: edit an entry of a collection (`id: null`: a new one) or a global's values beside the page, with
+   * `field` in view; `open`: open it in its own section instead, in a new tab.
+   */
+  | { type: 'cms:builder:entry'; entity: string; id: string | null; field?: string; open?: boolean }
 
 const isObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
 const isId = (x: unknown): x is string => typeof x === 'string' && x.length > 0 && x.length <= 200
@@ -144,7 +166,7 @@ export function cmsBuilderPathOf(message: { id: string; path?: CmsBuilderPath })
 }
 
 const TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['drag', 'moveUp', 'moveDown', 'duplicate', 'remove', 'insertHere']
-const MORE_TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['moveLeft', 'moveRight', 'addBlock', 'blank']
+const MORE_TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['moveLeft', 'moveRight', 'addBlock', 'blank', 'edit', 'more', 'openIn', 'untitled']
 const KEYS: CmsBuilderKey[] = ['Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
 const isScale = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x >= 0.1 && x <= 4
 
@@ -178,6 +200,8 @@ export function isCmsBuilderToPage(x: unknown): x is CmsBuilderToPage {
       && (x.selectedPath === undefined || x.selectedPath === null || isCmsBuilderPath(x.selectedPath))
       && (x.lists === undefined || isCmsBuilderListKinds(x.lists))
       && (x.scale === undefined || isScale(x.scale))
+      && (x.entities === undefined || isCmsBuilderEntities(x.entities))
+      && (x.self === undefined || x.self === null || (isObject(x.self) && isCmsFieldName(x.self.entity) && isId(x.self.id)))
   }
   if (x.type === 'cms:builder:select') {
     return (x.id === null || isId(x.id)) && typeof x.scroll === 'boolean'
@@ -186,6 +210,28 @@ export function isCmsBuilderToPage(x: unknown): x is CmsBuilderToPage {
   if (x.type === 'cms:builder:key') return KEYS.includes(x.key as CmsBuilderKey)
   if (x.type === 'cms:builder:view') return isScale(x.scale)
   return false
+}
+
+const isLabel = (x: unknown): x is string => typeof x === 'string' && x.length <= 500
+
+/** Since 2f: the collections and globals as the admin describes them to the page. */
+export function isCmsBuilderEntities(x: unknown): x is Record<string, CmsBuilderEntity> {
+  if (!isObject(x) || Object.keys(x).length > 500) return false
+  return Object.entries(x).every(([name, e]) => isCmsFieldName(name) && isObject(e) && isLabel(e.label)
+    && (e.global === undefined || typeof e.global === 'boolean')
+    && (e.title === undefined || e.title === null || isCmsFieldName(e.title))
+    && (e.publish === undefined || e.publish === null || (isObject(e.publish) && isCmsFieldName(e.publish.field) && typeof e.publish.published === 'string'
+      && (e.publish.date === undefined || e.publish.date === null || isCmsFieldName(e.publish.date))))
+    && (e.edit === undefined || typeof e.edit === 'boolean') && (e.create === undefined || typeof e.create === 'boolean')
+    && isObject(e.fields) && Object.keys(e.fields).length <= 200
+    && Object.entries(e.fields).every(([key, f]) => isCmsFieldName(key) && isObject(f) && (f.kind === 'text' || f.kind === 'rich' || f.kind === 'picture' || (f.kind === 'relation' && isCmsFieldName(f.to)))
+      && (f.label === undefined || isLabel(f.label))))
+}
+
+function isCmsBuilderSource(x: unknown): x is CmsBuilderSource {
+  return isObject(x) && isCmsFieldName(x.entity) && Array.isArray(x.entries) && x.entries.length <= 200
+    && x.entries.every((e) => isObject(e) && isId(e.id) && isLabel(e.title) && (e.state === undefined || e.state === null || e.state === 'draft' || e.state === 'scheduled'))
+    && (x.unmatched === undefined || x.unmatched === true)
 }
 
 const pathOk = (x: Record<string, unknown>) => x.path === undefined || (isCmsBuilderPath(x.path) && (x.path as string[])[(x.path as string[]).length - 1] === x.id)
@@ -204,6 +250,9 @@ export function isCmsBuilderToAdmin(x: unknown): x is CmsBuilderToAdmin {
     case 'cms:builder:text': return isId(x.id) && pathOk(x) && isCmsFieldName(x.field) && (x.item === undefined || isId(x.item))
       && typeof x.value === 'string' && x.value.length <= TEXT_MOST && (x.end === undefined || typeof x.end === 'boolean')
     case 'cms:builder:field': return isId(x.id) && pathOk(x) && isCmsFieldName(x.field) && (x.item === undefined || isId(x.item))
+      && (x.open === undefined || typeof x.open === 'boolean')
+    case 'cms:builder:sources': return isId(x.id) && pathOk(x) && Array.isArray(x.sources) && x.sources.length <= 50 && x.sources.every(isCmsBuilderSource)
+    case 'cms:builder:entry': return isCmsFieldName(x.entity) && (x.id === null || isId(x.id)) && (x.field === undefined || isCmsFieldName(x.field))
       && (x.open === undefined || typeof x.open === 'boolean')
     default: return false
   }

@@ -17,6 +17,12 @@
 // `hidden`: only elements hidden at the desktop width show it; `form`: only an option of a form's select
 // shows it; `drawing`: only an SVG drawing shows it). The page is laid out at a desktop width.
 //
+// Since part 2f it also counts every visible text inside the blocks (the smallest elements with a text of
+// their own) and what a click there finds: a field of the block (`own`), a field of an entry of a collection
+// the page loaded (`entry`), a value of a global (`global`), or nothing (`none`), with the kind of the rest:
+// `date` (a date or a time), `number`, `derived` (made from a value: shortened, joined, put in a sentence),
+// `form` (a part of a form: a label, a button, an option) and `word` (a look's own word).
+//
 // Writes <out>/report.json (every look, page, block and miss) and prints a line per look and the totals
 // per template. `--prefix` must start with `tzx_`: the databases it names are dropped at the end, unless
 // `--keep`. `--seeded` takes the sites of a run kept before (its data folder's sites.json) as they are,
@@ -64,7 +70,16 @@ async function measurePage(ctx, base, page) {
       await new Promise((r) => setTimeout(r, 600))
     })
     const blocks = await frame.evaluate(() => window.__cmsBuilderCoverage())
-    return { blocks, errors }
+    // What the page loaded through the content API (since 2f): kept once the tools are on, as its answers come.
+    let last = -1
+    for (let i = 0, still = 0; i < 60 && still < 5; i++) {
+      const now = await frame.evaluate(() => (typeof window.__cmsBuilderRecords === 'function' ? window.__cmsBuilderRecords() : 0)).catch(() => 0)
+      still = now > 0 && now === last ? still + 1 : 0
+      last = now
+      await sleep(100)
+    }
+    const texts = await frame.evaluate(() => (typeof window.__cmsBuilderTexts === 'function' ? window.__cmsBuilderTexts() : []))
+    return { blocks, texts, errors }
   }
   finally { await tab.close() }
 }
@@ -90,6 +105,28 @@ function tally(blocks) {
   }
   return t
 }
+
+/** Totals of the visible texts of a page's blocks: what they resolve to, and the kinds of the rest. */
+function tallyTexts(blocks) {
+  const t = { pieces: 0, own: 0, entry: 0, global: 0, none: 0, rest: {} }
+  for (const b of blocks ?? []) {
+    for (const p of b.pieces) {
+      t.pieces++
+      t[p.res]++
+      if (p.res === 'none') t.rest[p.rest] = (t.rest[p.rest] ?? 0) + 1
+    }
+  }
+  return t
+}
+
+function addTexts(into, t) {
+  for (const [k, v] of Object.entries(t)) {
+    if (k === 'rest') for (const [r, n] of Object.entries(v)) into.rest[r] = (into.rest[r] ?? 0) + n
+    else into[k] = (into[k] ?? 0) + v
+  }
+}
+
+const textsLine = (t) => `visible texts ${t.pieces}: own ${t.own}, entry ${t.entry}, global ${t.global} (resolved ${t.own + t.entry + t.global}, ${pct(t.own + t.entry + t.global, t.pieces)}), none ${t.none}${Object.keys(t.rest).length ? ` (${Object.entries(t.rest).sort((a, b) => b[1] - a[1]).map(([r, n]) => `${r} ${n}`).join(', ')})` : ''}`
 
 function add(into, t) {
   for (const [k, v] of Object.entries(t)) {
@@ -189,9 +226,9 @@ async function main() {
         const cookie = await signIn(s.url)
         for (const page of await pagesOf(s.url, cookie)) {
           try {
-            const { blocks, errors } = await measurePage(ctx, s.url, page)
+            const { blocks, texts, errors } = await measurePage(ctx, s.url, page)
             const t = tally(blocks)
-            look.pages.push({ slug: page.slug, totals: t, blocks, errors })
+            look.pages.push({ slug: page.slug, totals: t, texts: tallyTexts(texts), blocks, textBlocks: texts, errors })
             if (errors.length) fail(`${s.slug} ${page.slug}`, `page errors: ${errors.slice(0, 2).join(' | ')}`)
           }
           catch (e) { fail(`${s.slug} ${page.slug}`, e.message) }
@@ -200,9 +237,14 @@ async function main() {
       catch (e) { fail(s.slug, e.message) }
       finally { await ctx.close() }
       look.totals = { reasons: {} }
-      for (const p of look.pages) add(look.totals, p.totals)
+      look.texts = { rest: {} }
+      for (const p of look.pages) {
+        add(look.totals, p.totals)
+        addTexts(look.texts, p.texts)
+      }
       report.looks.push(look)
       log(`${s.slug.padEnd(30)} ${line(look.totals)}`)
+      log(`${''.padEnd(30)} ${textsLine(look.texts)}`)
     }
   }
   catch (e) { fail('run', e.stack ?? e.message) }
@@ -218,11 +260,33 @@ async function main() {
 
   // Totals per template, and the misses by reason with a few examples.
   const examples = {}
+  report.texts = {}
   for (const template of wanted) {
     const totals = { reasons: {} }
-    for (const l of report.looks.filter((x) => x.template === template)) add(totals, l.totals)
+    const texts = { rest: {} }
+    for (const l of report.looks.filter((x) => x.template === template)) {
+      add(totals, l.totals)
+      addTexts(texts, l.texts ?? { rest: {} })
+    }
     report.totals[template] = totals
+    report.texts[template] = texts
   }
+  // The texts that resolve to nothing, most frequent first, by their kind.
+  const unresolved = {}
+  for (const l of report.looks) {
+    for (const p of l.pages) {
+      for (const b of p.textBlocks ?? []) {
+        for (const x of b.pieces) {
+          if (x.res !== 'none') continue
+          const key = `${l.template}/${b.type} ${x.rest}: «${x.text}»`
+          unresolved[key] ??= { count: 0, looks: new Set() }
+          unresolved[key].count++
+          unresolved[key].looks.add(l.look)
+        }
+      }
+    }
+  }
+  report.unresolved = Object.entries(unresolved).sort((a, b) => b[1].count - a[1].count).slice(0, 400).map(([key, v]) => ({ key, count: v.count, looks: [...v.looks] }))
   for (const l of report.looks) {
     for (const p of l.pages) {
       for (const b of p.blocks) {
@@ -247,6 +311,15 @@ async function main() {
     console.log(`  ${template.padEnd(14)} ${line(t)}`)
   }
   console.log(`  ${'all'.padEnd(14)} ${line(grand)}`)
+  console.log('\nvisible texts per template (since 2f):')
+  const grandTexts = { rest: {} }
+  for (const [template, t] of Object.entries(report.texts)) {
+    addTexts(grandTexts, t)
+    console.log(`  ${template.padEnd(14)} ${textsLine(t)}`)
+  }
+  console.log(`  ${'all'.padEnd(14)} ${textsLine(grandTexts)}`)
+  console.log('\ntexts that resolve to nothing (most frequent first):')
+  for (const u of report.unresolved.slice(0, 60)) console.log(`  ${String(u.count).padStart(3)} ${u.key}`)
   console.log('\nmisses (most frequent first):')
   for (const m of report.misses.slice(0, 60)) console.log(`  ${String(m.count).padStart(3)} ${m.key}  «${m.value}»`)
   console.log(`\n${report.looks.length} looks, ${report.failures.length} failures, ${report.seconds} s`)
