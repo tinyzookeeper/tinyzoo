@@ -185,3 +185,64 @@ export function selectDepth(chain: readonly string[], selected: readonly string[
   while (k < chain.length && k < sel.length && chain[k] === sel[k]) k++
   return Math.min(k, chain.length - 1)
 }
+
+// ── where a nested block's toolbar goes ──
+
+/** The area two boxes share (px²). */
+export function overlapArea(a: Box, b: Box): number {
+  const w = Math.min(a.right, b.right) - Math.max(a.left, b.left)
+  const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+  return w > 0 && h > 0 ? w * h : 0
+}
+
+/**
+ * Which of the places a toolbar could stand hides the least: each is scored by what it covers (each
+ * thing's area under it times its weight: the selected block's own text counts most) and by how much
+ * of it is off the screen (`bounds`), which counts far more. The first of equal places wins, so the
+ * places are given in the order they are preferred.
+ */
+export function leastHidden(places: readonly Box[], covers: readonly { box: Box; weight: number }[], bounds: Box): number {
+  let best = 0
+  let bestScore = Infinity
+  places.forEach((p, i) => {
+    const area = (p.right - p.left) * (p.bottom - p.top)
+    const off = area - overlapArea(p, bounds)
+    const score = off * 100 + covers.reduce((sum, c) => sum + overlapArea(p, c.box) * c.weight, 0)
+    if (score < bestScore - 0.5) { best = i; bestScore = score }
+  })
+  return best
+}
+
+/** Whether the boxes of a list are all of one size (a grid's cells), within `tolerance` px. */
+export function sameSizes(boxes: readonly Box[], tolerance = 2): boolean {
+  if (boxes.length < 2) return true
+  const w = boxes[0]!.right - boxes[0]!.left
+  const h = boxes[0]!.bottom - boxes[0]!.top
+  return boxes.every((b) => Math.abs(b.right - b.left - w) <= tolerance && Math.abs(b.bottom - b.top - h) <= tolerance)
+}
+
+/**
+ * In a list whose blocks are all of one size (a grid), how far each block moves while the block at
+ * `from` is held at `target`: into the cell of its place in the new order, so the others close the gap
+ * and open one at the target. `[dx, dy]` per block, the dragged one `[0, 0]`.
+ */
+export function cellShifts(boxes: readonly Box[], from: number, target: number): [number, number][] {
+  const order = boxes.map((_, i) => i).filter((i) => i !== from)
+  order.splice(target, 0, from)
+  return boxes.map((b, i) => {
+    if (i === from) return [0, 0]
+    const to = boxes[order.indexOf(i)]!
+    return [to.left - b.left, to.top - b.top]
+  })
+}
+
+/**
+ * The inner area of a box a dragged block enters a group by at once: its middle, a third of it or
+ * more from each edge (`min` px at least). Near its edges the block lands before or after the group,
+ * unless the pointer stays over it for a moment.
+ */
+export function innerArea(b: Box, min = 24): Box {
+  const ix = Math.max((b.right - b.left) * 0.3, Math.min(min, (b.right - b.left) / 4))
+  const iy = Math.max((b.bottom - b.top) * 0.3, Math.min(min, (b.bottom - b.top) / 4))
+  return { left: b.left + ix, top: b.top + iy, right: b.right - ix, bottom: b.bottom - iy }
+}

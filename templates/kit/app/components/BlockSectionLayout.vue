@@ -113,6 +113,8 @@ const look = computed(() => sectionLook(props.block))
 .kit-section .kit-lay-heading.kit-lay-ghost .kit-lay-ghost-title { width: min(100%, 18rem); height: 1.6rem; border-radius: 6px; }
 .kit-section .kit-lay-heading.kit-lay-h-large .kit-lay-ghost-title { height: 2.1rem; }
 .kit-section .kit-lay-heading.kit-lay-h-small .kit-lay-ghost-title { height: 1.15rem; }
+/* An empty heading: its name in the admin's language, in the look's heading type, quiet. */
+.kit-section .kit-lay-heading .kit-lay-ghost-words { opacity: 0.3; user-select: none; }
 .kit-section .kit-lay-picture .kit-lay-ghost-frame { display: grid; place-items: center; width: 100%; min-width: min(100%, 12rem); max-height: 16rem; border-radius: var(--custom-radius, 0); background: color-mix(in srgb, currentColor 7%, transparent); border: 1.5px dashed color-mix(in srgb, currentColor 25%, transparent); }
 .kit-section .kit-lay-picture .kit-lay-ghost-frame svg { width: 2rem; height: 2rem; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; opacity: 0.35; }
 .kit-section .kit-lay-button .kit-lay-ghost-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 8rem; min-height: 2.75rem; padding: 0.5rem 1.25rem; border: 1.5px dashed color-mix(in srgb, currentColor 35%, transparent); border-radius: max(var(--custom-radius, 0px), 6px); opacity: 0.8; }

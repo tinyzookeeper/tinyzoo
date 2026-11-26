@@ -9,10 +9,16 @@
 // so the page is a tree of marked elements: each click goes one level deeper (a section, then a
 // block in it, then a block in a group), Escape goes up a level. A list runs in the direction it is
 // drawn in: a stack top to bottom, a row left to right, a wrapping row or a grid line by line.
+//
+// The admin may draw the page smaller than it lays it out (a desktop page scaled to fit the panel):
+// it says so (`scale`), and the tools are drawn larger by as much (`k`), so their chips, toolbars, "+"
+// and lines keep their size on the screen and their targets stay easy to hit. Every distance the tool
+// measures on the screen (how far a drag starts, how near a "+" shows) is counted in screen pixels too.
 import type { CmsBuilderKey, CmsBuilderKind, CmsBuilderListKinds, CmsBuilderPath, CmsBuilderPlace, CmsBuilderTexts, CmsBuilderToAdmin, CmsBuilderToPage } from '../../shared/builder'
 import { cmsBuilderMarkers } from './state'
 import {
-  addSlots, axisOf, dropPlace, droppedOrder, edgeSpeed, nearestBoundary, nearestSlot, oneLine, placeInList, selectDepth, shiftFor, slotsOf, targetAmongOthers,
+  addSlots, axisOf, cellShifts, dropPlace, droppedOrder, edgeSpeed, innerArea, leastHidden, nearestBoundary, nearestSlot, oneLine, placeInList, sameSizes, selectDepth,
+  shiftFor, slotsOf, targetAmongOthers,
   type Box, type Slot,
 } from './geometry'
 
@@ -21,19 +27,29 @@ const EASE = 'cubic-bezier(.2,.7,.2,1)'
 const DRAG_START = 4
 const FALLBACK_MS = 2000
 const BAR_HEIGHT = 30
+/** How long a dragged block hovers over a group before the group takes it (ms). */
+const DWELL = 400
 
 let labels: Record<string, string> = {}
 let kinds: CmsBuilderListKinds | null = null
 let words: CmsBuilderTexts | null = null
 let selected: CmsBuilderPath | null = null
 let scrollToSelected = false
+/** The page was laid out anew (the admin changed its width): bring the selected block back into view if it left it. */
+let keepInView = false
 let hover: BNode | null = null
 let plus: { list: string, after: string } | null = null
 let press: { pointerId: number, startX: number, startY: number, node: BNode } | null = null
 let drag: Drag | null = null
 let holding = false
+/** When a drag was called off (Escape): the click its release still makes must not select or let go. */
+let calledOff = 0
 let frame = 0
 let ui: Ui | null = null
+/** How much smaller the admin draws the page than it lays it out (1: as large). */
+let scale = 1
+/** Page pixels per screen pixel: the tools are drawn this much larger, so they keep their size on the screen. */
+const k = () => 1 / scale
 let nodes: BNode[] = []
 let nodeOfEl = new WeakMap<Element, BNode>()
 const observed = new Set<Element>()
@@ -67,6 +83,8 @@ interface Ui {
   add: HTMLButtonElement
   drop: HTMLElement
   into: HTMLElement
+  from: HTMLElement
+  cell: HTMLElement
   adds: HTMLButtonElement[]
   empties: HTMLButtonElement[]
 }
@@ -93,11 +111,17 @@ interface Drag {
   index: number
   slot: Slot | null
   candidates: ListGeo[]
+  /** Its own list is a grid of cells of one size: the others close the gap and open one at the target. */
+  cells: boolean
+  /** The group the pointer is over and since when; it takes the block after DWELL ms, or at once in its inner area. */
+  dwell: { list: ListGeo; since: number } | null
   step: number
   free: boolean
   startX: number
   startY: number
   startScroll: number
+  /** A large block inside a section is carried smaller, so the place it goes to stays in sight. */
+  shrink: number
   lastX: number
   lastY: number
   styles: Map<HTMLElement, string | null>
@@ -240,17 +264,20 @@ function place(el: HTMLElement, host: DOMRect, rect: { left: number, top: number
  */
 function above(el: HTMLElement, host: DOMRect, rect: DOMRect, height: number, inside: boolean, sticky: number) {
   el.hidden = false
-  const width = el.offsetWidth
-  const left = Math.min(Math.max(rect.left, 4), Math.max(4, document.documentElement.clientWidth - width - 4))
+  const width = el.offsetWidth * k()
+  const gap = 6 * k()
+  const h = height * k()
+  const left = Math.min(Math.max(rect.left, 4 * k()), Math.max(4 * k(), document.documentElement.clientWidth - width - 4 * k()))
   el.style.left = `${left - host.left}px`
-  const top = rect.top - height - 6
-  const room = !inside && top >= sticky + 2 && rect.top + scrollY >= height + 6
-  el.style.top = `${(room ? top : Math.max(rect.top, sticky) + 6) - host.top}px`
+  const top = rect.top - h - gap
+  const room = !inside && top >= sticky + 2 && rect.top + scrollY >= h + gap
+  el.style.top = `${(room ? top : Math.max(rect.top, sticky) + gap) - host.top}px`
 }
 
 function render() {
   frame = 0
   if (!ui) return
+  ui.host.style.setProperty('--k', String(k()))
   nodes = scan()
   const host = ui.host.getBoundingClientRect()
   const sticky = stickyBottom()
@@ -262,6 +289,14 @@ function render() {
   drawAdds(current, host)
   drawEmpties(host)
   drawDrop(host)
+  if (current && keepInView && !scrollToSelected && !drag) {
+    keepInView = false
+    const r = rectOf(current)
+    if (r.bottom < sticky + 24 || r.top > innerHeight - 24) {
+      const room = innerHeight - sticky
+      window.scrollTo({ top: Math.max(0, r.top + scrollY - sticky - Math.max(24, (room - Math.min(r.height, room)) / 2)), behavior: 'auto' })
+    }
+  }
   if (current && scrollToSelected) {
     scrollToSelected = false
     // Only this page scrolls: scrollIntoView would scroll the admin around the frame too.
@@ -294,7 +329,71 @@ function drawSelection(current: BNode | null, host: DOMRect, sticky: number) {
   ui.name.textContent = nameOf(current)
   ui.prev.disabled = at <= 0
   ui.next.disabled = at >= list.length - 1
-  above(ui.bar, host, rect, BAR_HEIGHT, !current.parent && at === 0, sticky)
+  // The first block of the page's list keeps its toolbar inside its top edge (the site's header is above it).
+  if (!current.parent && at === 0) above(ui.bar, host, rect, BAR_HEIGHT, true, sticky)
+  else placeNested(current, host, rect, sticky)
+}
+
+/**
+ * The text on the page around a block, as boxes in the document: what a toolbar should not hide. Around
+ * a small block, its section; around a section, it and the sections before and after it.
+ */
+let textCache: { key: string; own: Box[]; other: Box[] } | null = null
+function textAround(node: BNode): { own: Box[]; other: Box[] } {
+  const section = chainOf(node)[0]!
+  const near = node.parent ? [section] : (() => {
+    const list = siblingsOf(node)
+    const at = list.indexOf(node)
+    return [list[at - 1], node, list[at + 1]].filter((n): n is BNode => !!n)
+  })()
+  const key = `${node.key}\n${near.flatMap((n) => n.els.map((el) => el.offsetHeight)).join()}`
+  if (textCache?.key === key) return textCache
+  const own: Box[] = []
+  const other: Box[] = []
+  const range = document.createRange()
+  let count = 0
+  for (const root of near.flatMap((n) => n.els)) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    for (let n = walker.nextNode(); n && count < 600; n = walker.nextNode()) {
+      if (!n.nodeValue?.trim()) continue
+      count++
+      range.selectNodeContents(n)
+      const mine = node.els.some((el) => el.contains(n))
+      for (const r of range.getClientRects()) (mine ? own : other).push({ left: r.left + scrollX, top: r.top + scrollY, right: r.right + scrollX, bottom: r.bottom + scrollY })
+    }
+  }
+  textCache = { key, own, other }
+  return textCache
+}
+
+/**
+ * A block's toolbar where it hides the least: above it, inside its top edge (left or right) when it is
+ * tall enough, or below it; never over its own text when another place is free, and on the screen
+ * (under a header that stays at the top).
+ */
+function placeNested(node: BNode, host: DOMRect, rect: DOMRect, sticky: number) {
+  if (!ui) return
+  ui.bar.hidden = false
+  const w = ui.bar.offsetWidth * k()
+  const h = BAR_HEIGHT * k()
+  const gap = 6 * k()
+  const width = document.documentElement.clientWidth
+  const clampX = (x: number) => Math.min(Math.max(x, 4 * k()), Math.max(4 * k(), width - w - 4 * k()))
+  const tall = rect.height >= h * 2 + gap * 2
+  const places: { left: number; top: number }[] = [
+    { left: clampX(rect.left), top: rect.top - h - gap },
+    ...(tall ? [{ left: clampX(rect.left + gap), top: rect.top + gap }, { left: clampX(rect.right - w - gap), top: rect.top + gap }] : []),
+    { left: clampX(rect.left), top: rect.bottom + gap },
+    // A block taller than the screen, scrolled past its top: at the top of what shows of it.
+    ...(rect.top < sticky && rect.bottom > sticky + h * 3 ? [{ left: clampX(rect.left + gap), top: sticky + gap }] : []),
+  ]
+  const text = textAround(node)
+  const doc = (b: Box): Box => ({ left: b.left - scrollX, top: b.top - scrollY, right: b.right - scrollX, bottom: b.bottom - scrollY })
+  const covers = [...text.own.map((b) => ({ box: doc(b), weight: 4 })), ...text.other.map((b) => ({ box: doc(b), weight: 1 }))]
+  const boxes = places.map((p) => ({ left: p.left, top: p.top, right: p.left + w, bottom: p.top + h }))
+  const best = places[leastHidden(boxes, covers, { left: 0, top: sticky, right: width, bottom: innerHeight })]!
+  ui.bar.style.left = `${best.left - host.left}px`
+  ui.bar.style.top = `${best.top - host.top}px`
 }
 
 function drawHover(current: BNode | null, host: DOMRect, sticky: number) {
@@ -325,8 +424,8 @@ function drawPlus(host: DOMRect) {
   const { left, right } = listSpan(items)
   place(ui.line, host, { left, top: y, width: right - left, height: 0 })
   ui.add.hidden = false
-  ui.add.style.left = `${(left + right) / 2 - 13 - host.left}px`
-  ui.add.style.top = `${y - 13 - host.top}px`
+  ui.add.style.left = `${(left + right) / 2 - 13 * k() - host.left}px`
+  ui.add.style.top = `${y - 13 * k() - host.top}px`
 }
 
 /** The list the "+" of the selection add to: the selected block's own list when it has one, else the list it is in (inside a section). */
@@ -362,9 +461,9 @@ function drawAdds(current: BNode | null, host: DOMRect) {
     ;(b as any).__place = placeInList(ids, s.index, context!.container.path)
     label(b, words?.insertHere)
     // Along a stack, at the right end of the line (the toolbar stands at the left); along a row, in the middle of the gap.
-    const x = s.y1 === s.y2 ? s.x2 - 14 : (s.x1 + s.x2) / 2
-    b.style.left = `${inPage(x - scrollX - 11, 22) - host.left}px`
-    b.style.top = `${(s.y1 + s.y2) / 2 - scrollY - 11 - host.top}px`
+    const x = s.y1 === s.y2 ? s.x2 - 14 * k() : (s.x1 + s.x2) / 2
+    b.style.left = `${inPage(x - scrollX - 12 * k(), 24 * k()) - host.left}px`
+    b.style.top = `${(s.y1 + s.y2) / 2 - scrollY - 12 * k() - host.top}px`
   })
 }
 
@@ -401,13 +500,22 @@ const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt
 /** Where the dragged block lands: in its own list of one line, the edge it settles against; else the nearest gap; in an empty list, the list itself. */
 function drawDrop(host: DOMRect) {
   if (!ui) return
-  ui.drop.hidden = ui.into.hidden = true
+  ui.drop.hidden = ui.into.hidden = ui.from.hidden = ui.cell.hidden = true
   if (!drag) return
   const d = drag
-  if (d.into !== d.own && !d.into.items.length && d.into.area) {
-    const a = d.into.area
-    place(ui.into, host, { left: a.left - scrollX, top: a.top - scrollY, width: a.right - a.left, height: a.bottom - a.top })
-    return
+  const at = (b: Box) => ({ left: b.left - scrollX, top: b.top - scrollY, width: b.right - b.left, height: b.bottom - b.top })
+  // Another list takes the block: its outline lights (a group, a layout), with the line inside it.
+  if (d.into !== d.own && d.into.area) {
+    place(ui.into, host, at(d.into.area))
+    if (!d.into.items.length) return
+  }
+  // A grid: the cell it lands in. A wrapping row of blocks of other sizes: where it came from.
+  if (d.into === d.own && !d.own.single) {
+    if (d.cells) {
+      if (d.index !== d.from) place(ui.cell, host, at(d.own.boxes[d.index]!))
+      return
+    }
+    place(ui.from, host, at(d.own.boxes[d.from]!))
   }
   if (d.into === d.own && d.own.single) {
     if (d.index === d.from) return
@@ -417,14 +525,16 @@ function drawDrop(host: DOMRect) {
     const edge = d.index > d.from ? (x ? others[d.index - 1]!.right : others[d.index - 1]!.bottom) : (x ? others[d.index]!.left : others[d.index]!.top)
     const from = x ? Math.min(...all.map((b) => b.top)) : Math.min(...all.map((b) => b.left))
     const to = x ? Math.max(...all.map((b) => b.bottom)) : Math.max(...all.map((b) => b.right))
-    if (x) place(ui.drop, host, { left: edge - scrollX - 1.5, top: from - scrollY, width: 3, height: to - from })
-    else place(ui.drop, host, { left: from - scrollX, top: edge - scrollY - 1.5, width: to - from, height: 3 })
+    const t = 3 * k()
+    if (x) place(ui.drop, host, { left: edge - scrollX - t / 2, top: from - scrollY, width: t, height: to - from })
+    else place(ui.drop, host, { left: from - scrollX, top: edge - scrollY - t / 2, width: to - from, height: t })
     return
   }
   const s = d.slot
   if (!s || (d.into === d.own && d.index === d.from)) return
-  if (s.x1 === s.x2) place(ui.drop, host, { left: s.x1 - scrollX - 1.5, top: s.y1 - scrollY, width: 3, height: s.y2 - s.y1 })
-  else place(ui.drop, host, { left: s.x1 - scrollX, top: s.y1 - scrollY - 1.5, width: s.x2 - s.x1, height: 3 })
+  const t = 3 * k()
+  if (s.x1 === s.x2) place(ui.drop, host, { left: s.x1 - scrollX - t / 2, top: s.y1 - scrollY, width: t, height: s.y2 - s.y1 })
+  else place(ui.drop, host, { left: s.x1 - scrollX, top: s.y1 - scrollY - t / 2, width: s.x2 - s.x1, height: t })
 }
 
 /** Observe the marked blocks (and only them) for a change of size. */
@@ -434,7 +544,10 @@ function watchBlocks() {
   for (const el of els) if (!observed.has(el)) { sizes.observe(el); observed.add(el) }
 }
 
-const sizes = new ResizeObserver(schedule)
+const sizes = new ResizeObserver(() => {
+  textCache = null
+  schedule()
+})
 
 // ---- pointer: hover, "+", select
 
@@ -452,7 +565,7 @@ function plusNear(x: number, y: number) {
     const items = top.filter((n) => n.list === list)
     const { left, right } = listSpan(items)
     if (x < left || x > right) continue
-    const at = nearestBoundary(y, boundaries(items))
+    const at = nearestBoundary(y, boundaries(items), 24 * k())
     if (at !== null) return { list, after: items[at]!.id }
   }
   return null
@@ -468,6 +581,10 @@ function onClick(e: MouseEvent) {
   if (e.composedPath().includes(ui!.host)) return
   e.preventDefault()
   e.stopImmediatePropagation()
+  if (calledOff && performance.now() - calledOff < 400) {
+    calledOff = 0
+    return
+  }
   nodes = scan()
   const node = nodeOf(e.composedPath()[0] as Node)
   if (!node) return choose(null)
@@ -510,7 +627,11 @@ function act(type: 'cms:builder:duplicate' | 'cms:builder:remove') {
 
 function key(name: CmsBuilderKey | string, alt: boolean): boolean {
   if (name === 'Escape') {
-    if (press) cancelDrag()
+    if (press) {
+      // The button is still down: its release makes a click on the page, which is not one of the person's.
+      window.addEventListener('pointerup', () => { calledOff = performance.now() }, { once: true, capture: true })
+      cancelDrag()
+    }
     else if (selected !== null) {
       const node = selectedNode()
       choose(node?.parent ? node.parent.path : null)
@@ -525,7 +646,24 @@ function key(name: CmsBuilderKey | string, alt: boolean): boolean {
   return true
 }
 
+/** Ctrl/⌘ Z (undo), Ctrl/⌘ ⇧ Z and Ctrl Y (redo), pressed in the page outside a text field: the admin keeps the history. */
+function historyKey(e: KeyboardEvent): 'undo' | 'redo' | null {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey) return null
+  const name = e.key.toLowerCase()
+  const action = name === 'z' ? (e.shiftKey ? 'redo' : 'undo') : name === 'y' && e.ctrlKey && !e.metaKey ? 'redo' : null
+  if (!action) return null
+  const target = e.composedPath()[0]
+  if (target instanceof Element && target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return null
+  return action
+}
+
 function onKey(e: KeyboardEvent) {
+  const action = historyKey(e)
+  if (action) {
+    e.preventDefault()
+    if (!drag && !press) send({ type: 'cms:builder:history', action })
+    return
+  }
   if (key(e.key, e.altKey) && e.key !== 'Escape') e.preventDefault()
 }
 
@@ -545,7 +683,7 @@ function startPress(e: PointerEvent) {
 function movePress(e: PointerEvent) {
   if (!press || e.pointerId !== press.pointerId) return
   if (!drag) {
-    if (Math.hypot(e.clientX - press.startX, e.clientY - press.startY) <= DRAG_START) return
+    if (Math.hypot(e.clientX - press.startX, e.clientY - press.startY) <= DRAG_START * k()) return
     beginDrag(press.node, press.startX, press.startY)
   }
   drag!.lastX = e.clientX
@@ -584,11 +722,12 @@ function beginDrag(node: BNode, x: number, y: number) {
   const box = own.boxes[from]!
   const styles = new Map(items.flatMap((n) => n.els).map((el) => [el, el.getAttribute('style')]))
   drag = {
-    node, own, from, into: own, index: from, slot: null, candidates: candidatesFor(node),
+    node, own, from, into: own, index: from, slot: null, candidates: candidatesFor(node), cells: !own.single && sameSizes(own.boxes), dwell: null,
     step: (own.axis === 'x' ? box.right - box.left : box.bottom - box.top) + (gaps.length ? Math.min(...gaps) : 0),
     // A block of the page's list moves up and down only, as the page's blocks stand; one inside a section follows the pointer.
     free: !!node.parent,
     startX: x, startY: y, startScroll: scrollY, lastX: x, lastY: y, styles,
+    shrink: node.parent ? Math.min(1, (280 * k()) / Math.max(1, box.right - box.left), (220 * k()) / Math.max(1, box.bottom - box.top)) : 1,
   }
   const motion = reduced() ? 'none' : `transform 200ms ${EASE}`
   for (const n of items) for (const el of n.els) el.style.transition = n === node ? 'none' : motion
@@ -598,6 +737,11 @@ function beginDrag(node: BNode, x: number, y: number) {
     // Most blocks have no background of their own: lifted, they would show the others through them.
     if (transparent(getComputedStyle(el).backgroundColor)) el.style.backgroundColor = backgroundBehind(el)
     if (getComputedStyle(el).position === 'static') el.style.position = 'relative'
+    // Smaller around the point it was taken by.
+    if (drag.shrink < 1) {
+      const r = el.getBoundingClientRect()
+      el.style.transformOrigin = `${x - r.left}px ${y - r.top}px`
+    }
   }
   hover = null
   plus = null
@@ -616,26 +760,23 @@ function backgroundBehind(el: HTMLElement): string {
 }
 
 const within = (b: Box, x: number, y: number) => x >= b.left && x <= b.right && y >= b.top && y <= b.bottom
-/** Well inside a box: its edges (a quarter of it, at most 24 px) still count as the list around it, so a block can be carried past a group. */
-function wellWithin(b: Box, x: number, y: number) {
-  const ix = Math.min(24, (b.right - b.left) / 4)
-  const iy = Math.min(24, (b.bottom - b.top) / 4)
-  return x >= b.left + ix && x <= b.right - ix && y >= b.top + iy && y <= b.bottom - iy
-}
-
 function updateDrag() {
   const d = drag!
   // The block follows the pointer, but never out of the page (which would make it scroll sideways).
   const box = d.own.boxes[d.from]!
   const dx = d.free ? Math.min(Math.max(d.lastX - d.startX, -box.left + scrollX), document.documentElement.clientWidth + scrollX - box.right) : 0
   const dy = d.lastY - d.startY + scrollY - d.startScroll
-  for (const el of d.node.els) el.style.transform = `translate(${dx}px, ${dy}px)`
+  for (const el of d.node.els) el.style.transform = `translate(${dx}px, ${dy}px)${d.shrink < 1 ? ` scale(${d.shrink})` : ''}`
   const x = d.lastX + scrollX
   const y = d.lastY + scrollY
   // The deepest list under the pointer that takes the block (its own list among them); else its own list.
-  const over = [d.own, ...d.candidates]
-    .filter((c) => c.area && (c === d.own ? within(c.area, x, y) : wellWithin(c.area, x, y)))
-    .sort((a, b) => b.depth - a.depth)[0]
+  // A group (a list inside a section) takes it only in its inner area, or after the pointer stayed over
+  // it for a moment: near its edges the block lands before or after the group.
+  const under = [d.own, ...d.candidates].filter((c) => c.area && within(c.area, x, y)).sort((a, b) => b.depth - a.depth)
+  const group = under.find((c) => c !== d.own && c.depth > 1) ?? null
+  if (group !== d.dwell?.list) d.dwell = group ? { list: group, since: performance.now() } : null
+  const takes = (c: ListGeo) => c === d.own || c.depth <= 1 || within(innerArea(c.area!, 24 * k()), x, y) || (d.dwell?.list === c && performance.now() - d.dwell.since >= DWELL)
+  const over = under.find(takes)
   d.into = over ?? d.own
   if (d.into === d.own) {
     d.slot = nearestSlot(d.own.slots, x, y)
@@ -645,8 +786,20 @@ function updateDrag() {
     d.slot = nearestSlot(d.into.slots, x, y)
     d.index = d.slot?.index ?? 0
   }
-  // In its own list of one line the others make room; anywhere else they stay and a line shows the place.
-  const shifting = d.into === d.own && d.own.single
+  // In its own list of one line the others make room; in a grid they close the gap and open one at the
+  // target; anywhere else they stay and a line shows the place.
+  const home = d.into === d.own
+  if (home && d.cells) {
+    const shifts = cellShifts(d.own.boxes, d.from, d.index)
+    d.own.items.forEach((n, i) => {
+      if (n === d.node) return
+      const [sx, sy] = shifts[i]!
+      for (const el of n.els) el.style.transform = sx || sy ? `translate(${sx}px, ${sy}px)` : ''
+    })
+    schedule()
+    return
+  }
+  const shifting = home && d.own.single
   const target = shifting ? d.index : d.from
   d.own.items.forEach((n, i) => {
     if (n === d.node) return
@@ -659,11 +812,13 @@ function updateDrag() {
 /** Scroll the page while the pointer is near the top or bottom of the viewport, so a block can be carried further. */
 function scrollLoop() {
   if (!drag) return
-  const speed = edgeSpeed(drag.lastY, innerHeight)
+  const speed = edgeSpeed(drag.lastY, innerHeight, 60 * k(), 22 * k())
   if (speed) {
     window.scrollBy({ top: speed, behavior: 'instant' as ScrollBehavior })
     updateDrag()
   }
+  // Waiting over a group: it takes the block once the moment has passed, without the pointer moving.
+  else if (drag.dwell && drag.into !== drag.dwell.list && performance.now() - drag.dwell.since >= DWELL) updateDrag()
   requestAnimationFrame(scrollLoop)
 }
 
@@ -678,7 +833,15 @@ function endPress() {
     const where = dropPlace(ids, d.from, d.index)
     if (!where) return settleBack(d)
     send({ type: 'cms:builder:move', id: d.node.id, path: d.node.path, place: { ...where, ...inside } as CmsBuilderPlace })
-    if (d.own.single) {
+    if (d.cells) {
+      const to = d.own.boxes[d.index]!
+      const fromBox = d.own.boxes[d.from]!
+      for (const el of d.node.els) {
+        el.style.transition = reduced() ? 'none' : `transform 200ms ${EASE}`
+        el.style.transform = `translate(${to.left - fromBox.left}px, ${to.top - fromBox.top}px)`
+      }
+    }
+    else if (d.own.single) {
       // Carry the block to the place it lands on, then wait for the page to draw the new order.
       const others = d.own.boxes.filter((_, i) => i !== d.from)
       const x = d.own.axis === 'x'
@@ -792,15 +955,19 @@ const ICONS = {
 const svg = (icon: string) => `<svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>`
 
 const STYLE = `
+:host{--k:1}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-.o{position:absolute;pointer-events:none;border-radius:3px}
-.hover{outline:1.5px solid rgba(47,98,214,.5);outline-offset:-1.5px}
-.hover.sub{outline:1px dashed rgba(47,98,214,.6);outline-offset:-1px}
-.sel{outline:2px solid #2f62d6;outline-offset:-2px}
-.sel.sub{outline:1.5px solid #6b93ea;outline-offset:-1.5px}
-.ctx{outline:1px dashed rgba(47,98,214,.38);outline-offset:-1px}
-.into{border-radius:6px;background:rgba(47,98,214,.08);outline:2px dashed #2f62d6;outline-offset:-2px}
+.o{position:absolute;pointer-events:none;border-radius:calc(3px * var(--k))}
+.hover{outline:calc(1.5px * var(--k)) solid rgba(47,98,214,.5);outline-offset:calc(-1.5px * var(--k))}
+.hover.sub{outline:calc(1px * var(--k)) dashed rgba(47,98,214,.6);outline-offset:calc(-1px * var(--k))}
+.sel{outline:calc(2px * var(--k)) solid #2f62d6;outline-offset:calc(-2px * var(--k))}
+.sel.sub{outline:calc(1.5px * var(--k)) solid #6b93ea;outline-offset:calc(-1.5px * var(--k))}
+.ctx{outline:calc(1px * var(--k)) dashed rgba(47,98,214,.38);outline-offset:calc(-1px * var(--k))}
+.into{border-radius:calc(6px * var(--k));background:rgba(47,98,214,.07);outline:calc(2px * var(--k)) solid #2f62d6;outline-offset:calc(-2px * var(--k));transition:opacity 150ms ease-out}
+.from{border-radius:calc(6px * var(--k));background:repeating-linear-gradient(135deg,rgba(47,98,214,.07) 0 calc(6px * var(--k)),rgba(47,98,214,.02) calc(6px * var(--k)) calc(12px * var(--k)));outline:calc(1.5px * var(--k)) dashed rgba(47,98,214,.55);outline-offset:calc(-1.5px * var(--k))}
+.cell{border-radius:calc(6px * var(--k));background:rgba(47,98,214,.06);outline:calc(2px * var(--k)) dashed #2f62d6;outline-offset:calc(-2px * var(--k))}
+.chip,.bar,.add{transform-origin:0 0;transform:scale(var(--k))}
 .chip{position:absolute;z-index:1;pointer-events:none;background:#fff;color:#2f62d6;font:600 11px/20px system-ui,sans-serif;border-radius:6px;padding:0 7px;white-space:nowrap;box-shadow:0 0 0 1px rgba(47,98,214,.35),0 2px 6px rgba(0,0,0,.08)}
 .bar{position:absolute;z-index:2;pointer-events:auto;display:flex;align-items:center;gap:1px;height:30px;padding:0 3px;border-radius:9px;background:#1f1e1c;color:#f3f1ec;box-shadow:0 6px 18px -6px rgba(0,0,0,.4)}
 .name{font:600 11.5px/1 system-ui,sans-serif;padding:0 8px;white-space:nowrap}
@@ -812,15 +979,15 @@ const STYLE = `
 .tool.grab{cursor:grab;touch-action:none}
 .tool.grab:active{cursor:grabbing}
 svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.line{position:absolute;pointer-events:none;border-top:1.5px dashed #2f62d6}
+.line{position:absolute;pointer-events:none;border-top:calc(1.5px * var(--k)) dashed #2f62d6}
 .add{position:absolute;pointer-events:auto;display:grid;place-items:center;width:26px;height:26px;padding:0;border-radius:50%;border:1px solid rgba(47,98,214,.5);background:#fff;color:#2f62d6;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.14);transition:background-color 150ms ease-out,color 150ms ease-out,transform 150ms ease-out}
-.add.small{width:22px;height:22px}
+.add.small{width:24px;height:24px}
 .add.small svg{width:13px;height:13px}
-.add:hover{background:#2f62d6;color:#fff;transform:scale(1.08)}
-.empty{position:absolute;pointer-events:auto;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px 0 9px;border-radius:999px;border:1px solid rgba(47,98,214,.45);background:#fff;color:#2f62d6;font:600 12px/1 system-ui,sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.1);transition:background-color 150ms ease-out,color 150ms ease-out}
+.add:hover{background:#2f62d6;color:#fff;transform:scale(calc(var(--k) * 1.08))}
+.empty{position:absolute;pointer-events:auto;transform:translate(-50%,-50%) scale(var(--k));display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px 0 9px;border-radius:999px;border:1px solid rgba(47,98,214,.45);background:#fff;color:#2f62d6;font:600 12px/1 system-ui,sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.1);transition:background-color 150ms ease-out,color 150ms ease-out}
 .empty:hover{background:#2f62d6;color:#fff}
 .empty svg{width:14px;height:14px}
-.drop{position:absolute;pointer-events:none;border-radius:3px;background:#2f62d6;box-shadow:0 0 0 2px rgba(255,255,255,.75)}
+.drop{position:absolute;pointer-events:none;border-radius:calc(3px * var(--k));background:#2f62d6;box-shadow:0 0 0 calc(2px * var(--k)) rgba(255,255,255,.75)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 `
 
@@ -853,6 +1020,8 @@ function build(): Ui {
   const context = make('div', 'o ctx', root)
   const hoverBox = make('div', 'o hover', root)
   const box = make('div', 'o sel', root)
+  const from = make('div', 'o from', root)
+  const cell = make('div', 'o cell', root)
   const into = make('div', 'o into', root)
   const drop = make('div', 'drop', root)
   const line = make('div', 'line', root)
@@ -866,7 +1035,7 @@ function build(): Ui {
   const duplicate = tool(bar, ICONS.copy, 'tool')
   const remove = tool(bar, ICONS.trash, 'tool')
   const add = tool(root, ICONS.plus, 'add')
-  for (const el of [context, hoverBox, chip, box, into, drop, line, bar, add]) el.hidden = true
+  for (const el of [context, hoverBox, chip, box, into, from, cell, drop, line, bar, add]) el.hidden = true
   document.body.appendChild(host)
   handle.addEventListener('pointerdown', startPress)
   prev.addEventListener('click', () => step(-1))
@@ -874,7 +1043,7 @@ function build(): Ui {
   duplicate.addEventListener('click', () => act('cms:builder:duplicate'))
   remove.addEventListener('click', () => act('cms:builder:remove'))
   add.addEventListener('click', () => { if (plus) send({ type: 'cms:builder:add', place: { after: plus.after } }) })
-  return { host, root, hover: hoverBox, chip, context, box, bar, name, prev, next, duplicate, remove, handle, line, add, drop, into, adds: [], empties: [] }
+  return { host, root, hover: hoverBox, chip, context, box, bar, name, prev, next, duplicate, remove, handle, line, add, drop, into, from, cell, adds: [], empties: [] }
 }
 
 function start() {
@@ -884,10 +1053,14 @@ function start() {
   window.addEventListener('pointermove', track)
   window.addEventListener('pointerdown', track)
   window.addEventListener('keydown', onKey)
-  window.addEventListener('resize', schedule)
+  window.addEventListener('resize', () => {
+    keepInView = true
+    schedule()
+  })
   document.documentElement.addEventListener('pointerleave', () => { hover = null; plus = null; schedule() })
   sizes.observe(document.documentElement)
   new MutationObserver(() => {
+    textCache = null
     for (const mark of cmsBuilderMarkers) mark()
     schedule()
   }).observe(document.body, { childList: true, subtree: true })
@@ -909,6 +1082,10 @@ export function handleCmsBuilderMessage(message: CmsBuilderToPage) {
     kinds = message.lists ?? null
     setTexts(message.texts)
     selected = message.selectedPath ?? (message.selected === null ? null : [message.selected])
+    if (message.scale) scale = message.scale
+  }
+  else if (message.type === 'cms:builder:view') {
+    scale = message.scale
   }
   else if (message.type === 'cms:builder:select') {
     if (!ui) return

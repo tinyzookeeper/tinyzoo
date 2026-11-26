@@ -10,8 +10,8 @@
 //
 // A site that renders from something else can listen too: the message is
 // { type: 'cms:preview', entity, id, locale, data } with the form's values.
-import { isCmsBuilderToPage, type CmsBuilderToAdmin } from '../../shared/builder'
-import { cmsBuilderOn } from '../builder/state'
+import { cmsBuilderNames, isCmsBuilderToPage, type CmsBuilderToAdmin } from '../../shared/builder'
+import { cmsBuilderOn, cmsBuilderWords } from '../builder/state'
 
 export default defineNuxtPlugin((nuxtApp) => {
   if (window.parent === window) return
@@ -28,7 +28,10 @@ export default defineNuxtPlugin((nuxtApp) => {
     if (isCmsBuilderToPage(e.data)) {
       const message = e.data
       void hydrated.then(() => {
-        if (message.type === 'cms:builder:on') cmsBuilderOn.value = true
+        if (message.type === 'cms:builder:on') {
+          cmsBuilderWords.value = { names: cmsBuilderNames(message.labels, message.lists), blank: message.texts.blank ?? '' }
+          cmsBuilderOn.value = true
+        }
         return import('../builder/overlay')
       }).then((overlay) => overlay.handleCmsBuilderMessage(message))
       return

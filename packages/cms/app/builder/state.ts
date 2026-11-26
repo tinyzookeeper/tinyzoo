@@ -11,3 +11,6 @@ export const cmsBuilderOn = shallowRef(false)
  * overlay calls these whenever the page's elements change.
  */
 export const cmsBuilderMarkers = new Set<() => void>()
+
+/** The admin's names of the block types and its word for a block that draws nothing, for what the page draws while the tool is on. */
+export const cmsBuilderWords = shallowRef<{ names: Record<string, string>; blank: string }>({ names: {}, blank: '' })
