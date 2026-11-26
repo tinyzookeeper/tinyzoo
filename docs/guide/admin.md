@@ -337,6 +337,8 @@ The preview beside the form follows the typing. The editor's unsaved values go t
 
 A site that loads its content through the content API with `?preview` (as the starter does) needs no code for this. A site rendering from somewhere else can listen for `{ type: 'cms:preview', entity, id, locale, data }` messages.
 
+**Experimental: the editor in the preview.** With `NUXT_CMS_BUILDER=on` in the server's environment, an editor can select, move, duplicate, delete and add the blocks of a page in the preview itself, and the form follows. The admin and the page talk through `cms:builder:*` messages (`cms:builder:on` and `cms:builder:select` to the page; `cms:builder:select`, `move`, `duplicate`, `remove` and `add` back). A page in the preview says `cms:builder:ready` to the admin once it listens, with the variable or without it. In the preview, `<CmsBlocks>` marks each block's root element with `data-cms-block`, `data-cms-block-type` and `data-cms-block-list`, never on the live site. Without the variable none of this runs, and the admin is as before. It may change in a minor release.
+
 ### Form sections
 
 Forms read as a few titled sections. Name them as plain questions, and give fields the icons and options that make them quick to fill in. Empty optional fields wait behind "+ Add …". Long forms get a section menu beside them.

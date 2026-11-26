@@ -787,6 +787,7 @@ export default {
     collapse: 'Sbalit',
     hasErrors: 'Vyžaduje pozornost',
     removed: 'Odebráno: {label}',
+    moved: 'Blok přesunut',
     undo: 'Vrátit',
     addItem: 'Přidat položku',
     item: 'Položka',

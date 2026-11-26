@@ -24,7 +24,8 @@ const draftLocale = (reg: CmsRegistry, locale: string | null | undefined) => (is
 
 /**
  * Keep an editor's unsaved values for the preview. Each value is checked against its
- * field (a half-typed one that is not valid yet keeps the saved value) and turned into
+ * field (a half-typed one that is not valid yet keeps the saved value; in a list of blocks,
+ * only the blocks that are not valid yet are left out) and turned into
  * the entry's columns, as a save would. Lists of related entries are not previewed.
  */
 export function putPreviewDraft(reg: CmsRegistry, e: CmsEntity, userId: string, id: string, locale: string | null, data: Record<string, any>) {
@@ -33,7 +34,13 @@ export function putPreviewDraft(reg: CmsRegistry, e: CmsEntity, userId: string, 
   for (const [key, value] of Object.entries(data ?? {})) {
     const fld = e.fields[key]
     if (!fld || (loc && !e.localized.includes(key))) continue
-    const parsed = fld.zod('update').safeParse(value)
+    const schema = fld.zod('update')
+    let parsed = schema.safeParse(value)
+    // A list of blocks with one block not filled in yet (just added) shows the others as they
+    // are now, in their new order, instead of falling back to the saved list as a whole.
+    if (!parsed.success && fld.type === 'blocks' && Array.isArray(value)) {
+      parsed = schema.safeParse(value.filter((block) => schema.safeParse([block]).success))
+    }
     if (parsed.success) valid[key] = parsed.data
   }
   const { values } = splitPayload(e, valid)

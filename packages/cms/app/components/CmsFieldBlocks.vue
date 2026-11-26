@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { isLinkRef } from '../../src/linkref'
+import { cmsBuilderMove, cmsBuilderPlaceIndex, type CmsBuilderPlace } from '../../shared/builder'
 
 // Page builder: an ordered list of typed blocks. Each block is a collapsible card —
 // its type, a one-line summary when collapsed, and a marker when something inside
@@ -18,6 +19,9 @@ provide('cmsCollab', null)
 const model = defineModel<any[] | null>()
 const { t, tl } = useCmsI18n()
 const toast = useToast()
+// The editor in the preview (experimental): only the page-blocks field of a form takes part, not a list and not a list inside a block.
+const builderRef = useCmsBuilder()
+const root = ref<HTMLElement | null>(null)
 const confirm = useCmsConfirm()
 const form = inject<{ issues?: Record<string, string> } | null>('cmsForm', null)
 const list = computed<{ max: number | null; itemLabel: any } | null>(() => props.field.meta?.list ?? null)
@@ -26,6 +30,10 @@ const full = computed(() => !!list.value?.max && blocks.value.length >= list.val
 const defs = computed<Record<string, any>>(() => props.field.meta?.blocks ?? {})
 const blocks = computed<any[]>(() => (Array.isArray(model.value) ? model.value : []))
 const open = reactive<Record<string, boolean>>({})
+function toggle(id: string) {
+  open[id] = !open[id]
+  if (open[id]) builderRef.value?.opened(id)
+}
 // A link to a page is stored as a reference (`cms:page/<id>`): the collapsed row says which
 // page it is (title and address), asked for in one batch like the expanded row does.
 const { request: requestTargets, find: findTarget } = useCmsLinkTargets()
@@ -58,6 +66,8 @@ function insertAt(index: number, type: string) {
   for (const k of Object.keys(open)) open[k] = false
   open[b.id] = true
   pickerOpen.value = false
+  builderRef.value?.opened(b.id)
+  builderRef.value?.changed()
 }
 function move(index: number, by: number) {
   const next = [...blocks.value]
@@ -71,6 +81,7 @@ function duplicate(index: number) {
   next.splice(index + 1, 0, copy)
   update(next)
   open[copy.id] = true
+  builderRef.value?.opened(copy.id)
 }
 function remove(index: number) {
   const next = [...blocks.value]
@@ -87,6 +98,72 @@ function remove(index: number) {
     } }],
   })
 }
+
+// ── the editor in the preview: what the page may ask of this field (it reuses the functions above) ──
+function builderCollapse() {
+  for (const k of Object.keys(open)) open[k] = false
+}
+function builderReveal(id: string) {
+  if (!blocks.value.some((b) => b?.id === id)) return
+  builderRef.value?.lists.value.forEach((l) => l.collapse())
+  open[id] = true
+  void nextTick(() => {
+    const row = [...(root.value?.querySelectorAll<HTMLElement>('[data-cms-block-row]') ?? [])].find((el) => el.dataset.cmsBlockRow === id)
+    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+    row?.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' })
+  })
+}
+function builderMove(id: string, place: CmsBuilderPlace) {
+  if (props.readOnly) return
+  const before = blocks.value
+  const next = cmsBuilderMove(before, id, place)
+  if (!next) return
+  const at = before.findIndex((b) => b?.id === id)
+  // Back next to the block that followed it, else the one that preceded it.
+  const back: CmsBuilderPlace | null = before[at + 1] ? { before: before[at + 1].id } : before[at - 1] ? { after: before[at - 1].id } : null
+  update(next)
+  toast.add({
+    title: t('blocks.moved'),
+    icon: 'i-lucide-arrow-up-down',
+    actions: back ? [{ label: t('blocks.undo'), color: 'neutral', variant: 'outline', onClick: () => {
+      const undone = cmsBuilderMove(blocks.value, id, back)
+      if (undone) {
+        update(undone)
+        builderRef.value?.changed()
+      }
+    } }] : [],
+  })
+}
+function builderDuplicate(id: string) {
+  const index = blocks.value.findIndex((b) => b?.id === id)
+  if (props.readOnly || index < 0 || isLocked(blocks.value[index])) return
+  duplicate(index)
+}
+function builderRemove(id: string) {
+  const index = blocks.value.findIndex((b) => b?.id === id)
+  if (props.readOnly || index < 0 || isLocked(blocks.value[index])) return
+  remove(index)
+}
+function builderAdd(place: CmsBuilderPlace) {
+  const at = cmsBuilderPlaceIndex(blocks.value.map((b) => b?.id), place)
+  if (props.readOnly || at === null || full.value) return
+  openPicker(at)
+}
+// Only a form's own list of page blocks takes part: not a list (`f.list()`), not one inside a block.
+const takesPart = !list.value && !props.field.key.includes('.')
+if (takesPart) {
+  watch(builderRef, (builder, _old, onCleanup) => {
+    if (!builder || !import.meta.client) return
+    const unregister = builder.register({
+      ids: () => blocks.value.map((b) => b?.id).filter((x): x is string => typeof x === 'string'),
+      labels: () => Object.fromEntries(Object.entries(defs.value).map(([type, def]) => [type, tl(def.label, type)])),
+      reveal: builderReveal, collapse: builderCollapse,
+      move: builderMove, duplicate: builderDuplicate, remove: builderRemove, add: builderAdd,
+    })
+    onCleanup(unregister)
+  }, { immediate: true })
+}
+
 /** One short name for a block (its first text, else its kind): for messages. */
 function shortName(b: any, index: number): string {
   const first = summary(b).split(' · ')[0] ?? ''
@@ -235,7 +312,7 @@ const choices = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-2">
+  <div ref="root" class="space-y-2">
     <CmsEmptyState
       v-if="!blocks.length && !onlyType" plain icon="i-lucide-layout-template" :title="t('blocks.emptyTitle')" :description="t('blocks.emptyDescription')"
       class="rounded-(--ui-radius) border border-dashed border-accented !py-10"
@@ -260,7 +337,7 @@ const choices = computed(() => {
 
       <!-- a block the site no longer knows (or could not bring up to date): kept, not editable -->
       <div
-        v-if="isLocked(b)" role="group" :aria-label="lockedName(b)" data-cms-block-locked
+        v-if="isLocked(b)" role="group" :aria-label="lockedName(b)" data-cms-block-locked :data-cms-block-row="takesPart && builderRef ? b.id : undefined"
         class="cms-card flex items-start gap-3 px-3 py-3" :class="[blockIssue(i) ? 'border-error' : 'border-warning/60', indented(b) ? 'ml-6' : '']"
       >
         <UIcon name="i-lucide-triangle-alert" class="size-4 text-warning shrink-0 mt-0.5" aria-hidden="true" />
@@ -276,7 +353,7 @@ const choices = computed(() => {
         >{{ t('blocks.remove') }}</UButton>
       </div>
       <div
-        v-else class="cms-card transition-[margin,box-shadow]"
+        v-else class="cms-card transition-[margin,box-shadow]" :data-cms-block-row="takesPart && builderRef ? b.id : undefined"
         :class="[hasIssue(i) ? 'border-error' : '', indented(b) ? 'ml-6' : '', dragOver === i && dragFrom !== i ? 'ring-2 ring-(--ui-primary)/40' : '', dragFrom === i ? 'opacity-50' : '']"
         :draggable="!readOnly && armed === b.id"
         @dragstart.stop="(e: DragEvent) => { dragFrom = i; e.dataTransfer?.setData('text/plain', b.id) }"
@@ -292,7 +369,7 @@ const choices = computed(() => {
           <button
             type="button" class="flex flex-1 min-w-0 items-center gap-2.5 text-left"
             :aria-expanded="!!open[b.id]"
-            @click="open[b.id] = !open[b.id]"
+            @click="toggle(b.id)"
           >
             <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0 transition-transform" :class="open[b.id] ? 'rotate-90' : ''" />
             <template v-if="list">

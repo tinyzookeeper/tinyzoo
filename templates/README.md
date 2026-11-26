@@ -57,6 +57,8 @@ They take the look from what every look shares:
 
 **In the cloud** this is off unless the cloud runs with `CLOUD_CUSTOM_TYPES=on` (`cloud/README.md`). With it on, the one app's process gets `NUXT_CMS_CUSTOM_TYPES=on` and each site's row the limits of its plan (12 types, 30 fields each on Basic). The site's administrators then find *Content types* under *Settings* in the admin, make a type such as "Courses", fill it in (removing a type hides it, and an administrator deletes it for good by hand), and put one of the two blocks on any page; a type with pages gives each entry its own address, listed in the sitemap. Without the setting a hosted site has none of it, and the two blocks are not offered.
 
+**The editor in the preview** (experimental) is off in the cloud unless it runs with `CLOUD_BUILDER=on` (`cloud/README.md`). With it on, the one app's process gets `NUXT_CMS_BUILDER=on`, and an editor of a hosted site can select, move, duplicate, delete and add the blocks of a page in the preview beside the form. The kit's sections carry the marks it needs (`CmsBlocks` adds them in the preview only). Without the setting a hosted site is exactly as before.
+
 `templates/app/scripts/custom-shots.mjs` makes a site of every look with such a type and takes pictures of both blocks and of an entry's page, with contact sheets of each template's looks side by side.
 
 ## Texts and languages

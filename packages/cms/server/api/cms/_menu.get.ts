@@ -6,5 +6,7 @@
 export default defineEventHandler(async (event) => {
   const user = requireCmsAccount(event)
   setResponseHeader(event, 'cache-control', 'no-store')
-  return cmsMenuFor(user)
+  const menu = await cmsMenuFor(user)
+  // The editor in the preview (experimental): the admin learns of the switch here, and only when it is on.
+  return cmsBuilderSwitch() ? { ...menu, builder: true as const } : menu
 })

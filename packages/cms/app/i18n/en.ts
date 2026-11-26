@@ -789,6 +789,7 @@ export default {
     collapse: 'Collapse',
     hasErrors: 'Needs attention',
     removed: 'Removed: {label}',
+    moved: 'Block moved',
     undo: 'Undo',
     addItem: 'Add item',
     item: 'Item',

@@ -22,7 +22,7 @@ type PluginNavItem = { label: LocalizedText; icon?: string; to: string }
 export function useCmsMenu(graph: Ref<any[] | null | undefined>) {
   const { t, tl, entityLabel } = useCmsI18n()
   const route = useRoute()
-  const request = useFetch<CmsAdminMenuLayout & { customized: boolean }>('/api/cms/_menu', { key: 'cms-menu' })
+  const request = useFetch<CmsAdminMenuLayout & { customized: boolean; builder?: true }>('/api/cms/_menu', { key: 'cms-menu' })
   const layout = request.data
   const pages = new Map((((useRuntimeConfig().public.cmsPlugins as any)?.navItems ?? []) as PluginNavItem[]).map((i) => [i.to, i]))
   const byName = computed(() => new Map((graph.value ?? []).map((e: any) => [e.name as string, e])))

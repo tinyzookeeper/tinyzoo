@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_MODEL_LIMITS } from 'tinyzoo'
 import { planById, PLANS } from '../../cloud/shared/plans'
-import { customTypesEnv, customTypesSetting, localSiteRow, sharedDirectoryText, sharedSiteRow } from '../../cloud/shared/sharedHosting'
+import { builderEnv, builderSetting, customTypesEnv, customTypesSetting, localSiteRow, sharedDirectoryText, sharedSiteRow } from '../../cloud/shared/sharedHosting'
 import { APPS, appById } from '../../cloud/shared/templates'
 
 // A site's own content types in the cloud (experimental): off unless CLOUD_CUSTOM_TYPES=on.
@@ -104,5 +104,19 @@ describe('the environment a driver starts an app with', () => {
     expect(customTypesEnv(templatesApp, true)).toEqual({ NUXT_CMS_CUSTOM_TYPES: 'on' })
     expect(basicApp.models).toBe(false)
     expect(customTypesEnv(basicApp, true)).toEqual({})
+  })
+})
+
+describe('CLOUD_BUILDER', () => {
+  it('is on with `on` only', () => {
+    expect(builderSetting('on')).toBe(true)
+    expect(builderSetting(' on ')).toBe(true)
+    for (const off of [undefined, null, '', 'off', 'true', '1', 'ON', 'yes']) expect(builderSetting(off), String(off)).toBe(false)
+  })
+
+  it('gives the one app NUXT_CMS_BUILDER=on, and nothing with the setting off or for the Basic app', () => {
+    for (const app of APPS) expect(builderEnv(app, false), app.id).toEqual({})
+    expect(builderEnv(templatesApp, true)).toEqual({ NUXT_CMS_BUILDER: 'on' })
+    expect(builderEnv(basicApp, true)).toEqual({})
   })
 })

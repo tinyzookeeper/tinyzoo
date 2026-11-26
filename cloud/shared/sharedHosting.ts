@@ -200,6 +200,17 @@ export function customTypesEnv(app: { models: boolean }, on: boolean): Record<st
 }
 
 /** A site's limits for its own content types, or an error: tinyzoo reads whole numbers from 0 to 200. */
+/**
+ * CLOUD_BUILDER: `on` switches the editor in the preview on (experimental) for the one app.
+ * Anything else is off, and then nothing the cloud starts or writes changes.
+ */
+export const builderSetting = (value: unknown): boolean => String(value ?? '').trim() === 'on'
+
+/** What an app's process gets in its environment for the editor in the preview: the one app only, as for custom types. */
+export function builderEnv(app: { models: boolean }, on: boolean): Record<string, string> {
+  return on && app.models ? { NUXT_CMS_BUILDER: 'on' } : {}
+}
+
 function assertCustomTypes(limits: SiteCustomTypes): SiteCustomTypes {
   const ok = (n: unknown) => Number.isInteger(n) && (n as number) >= 0 && (n as number) <= 200
   if (!ok(limits.types) || !ok(limits.fields)) throw new Error('The limits of a site\'s own content types must be whole numbers from 0 to 200')

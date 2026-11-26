@@ -20,6 +20,8 @@ const isNew = computed(() => id.value === 'new')
 
 const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
 const meta = computed(() => (graph.value ?? []).find((e: any) => e.name === entity.value))
+// The editor in the preview (experimental, NUXT_CMS_BUILDER=on): provided only when the menu says it is on.
+provideCmsBuilder(useCmsBuilderOn())
 // The manual-order position is set by arranging the list, never by this form (a stale
 // position saved from here would undo someone's reordering).
 const form = useCmsForm(computed(() => (meta.value?.fields ?? []).filter((f: any) => f.key !== meta.value?.orderField)), isNew)

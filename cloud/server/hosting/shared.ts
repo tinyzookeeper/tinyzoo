@@ -8,14 +8,14 @@ import { directoryKey } from '../../shared/directorySecret'
 import { planById } from '../../shared/plans'
 import { parsePortRange, pickPort } from '../../shared/ports'
 import {
-  assertSiteId, assertTemplateId, customTypesEnv, passwordOfDatabaseUrl, SHARED_PORT_RANGE, sharedDatabaseNameFor, sharedDatabasePrefix,
+  assertSiteId, assertTemplateId, builderEnv, customTypesEnv, passwordOfDatabaseUrl, SHARED_PORT_RANGE, sharedDatabaseNameFor, sharedDatabasePrefix,
   sharedDatabaseUrl, sharedSiteRow, sharedSiteUrl, splitSiteEnv, sqlLiteral, withoutSharedSite, withSharedSite,
   type SharedSiteDomains, type SharedSiteRow, type SharedSiteState,
 } from '../../shared/sharedHosting'
 import { quoteIdent } from '../../shared/slug'
 import { appOf, modelOf, templatesOfApp, type AppDef, type TemplateDef } from '../../shared/templates'
 import type { SiteRow } from '../db/schema'
-import { builtAppOf, cloudCustomTypes, entryOf as appEntryOf } from './apps'
+import { builtAppOf, cloudBuilder, cloudCustomTypes, entryOf as appEntryOf } from './apps'
 import { siteDirectory, writePrivate, type DirectoryKind, type DirectoryReader, type SiteDirectory } from './directory'
 import { portIsFree } from './local'
 import { HostingError, type HostedSite, type HostingDriver, type OnStep, type Provisioned, type SiteAccess, type SiteSpec } from './types'
@@ -370,6 +370,8 @@ function start(def: AppDef, tdir: string, app: AppFile, settings: Record<string,
         NUXT_CMS_TENANCY_MODE: 'multi',
         // The sites' own content types (CLOUD_CUSTOM_TYPES=on), for the one app only.
         ...customTypesEnv(def, cloudCustomTypes()),
+        // The editor in the preview (CLOUD_BUILDER=on), for the one app only.
+        ...builderEnv(def, cloudBuilder()),
         // Where the site directory is: the file, or the table with the reader's address (and the directory key).
         ...directoryEnv,
         NUXT_APP_SECRET: app.secret,

@@ -12,6 +12,8 @@ const { t, tl, languageName, entityLabel } = useCmsI18n()
 const form = useCmsForm(computed(() => props.meta?.fields ?? []), computed(() => false))
 const { state, fieldErrors, editable, dirty, saving, conflict } = form
 const toast = useToast()
+// The editor in the preview (experimental, NUXT_CMS_BUILDER=on): provided only when the menu says it is on.
+provideCmsBuilder(useCmsBuilderOn())
 
 // ── content languages (as in the entry editor) ──
 const locales = computed(() => props.meta?.locales as { default: string; all: string[]; labels: Record<string, any> } | null)

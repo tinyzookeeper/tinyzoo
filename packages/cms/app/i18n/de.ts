@@ -787,6 +787,7 @@ export default {
     collapse: 'Einklappen',
     hasErrors: 'Bitte prüfen',
     removed: 'Entfernt: {label}',
+    moved: 'Block verschoben',
     undo: 'Rückgängig',
     addItem: 'Eintrag hinzufügen',
     item: 'Eintrag',

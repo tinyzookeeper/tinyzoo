@@ -4,10 +4,15 @@
 // typing: the unsaved values go to the server (POST /api/cms/_preview, for this editor's
 // ?preview requests only), then the page is told — `{ type: 'cms:preview', entity, id,
 // locale, data }` — and refetches its content (plugins/cmsLivePreview.client.ts).
+// With the editor in the preview on (NUXT_CMS_BUILDER=on, useCmsBuilder()), the panel also tells the
+// page what it needs to draw its tools and passes the page's `cms:builder:*` messages on.
 // Reloaded after every save; the unsaved values are dropped when the editor closes.
+import { isCmsBuilderToAdmin, type CmsBuilderToPage } from '../../shared/builder'
+
 const props = defineProps<{ url: string; entity: string; id: string; locale: string | null; data: Record<string, any>; version: string | null; sheet?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
-const { t } = useCmsI18n()
+const { t, locale: adminLanguage } = useCmsI18n()
+const builder = useCmsBuilder()
 
 const frame = ref<HTMLIFrameElement | null>(null)
 const width = ref<'desktop' | 'phone'>('desktop')
@@ -67,6 +72,68 @@ watch(() => props.data, () => {
   if (timer) clearTimeout(timer)
   timer = setTimeout(() => post(), 250)
 }, { deep: true })
+
+// ── the editor in the preview ──
+// `builder` is null until the switch is known to be on (then it stays the bridge).
+function sendToPage(message: CmsBuilderToPage) {
+  frame.value?.contentWindow?.postMessage(message, target.value)
+}
+function sendOn() {
+  const bridge = builder.value
+  if (!bridge) return
+  sendToPage({
+    type: 'cms:builder:on',
+    labels: bridge.labels.value,
+    texts: {
+      drag: t('blocks.drag'), moveUp: t('blocks.moveUp'), moveDown: t('blocks.moveDown'),
+      duplicate: t('blocks.duplicate'), remove: t('blocks.remove'), insertHere: t('blocks.insertHere'),
+    },
+    selected: bridge.selected.value,
+  })
+}
+/** The frame has loaded: the draft first, then the tool (the page may load its overlay after the draft). */
+let loaded = false
+async function onLoad() {
+  await post()
+  loaded = true
+  sendOn()
+}
+watch(reloads, () => { loaded = false })
+// The admin's first render comes from the server, so the frame can finish loading before the
+// `load` listener exists: a frame on the same site that is complete counts as loaded.
+function frameComplete() {
+  try {
+    return frame.value?.contentDocument?.readyState === 'complete'
+  }
+  catch {
+    return false
+  }
+}
+watch(builder, (bridge, _old, onCleanup) => {
+  if (!bridge || !import.meta.client) return
+  const onMessage = (e: MessageEvent) => {
+    if (e.source !== frame.value?.contentWindow || e.origin !== target.value || !isCmsBuilderToAdmin(e.data)) return
+    if (e.data.type === 'cms:builder:ready') sendOn()
+    else bridge.fromPage(e.data)
+  }
+  const detach = bridge.attach({
+    send: sendToPage,
+    postNow: () => {
+      if (timer) clearTimeout(timer)
+      void post()
+    },
+  })
+  window.addEventListener('message', onMessage)
+  // The bridge came after the frame loaded: tell the page now.
+  if (loaded || frameComplete()) sendOn()
+  const stop = watch([bridge.labels, adminLanguage], () => sendOn(), { deep: true })
+  onCleanup(() => {
+    stop()
+    detach()
+    window.removeEventListener('message', onMessage)
+  })
+}, { immediate: true })
+onMounted(() => { if (frameComplete()) sendOn() })
 // Closed or left: forget the unsaved values, so a later preview shows what is saved.
 function clearDraft() {
   try {
@@ -124,7 +191,7 @@ onBeforeUnmount(() => {
     <div v-else class="cms-preview__stage">
       <iframe
         :key="reloads" ref="frame" :src="url" :title="t('editor.previewPanel')"
-        class="cms-preview__frame" :class="width === 'phone' ? 'cms-preview__frame--phone' : ''" @load="post()"
+        class="cms-preview__frame" :class="width === 'phone' ? 'cms-preview__frame--phone' : ''" @load="onLoad()"
       />
     </div>
   </section>
