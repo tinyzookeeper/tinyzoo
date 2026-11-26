@@ -311,26 +311,29 @@ function mediaIdsIn(data: Record<string, any>): string[] {
   // A group's media fields (and, inside it, rich text, lists and more groups).
   const groupMedia = (g: any, v: any) => {
     if (!v || typeof v !== 'object') return
-    for (const gf of g.meta?.fields ?? []) {
-      const x = v[gf.key]
-      if (gf.type === 'media' && typeof x === 'string') ids.push(x)
-      else if (gf.type === 'group') groupMedia(gf, x)
+    for (const gf of g.meta?.fields ?? []) inner(gf, v[gf.key])
+  }
+  // A list's blocks (a block's own lists too, at any depth): each value by its block type's field.
+  const blocksMedia = (f: any, v: any) => {
+    if (!Array.isArray(v)) return
+    for (const b of v) for (const [k, x] of Object.entries(b ?? {})) {
+      const bf = f.meta?.blocks?.[b?.type]?.fields?.find((y: any) => y.key === k)
+      if (bf) inner(bf, x)
       else walk(x)
     }
+  }
+  const inner = (f: any, v: any) => {
+    if (f.type === 'media') { if (typeof v === 'string') ids.push(v) }
+    else if (f.type === 'group') groupMedia(f, v)
+    else if (f.type === 'blocks') blocksMedia(f, v)
+    else walk(v)
   }
   for (const f of editable.value) {
     const v = data[f.key]
     if (f.type === 'media' && typeof v === 'string') ids.push(v)
     else if (f.type === 'gallery' && Array.isArray(v)) ids.push(...v.map((x: any) => x?.mediaId).filter(Boolean))
     else if (f.type === 'richtext') walk(v)
-    else if (f.type === 'blocks' && Array.isArray(v)) {
-      for (const b of v) for (const [k, x] of Object.entries(b ?? {})) {
-        const bf = f.meta?.blocks?.[b?.type]?.fields?.find((y: any) => y.key === k)
-        if (bf?.type === 'media' && typeof x === 'string') ids.push(x)
-        else if (bf?.type === 'group') groupMedia(bf, x)
-        else walk(x)
-      }
-    }
+    else if (f.type === 'blocks') blocksMedia(f, v)
     else if (f.type === 'group') groupMedia(f, v)
   }
   return [...new Set(ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)))]

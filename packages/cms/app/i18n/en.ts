@@ -803,6 +803,7 @@ export default {
     removeGoneTitle: 'Remove the “{type}” block?',
     removeGoneBody: 'The website no longer knows this type of block, so once you save the page it cannot be added back.',
     removeGoneConfirm: 'Remove block',
+    settings: 'Layout',
     count: { one: '{count} block', other: '{count} blocks' },
   },
   translation: {

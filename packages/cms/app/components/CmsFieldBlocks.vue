@@ -12,7 +12,10 @@ import { cmsBuilderMove, cmsBuilderPlaceIndex, type CmsBuilderPlace } from '../.
 // ("Jana Nováková · Coach"), not as "Item", and a `sub` switch indents an item
 // under the one above (menus). A block can hold a list (FAQ questions, feature
 // cards): the same editor again, inside the open block, under its full path
-// ("sections.2.items"), so a problem in item 3 marks both the item and the block.
+// ("sections.2.items"), so a problem in item 3 marks both the item and the block. An item
+// of that list may hold a list of its own (a layout's group of small blocks): the same
+// again, one level deeper ("sections.2.items.0.items"). A block's settings (`.setting()`)
+// come after its content, under one heading.
 const props = defineProps<{ field: any; entity: string; readOnly?: boolean }>()
 // Text inside blocks is edited on its own (not shared), even on a shared entry.
 provide('cmsCollab', null)
@@ -37,9 +40,16 @@ function toggle(id: string) {
 // A link to a page is stored as a reference (`cms:page/<id>`): the collapsed row says which
 // page it is (title and address), asked for in one batch like the expanded row does.
 const { request: requestTargets, find: findTarget } = useCmsLinkTargets()
+// (The lists inside a block too: a block that says nothing itself is summed up by them.)
 watchEffect(() => {
   const refs: string[] = []
-  for (const b of blocks.value) for (const v of Object.values(b ?? {})) if (typeof v === 'string' && isLinkRef(v)) refs.push(v)
+  const scan = (b: any, depth: number) => {
+    for (const v of Object.values(b ?? {})) {
+      if (typeof v === 'string' && isLinkRef(v)) refs.push(v)
+      else if (Array.isArray(v) && depth < 2) for (const item of v) if (item && typeof item === 'object' && typeof item.type === 'string') scan(item, depth + 1)
+    }
+  }
+  for (const b of blocks.value) scan(b, 0)
   if (refs.length) requestTargets(refs)
 })
 
@@ -149,8 +159,10 @@ function builderAdd(place: CmsBuilderPlace) {
   if (props.readOnly || at === null || full.value) return
   openPicker(at)
 }
+// A list inside a block (or a group): its key is a path ("sections.0.items"). Empty, it says so in one line, not as a page would.
+const inside = props.field.key.includes('.')
 // Only a form's own list of page blocks takes part: not a list (`f.list()`), not one inside a block.
-const takesPart = !list.value && !props.field.key.includes('.')
+const takesPart = !list.value && !inside
 if (takesPart) {
   watch(builderRef, (builder, _old, onCleanup) => {
     if (!builder || !import.meta.client) return
@@ -235,11 +247,21 @@ function setField(index: number, key: string, value: unknown) {
   update(next)
 }
 
-/** What the block says, for the collapsed header: its first few values, choices by their labels ("Plavání · Úterý · 18:00"). */
+/**
+ * What the block says, for the collapsed header: its first few values, choices by their labels
+ * ("Plavání · Úterý · 18:00"). Its settings are left out. A block that says nothing itself (a
+ * layout that only holds small blocks) is summed up by what its lists hold.
+ */
 function summary(b: any): string {
   const parts: string[] = []
-  for (const f of defs.value[b.type]?.fields ?? []) {
-    const v = b[f.key]
+  textsOf(b, defs.value[b?.type]?.fields ?? [], parts, 0)
+  return parts.join(' · ')
+}
+function textsOf(b: any, fields: any[], parts: string[], depth: number) {
+  for (const f of fields) {
+    if (parts.length >= 3) return
+    if (f.meta?.setting) continue
+    const v = b?.[f.key]
     if (f.type === 'select' && typeof v === 'string' && v) parts.push(tl(f.meta?.labels?.[v], v))
     else if (typeof v === 'string' && isLinkRef(v)) {
       // Never the raw reference: the page's title and address once they are known.
@@ -251,9 +273,20 @@ function summary(b: any): string {
       const text = JSON.stringify(v).match(/"text":"([^"]{1,120})/)?.[1]
       if (text) parts.push(text)
     }
-    if (parts.length === 3) break
   }
-  return parts.join(' · ')
+  if (parts.length || depth >= 2) return
+  for (const f of fields) {
+    if (f.type !== 'blocks' || !Array.isArray(b?.[f.key])) continue
+    for (const item of b[f.key]) {
+      if (parts.length >= 3) return
+      textsOf(item, f.meta?.blocks?.[item?.type]?.fields ?? [], parts, depth + 1)
+    }
+  }
+}
+/** The fields of block `index` as its form shows them: the content first, then the settings (`.setting()`), each in their own order. */
+function formFields(b: any, index: number): { content: any[]; settings: any[] } {
+  const all = (defs.value[b?.type]?.fields ?? []).filter((x: any) => !(index === 0 && x.meta?.needsPrevious))
+  return { content: all.filter((x: any) => !x.meta?.setting), settings: all.filter((x: any) => x.meta?.setting) }
 }
 /**
  * The server's refusal of the block as a whole ("saved by a newer version", "this type no
@@ -314,7 +347,7 @@ const choices = computed(() => {
 <template>
   <div ref="root" class="space-y-2">
     <CmsEmptyState
-      v-if="!blocks.length && !onlyType" plain icon="i-lucide-layout-template" :title="t('blocks.emptyTitle')" :description="t('blocks.emptyDescription')"
+      v-if="!blocks.length && !onlyType && !inside" plain icon="i-lucide-layout-template" :title="t('blocks.emptyTitle')" :description="t('blocks.emptyDescription')"
       class="rounded-(--ui-radius) border border-dashed border-accented !py-10"
     >
       <template #actions>
@@ -395,16 +428,28 @@ const choices = computed(() => {
           </p>
           <p v-if="!defs[b.type]" class="text-sm text-muted">{{ b.type }}</p>
           <CmsField
-            v-for="f in (defs[b.type]?.fields ?? []).filter((x: any) => !(i === 0 && x.meta?.needsPrevious))" :key="f.key"
+            v-for="f in formFields(b, i).content" :key="f.key"
             :model-value="b[f.key]" :field="f.type === 'blocks' || f.type === 'group' ? nested(f, i) : f" :entity="entity" :id-prefix="`${field.key}-${b.id}-`"
             :error="form?.issues?.[`${field.key}.${i}.${f.key}`]"
             @update:model-value="(v: unknown) => setField(i, f.key, v)"
           />
+          <!-- the block's settings: after its content, under one quiet heading -->
+          <div v-if="formFields(b, i).settings.length" role="group" :aria-labelledby="`${field.key}-${b.id}-settings`" class="pt-1">
+            <h3 :id="`${field.key}-${b.id}-settings`" class="mb-3 text-sm font-medium text-muted">{{ t('blocks.settings') }}</h3>
+            <div class="space-y-5">
+              <CmsField
+                v-for="f in formFields(b, i).settings" :key="f.key"
+                :model-value="b[f.key]" :field="f.type === 'blocks' || f.type === 'group' ? nested(f, i) : f" :entity="entity" :id-prefix="`${field.key}-${b.id}-`"
+                :error="form?.issues?.[`${field.key}.${i}.${f.key}`]"
+                @update:model-value="(v: unknown) => setField(i, f.key, v)"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </template>
 
-    <UButton v-if="(blocks.length || onlyType) && !full" color="neutral" variant="ghost" icon="i-lucide-plus" size="sm" @click="openPicker(blocks.length)">
+    <UButton v-if="(blocks.length || onlyType || inside) && !full" color="neutral" variant="ghost" icon="i-lucide-plus" size="sm" @click="openPicker(blocks.length)">
       {{ addLabel }}
     </UButton>
 

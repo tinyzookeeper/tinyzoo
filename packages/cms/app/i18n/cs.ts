@@ -801,6 +801,7 @@ export default {
     removeGoneTitle: 'Odebrat blok „{type}“?',
     removeGoneBody: 'Web tento typ bloku už nezná, takže ho po uložení stránky nepůjde znovu přidat.',
     removeGoneConfirm: 'Odebrat blok',
+    settings: 'Rozvržení',
     count: { one: '{count} blok', few: '{count} bloky', many: '{count} bloku', other: '{count} bloků' },
   },
   sections: {

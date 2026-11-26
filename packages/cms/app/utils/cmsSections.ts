@@ -154,10 +154,24 @@ export function cmsFieldIcon(f: CmsFormFieldLike): string | undefined {
  * offer, so it does not turn from buttons into a dropdown when the other field changes.
  */
 export function cmsSelectAsButtons(f: CmsFormFieldLike, placement: 'main' | 'sidebar' = 'main'): boolean {
-  if (f.type !== 'select' || placement !== 'main') return false
+  if (f.type !== 'select' || placement !== 'main' || cmsSelectAsSegments(f)) return false
+  return mostOffered(f) <= 5
+}
+
+/**
+ * A choice with `f.select({ segments: true })` and two to four options is one row of segments,
+ * wherever it sits; with more (or fewer) it is drawn as any choice is.
+ */
+export function cmsSelectAsSegments(f: CmsFormFieldLike): boolean {
+  if (f.type !== 'select' || f.meta?.segments !== true) return false
+  const most = mostOffered(f)
+  return most >= 2 && most <= 4
+}
+
+/** The most options a choice can offer at once (with `optionsBy`, its longest list). */
+function mostOffered(f: CmsFormFieldLike): number {
   const by = f.meta?.optionsBy as { options: Record<string, unknown[]> } | undefined
-  const most = by ? Math.max(0, ...Object.values(by.options).map((list) => list.length)) : ((f.meta?.options as unknown[] | undefined)?.length ?? 0)
-  return most <= 5
+  return by ? Math.max(0, ...Object.values(by.options).map((list) => list.length)) : ((f.meta?.options as unknown[] | undefined)?.length ?? 0)
 }
 
 /**

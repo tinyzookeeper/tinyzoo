@@ -801,6 +801,7 @@ export default {
     removeGoneTitle: 'Block „{type}“ entfernen?',
     removeGoneBody: 'Die Website kennt diesen Blocktyp nicht mehr, daher lässt er sich nach dem Speichern der Seite nicht wieder hinzufügen.',
     removeGoneConfirm: 'Block entfernen',
+    settings: 'Layout',
     count: { one: '{count} Block', other: '{count} Blöcke' },
   },
   translation: {

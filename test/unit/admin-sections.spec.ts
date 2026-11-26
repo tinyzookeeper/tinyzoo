@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { defineEntity, defineSingleton, f } from 'tinyzoo'
 import {
-  cmsFieldIcon, cmsFormSections, cmsIsShortField, cmsNeedsSectionMenu, cmsSelectAsButtons, cmsSelectOffered, cmsSelectRemoved, cmsWaitingFields,
+  cmsFieldIcon, cmsFormSections, cmsIsShortField, cmsNeedsSectionMenu, cmsSelectAsButtons, cmsSelectAsSegments, cmsSelectOffered, cmsSelectRemoved, cmsWaitingFields,
 } from '../../packages/cms/app/utils/cmsSections'
 
 // A form reads as a few titled sections; empty optional fields wait behind "+ Add …".
@@ -90,6 +90,18 @@ describe('field controls', () => {
     expect(cmsSelectAsButtons(kind)).toBe(true)
     expect(cmsSelectAsButtons(kind, 'sidebar')).toBe(false)
     expect(cmsSelectAsButtons(fld('x', 'select', { meta: { options: ['1', '2', '3', '4', '5', '6'] } }))).toBe(false)
+  })
+
+  it('draws a choice marked as segments as one row of two to four segments, wherever it sits', () => {
+    const seg = (options: string[], extra: Record<string, any> = {}) => fld('arrangement', 'select', { meta: { options, segments: true, ...extra } })
+    expect([1, 2, 3, 4, 5].map((n) => cmsSelectAsSegments(seg(['a', 'b', 'c', 'd', 'e'].slice(0, n))))).toEqual([false, true, true, true, false])
+    expect(cmsSelectAsSegments(fld('kind', 'select', { meta: { options: ['a', 'b'] } }))).toBe(false) // not asked for
+    expect(cmsSelectAsSegments(fld('kind', 'text', { meta: { options: ['a', 'b'], segments: true } }))).toBe(false)
+    // then not as buttons too; with more options it is drawn as any choice is
+    expect(cmsSelectAsButtons(seg(['a', 'b', 'c']))).toBe(false)
+    expect(cmsSelectAsButtons(seg(['a', 'b', 'c', 'd', 'e']))).toBe(true)
+    // options that follow another field: the longest list it can offer
+    expect(cmsSelectAsSegments(seg(['a', 'b', 'c', 'd', 'e'], { optionsBy: { field: 'x', options: { p: ['a', 'b'], q: ['c', 'd', 'e'] } } }))).toBe(true)
   })
 
   // f.select({ optionsBy }): the colours of the chosen look.
