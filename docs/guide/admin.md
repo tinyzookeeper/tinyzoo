@@ -355,6 +355,10 @@ const editing = useCmsEditing()
 </template>
 ```
 
+`useCmsEditingLabel(type)` gives a block type's name in the admin's language at that time (`''` on the live site), for a placeholder's words: with `const label = useCmsEditingLabel('heading')`, `<h2 v-else-if="editing" class="ghost">{{ label }}</h2>` reads *Nadpis* to a Czech editor. A block whose component draws no element at all gets a quiet placeholder with its name from `<CmsBlocks>` while the editor works, so it can still be selected, moved and deleted.
+
+Beside the preview, the form shows the selected block alone: a way back to all sections, the path as a breadcrumb, its fields, its settings, and a block's own list as rows that each go a level deeper. A desktop page is laid out 1280 px wide and drawn scaled to fit the panel; the page is told its scale (`cms:builder:view`), so the tools keep their size. Undo and redo keep the changes to the page's blocks while the editor is open (at most 50 steps; typing in a field is one step per pause), with Ctrl/⌘ Z and Ctrl/⌘ ⇧ Z outside a text field; the page passes those keys on with `cms:builder:history`.
+
 ### Form sections
 
 Forms read as a few titled sections. Name them as plain questions, and give fields the icons and options that make them quick to fill in. Empty optional fields wait behind "+ Add …". Long forms get a section menu beside them.
