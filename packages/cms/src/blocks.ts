@@ -13,10 +13,12 @@ import { upgradeRichText } from './richtext'
  *   [{ id: 'k3j…', type: 'hero', heading: 'Vítejte', image: '<media id>' }, …]
  *
  * Block fields use the regular field catalog, minus relations (v1): text, slug,
- * number, boolean, datetime, select, rich text, media, and one level of lists
- * (`f.list()`: FAQ questions, feature cards, price rows inside one block). Rich text
- * is sanitised on write like everywhere else; media ids (also inside a block's
- * lists) are resolved by the content API and counted by media cleanup.
+ * number, boolean, datetime, select, rich text, media, groups, and lists two levels
+ * deep (`f.list()` or `f.blocks()`: FAQ questions, feature cards, price rows inside one
+ * block; a layout's small blocks and the groups among them, each group with small
+ * blocks of its own). Rich text is sanitised on write like everywhere else; media ids
+ * (also inside a block's lists) are resolved by the content API and counted by media
+ * cleanup.
  *
  * Stored JSON outlives the code that wrote it, so a block (or `f.list`) can carry a
  * `version`: stored blocks are stamped `v` (left out while it is 1) and anything
@@ -31,8 +33,8 @@ import { upgradeRichText } from './richtext'
  */
 
 /**
- * Field types allowed inside a block, a list item or a group ('blocks' = a list, one
- * level deep; 'group' = a named object of fields). A 'binding' is allowed in a block only,
+ * Field types allowed inside a block, a list item or a group ('blocks' = a list, two
+ * levels deep at most, see `MAX_LIST_DEPTH`; 'group' = a named object of fields). A 'binding' is allowed in a block only,
  * as one of its own fields (see `checkContainedFields`).
  *
  * @internal
@@ -85,11 +87,19 @@ export function holdsList(fields: Record<string, AnyFieldDescriptor>): boolean {
 }
 
 /**
+ * How many lists deep the fields of a block (or a group) may go: a list, and a list
+ * inside its items (a page's layout section holds small blocks and groups, a group holds
+ * small blocks). The items of that inner list hold plain fields.
+ */
+const MAX_LIST_DEPTH = 2
+
+/**
  * The rules for fields that sit inside something else (a block, a list item, a group):
- * only the field types blocks support; a list inside is one level (its items hold
- * plain fields and groups, not more lists); a group inside a block or a list holds no
- * list (only a group straight on an entry may). A binding is a field of a block itself
- * (`opts.binding`), never of a group, a list item or a block inside another block.
+ * only the field types blocks support; lists go two levels deep at most (a list, and a
+ * list in its items, whose items hold plain fields and groups); a group inside a block
+ * or a list holds no list (only a group straight on an entry may). A binding is a field
+ * of a block itself (`opts.binding`), never of a group, a list item or a block inside
+ * another block.
  */
 export function checkContainedFields(what: string, fields: Record<string, AnyFieldDescriptor>, opts: { reserved?: boolean; binding?: boolean } = { reserved: true }) {
   for (const [key, fld] of Object.entries(fields) as [string, FieldDescriptor][]) {
@@ -101,20 +111,36 @@ export function checkContainedFields(what: string, fields: Record<string, AnyFie
       throw new Error(`${what} field "${key}" has type "${fld.type}", which blocks, lists and groups do not support (allowed: ${[...BLOCK_FIELD_TYPES].join(', ')}).`)
     }
     if (fld.type === 'binding' && !opts.binding) throw new Error(bindingRefusal(what, key))
-    // A list inside a block is one level: its items hold plain fields, not more lists.
-    if (fld.type === 'blocks') {
-      for (const inner of Object.values(fld.blocks ?? {})) {
-        for (const [innerKey, innerFld] of Object.entries(inner.fields) as [string, FieldDescriptor][]) {
-          if (innerFld.type === 'binding') throw new Error(bindingRefusal(what, innerKey))
-          if (innerFld.type === 'blocks' || (innerFld.type === 'group' && holdsList(innerFld.fields ?? {}))) {
-            throw new Error(`${what} field "${key}" is a list whose items have a list ("${innerKey}"). Lists inside a block are one level deep.`)
-          }
-        }
+    if (fld.type === 'blocks') checkListItems(what, fld, [key])
+    checkGroup(what, key, fld)
+  }
+}
+
+/**
+ * The item types of a list at `trail` (the keys from the block's own field down to it):
+ * no binding, no group holding a list, and a list inside only while `trail` is shorter
+ * than `MAX_LIST_DEPTH`. Each item type was checked on its own already when it was made
+ * with `defineBlock`; this is what it may not hold because of where it sits.
+ */
+function checkListItems(what: string, list: FieldDescriptor, trail: string[]) {
+  for (const inner of Object.values(list.blocks ?? {})) {
+    for (const [innerKey, innerFld] of Object.entries(inner.fields) as [string, FieldDescriptor][]) {
+      if (innerFld.type === 'binding') throw new Error(bindingRefusal(what, innerKey))
+      checkGroup(what, innerKey, innerFld)
+      if (innerFld.type !== 'blocks') continue
+      const deeper = [...trail, innerKey]
+      if (deeper.length > MAX_LIST_DEPTH) {
+        throw new Error(`${what} field "${trail[0]}" holds lists three levels deep (${deeper.join(' › ')}). Lists inside a block go two levels deep at most: a list, and a list in its items.`)
       }
+      checkListItems(what, innerFld, deeper)
     }
-    if (fld.type === 'group' && holdsList(fld.fields ?? {})) {
-      throw new Error(`${what} field "${key}" is a group with a list inside. Inside a block or a list a group holds plain fields only (a group straight on an entry may hold a list).`)
-    }
+  }
+}
+
+/** A group inside a block, a list item or another group holds plain fields only. */
+function checkGroup(what: string, key: string, fld: FieldDescriptor) {
+  if (fld.type === 'group' && holdsList(fld.fields ?? {})) {
+    throw new Error(`${what} field "${key}" is a group with a list inside. Inside a block or a list a group holds plain fields only (a group straight on an entry may hold a list).`)
   }
 }
 

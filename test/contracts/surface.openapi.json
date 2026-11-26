@@ -2211,6 +2211,137 @@
                     "by"
                   ],
                   "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "layout"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "quote"
+                              },
+                              "text": {
+                                "type": "string"
+                              },
+                              "by": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type",
+                              "text",
+                              "by"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "group"
+                              },
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "const": "quote"
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "by": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "type",
+                                    "text",
+                                    "by"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type",
+                              "items"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "type"
+                        }
+                      }
+                    },
+                    "arrangement": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "row",
+                        "stack",
+                        "grid",
+                        null
+                      ]
+                    },
+                    "space": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "small",
+                        "medium",
+                        "large",
+                        null
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "items",
+                    "arrangement",
+                    "space"
+                  ],
+                  "additionalProperties": false
                 }
               ],
               "discriminator": {

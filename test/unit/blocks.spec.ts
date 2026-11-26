@@ -13,11 +13,13 @@ describe('defineBlock', () => {
     expect(() => defineBlock({ label: 'X', fields: { type: f.text() } })).toThrow(/reserved/)
   })
 
-  it('allows a list inside a block, one level deep', () => {
+  it('allows lists inside a block two levels deep, not three', () => {
     const faq = f.list({ fields: { q: f.text({ required: true }), a: f.text() } })
     expect(() => defineBlock({ label: 'FAQ', fields: { items: faq } })).not.toThrow()
     const deeper = f.list({ fields: { group: f.text(), items: faq } })
-    expect(() => defineBlock({ label: 'X', fields: { groups: deeper } })).toThrow(/one level/)
+    expect(() => defineBlock({ label: 'X', fields: { groups: deeper } })).not.toThrow()
+    const deepest = f.list({ fields: { section: f.text(), groups: deeper } })
+    expect(() => defineBlock({ label: 'X', fields: { sections: deepest } })).toThrow(/three levels deep \(sections › groups › items\)/)
   })
 })
 

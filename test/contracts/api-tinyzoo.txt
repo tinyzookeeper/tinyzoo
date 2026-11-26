@@ -766,6 +766,7 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
     position(where: 'main' | 'sidebar'): FieldDescriptor<K>;
     icon(name: string): FieldDescriptor<K>;
     group(label: LocalizedText): FieldDescriptor<K>;
+    setting(): FieldDescriptor<K>;
     access(rules: CmsFieldAccess): FieldDescriptor<K>;
 }
 
@@ -1074,6 +1075,7 @@ export const f: {
             options: Record<string, readonly T[number][]>;
         };
         swatches?: Partial<Record<T[number], readonly string[]>>;
+        segments?: boolean;
     }) => FieldDescriptor<ScalarKind<T[number], T[number], undefined extends D ? false : true>>;
     richtext: () => FieldDescriptor<ScalarKind<RichTextDoc, RichTextDoc, false>>;
     blocks: <const B extends Record<string, BlockDef<any>>>(blocks: B) => FieldDescriptor<ScalarKind<BlocksValue<B>, BlocksValue<B>, true>>;

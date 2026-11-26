@@ -152,7 +152,7 @@ A config exports its entities, globals, `locales`, `roles`, the pages, navigatio
 | `f.number(o)` | `int` (default true; `false` is a decimal), `min`, `max` | `number`, or `string` for a decimal (see below) |
 | `f.boolean(o)` | `default`, `mustBeTrue`, `needsPrevious`, `confirmOff` | `boolean` |
 | `f.datetime(o)` | `default: 'now'`, `allDay` | `Date` (a `Date` or an ISO string on insert) |
-| `f.select(o)` | `options` (a tuple), `default`, `labels`, `icons`, `optionsBy` (`{ field, options }`: what the admin offers by another choice of the form), `swatches` (hex colours per option) | the union of the options |
+| `f.select(o)` | `options` (a tuple), `default`, `labels`, `icons`, `optionsBy` (`{ field, options }`: what the admin offers by another choice of the form), `swatches` (hex colours per option), `segments` (two to four options drawn as one row of segments) | the union of the options |
 | `f.richtext()` | | `RichTextDoc` |
 | `f.blocks(blocks)` | an object of `defineBlock()`s | `BlocksValue` (typed, discriminated by `type`) |
 | `f.list(o)` | `fields`, `max`, `itemLabel`, `itemType`, `version`, `upgrade` | `CmsListValue` (items with a stable `id`) |
@@ -177,6 +177,7 @@ Every `FieldDescriptor` has these methods. Each returns a descriptor of the same
 | `.position('main' \| 'sidebar')` | where the writing editor puts it |
 | `.icon(name)` | the icon of the control (any Iconify name) |
 | `.group(label)` | a named, collapsible group in the editor |
+| `.setting()` | a setting of its block, not its content: the admin's form of a block shows it after the content, under "Layout" |
 | `.access({ read, edit })` | which roles read and which edit the field in the admin (`CmsFieldAccess`; role references from `defineRoles` or built-in names) |
 
 A plugin or admin code may read these properties: `type`, `isRequired`, `isUnique`, `isOptional`, `isLocalized`, `default`, `ui`, `meta`, `relation`, `blocks`, `fields`.

@@ -8,7 +8,7 @@
 //
 // Kept in this server's memory for a while (one server process; a draft is gone after
 // a restart, and the preview simply shows the saved version again).
-import type { CmsEntity, CmsRegistry } from 'tinyzoo'
+import { blocksSchema, type BlockDef, type CmsEntity, type CmsRegistry } from 'tinyzoo'
 import { splitPayload } from './cmsCrud'
 import { isTranslationLocale } from './cmsLocales'
 import { isPreviewAuthorized } from './cmsContent'
@@ -37,9 +37,10 @@ export function putPreviewDraft(reg: CmsRegistry, e: CmsEntity, userId: string, 
     const schema = fld.zod('update')
     let parsed = schema.safeParse(value)
     // A list of blocks with one block not filled in yet (just added) shows the others as they
-    // are now, in their new order, instead of falling back to the saved list as a whole.
-    if (!parsed.success && fld.type === 'blocks' && Array.isArray(value)) {
-      parsed = schema.safeParse(value.filter((block) => schema.safeParse([block]).success))
+    // are now, in their new order, instead of falling back to the saved list as a whole. The
+    // same inside a block's lists: a small block just added to a layout leaves the layout shown.
+    if (!parsed.success && fld.type === 'blocks' && fld.blocks && Array.isArray(value)) {
+      parsed = schema.safeParse(validPart(value, fld.blocks))
     }
     if (parsed.success) valid[key] = parsed.data
   }
@@ -50,6 +51,26 @@ export function putPreviewDraft(reg: CmsRegistry, e: CmsEntity, userId: string, 
     if (drafts().size >= MAX) drafts().delete(drafts().keys().next().value!)
   }
   drafts().set(keyOf(userId, e.name, id, loc), { values, at: now })
+}
+
+const isObject = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
+
+/**
+ * The blocks of a list that are valid on their own. A block that is not, but whose lists hold
+ * items that are not valid yet, is tried again without those items (at any depth).
+ */
+function validPart(list: unknown[], defs: Record<string, BlockDef>): unknown[] {
+  const one = blocksSchema(defs)
+  return list.flatMap((block) => {
+    if (one.safeParse([block]).success) return [block]
+    const def = isObject(block) && typeof block.type === 'string' && Object.hasOwn(defs, block.type) ? defs[block.type]! : undefined
+    if (!def) return []
+    let pruned: Record<string, any> = block as Record<string, any>
+    for (const [key, inner] of Object.entries(def.fields)) {
+      if (inner.type === 'blocks' && inner.blocks && Array.isArray(pruned[key])) pruned = { ...pruned, [key]: validPart(pruned[key], inner.blocks) }
+    }
+    return pruned !== block && one.safeParse([pruned]).success ? [pruned] : []
+  })
 }
 
 export function dropPreviewDraft(reg: CmsRegistry, e: CmsEntity, userId: string, id: string, locale: string | null) {

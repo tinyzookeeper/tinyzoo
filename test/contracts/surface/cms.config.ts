@@ -48,6 +48,17 @@ export const quote = defineBlock({
   fields: { text: f.text({ required: true, multiline: true, max: 400 }), by: f.text().optional() },
 })
 
+/** A layout: lists two levels deep (a group of blocks among its blocks), settings after the content, a choice as segments. */
+export const layout = defineBlock({
+  label: { en: 'Layout', cs: 'Rozvržení' },
+  icon: 'i-lucide-layout-grid',
+  fields: {
+    items: f.blocks({ quote, group: defineBlock({ label: 'Group', fields: { items: f.blocks({ quote }) } }) }),
+    arrangement: f.select({ options: ['row', 'stack', 'grid'] as const, icons: { row: 'i-lucide-columns-3', stack: 'i-lucide-rows-3' }, segments: true }).setting(),
+    space: f.select({ options: ['small', 'medium', 'large'] as const }).setting().label({ en: 'Space between' }),
+  },
+})
+
 export const Category = defineEntity('category', {
   label: { en: 'Categories', cs: 'Kategorie' },
   labelSingular: 'Category',
@@ -167,7 +178,7 @@ export const Venue = defineEntity('venue', {
   content: { public: true, search: false },
 })
 
-export const Page = definePages({ blocks: { feature, quote }, localized: true, tree: { maxDepth: 5 }, path: { cs: '/:slug', en: '/en/:slug', de: '/de/:slug' } })
+export const Page = definePages({ blocks: { feature, quote, layout }, localized: true, tree: { maxDepth: 5 }, path: { cs: '/:slug', en: '/en/:slug', de: '/de/:slug' } })
 
 export const Settings = defineSingleton('settings', {
   label: { en: 'Settings' },

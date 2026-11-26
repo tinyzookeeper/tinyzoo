@@ -131,6 +131,7 @@ Modifiers work on any field.
 | `.position('sidebar')` | Puts the field in the side panel instead of the main column. |
 | `.group(label)` | A heading for fields in the side panel (the SEO fields use it). |
 | `.icon(name)` | An icon in front of the field. |
+| `.setting()` | On a field of a block or a list item: the field is a setting (an arrangement, a size), not content. The block's form shows it after the content, under "Layout" ([blocks](#settings-of-a-block)). |
 
 ```ts
 publishedAt: f.datetime().optional().label('Publish date'),
@@ -163,6 +164,14 @@ Fields in the admin read as a few titled sections. Name them with `admin.section
 **Datetime.** `allDay: true` adds an "All day" switch and stores the time as 0:00 in the admin's time zone (`cms.admin.timeZone`, `Europe/Prague` unless you set another). The content API sends it in UTC, so a frontend in another zone must format it in the admin's zone. See [all-day dates](content-api-reference.md#all-day-dates).
 
 **Select.** `options` must be `as const`. `labels` give each option a name per admin language, and `icons` give it an icon.
+
+`segments: true` draws two to four options as one row of segments, each with its label and its icon from `icons`. It suits a short choice of how something is laid out:
+
+```ts
+arrangement: f.select({ options: ['row', 'stack', 'grid'] as const, icons: { row: 'i-lucide-columns-3', stack: 'i-lucide-rows-3', grid: 'i-lucide-layout-grid' }, segments: true }),
+```
+
+The row wraps on a narrow screen, and the arrow keys move the choice. While the value is empty, no segment is chosen. A choice with more than four options is drawn as any other choice. The stored value is the same either way.
 
 `optionsBy` makes the options the admin offers depend on another choice of the same form, such as the colours of the chosen look:
 
@@ -224,7 +233,7 @@ The editor adds, drags into order, duplicates and removes items, with undo.
 
 Options: `fields`, `max`, `itemLabel` (what an item is called, such as "Opening hours"), `itemType` (the stored `type`, default `'item'`), and `version` / `upgrade` for [changing the items later](#changing-a-block-later-version-and-upgrade).
 
-- Items hold the same field types as blocks: text, slug, number, boolean, datetime, select, rich text, media and groups.
+- Items hold the same field types as blocks: text, slug, number, boolean, datetime, select, rich text, media, groups and lists. Lists go two levels deep at most, counted from the block (see [lists inside a block](#lists-inside-a-block)).
 - A list can be `.localized()`.
 - Each item has a stable `id`, a good `:key` for `v-for`.
 - A list lives in one `jsonb` column, so adding or changing a list's fields is not a migration of existing rows.
@@ -274,7 +283,40 @@ const hero = defineBlock({
 sections: f.blocks({ hero, text, gallery })
 ```
 
-Block fields can be text, slug, number, boolean, datetime, select, rich text, media, groups, and one level of lists. Each block is validated against its own type, rich text inside is sanitised, and media inside is resolved by the content API and protected by media cleanup. The typed client gets an exact union per block type.
+Block fields can be text, slug, number, boolean, datetime, select, rich text, media, groups, and lists two levels deep. Each block is validated against its own type, rich text inside is sanitised, and media inside is resolved by the content API and protected by media cleanup. The typed client gets an exact union per block type.
+
+### Lists inside a block
+
+A block can hold a list (`f.list()` or `f.blocks()`), and an item of that list can hold a list of its own. That is two levels, and the most there is. The items of the inner list hold plain fields and groups.
+
+```ts
+const heading = defineBlock({ label: 'Heading', fields: { text: f.text({ required: true }) } })
+const picture = defineBlock({ label: 'Picture', fields: { image: f.media({ accept: 'image/*' }) } })
+const group = defineBlock({ label: 'Group', fields: { items: f.blocks({ heading, picture }) } })
+const layout = defineBlock({ label: 'Layout', fields: { items: f.blocks({ heading, picture, group }) } })
+// → { id, type: 'layout', items: [{ id, type: 'heading', text }, { id, type: 'group', items: [{ id, type: 'picture', image }] }] }
+```
+
+A third level is refused when the config loads, with the path it found (`sections › items › items`). A group inside a block or a list item holds no list.
+
+The inner list works like the outer one. The admin opens, fills, reorders, adds and removes its items inside the item that holds it, and marks a problem on the item, its list and the block. A write is checked at every level: an inner item of a type that is gone, or one that is behind its `version`, is kept only when the same item is stored there already, and the same id twice in one list is refused. The content API resolves media at every level, media cleanup counts it, the search reads its text, links in it follow their page, and the generated types and OpenAPI give the inner list as an array of its own block types.
+
+### Settings of a block
+
+Mark the fields that say how a block is laid out with `.setting()`. The block's form in the admin shows its content first and its settings after it, under one heading, "Layout", in the order you define them. They are stored and delivered like any other field.
+
+```ts
+const layout = defineBlock({
+  label: 'Layout',
+  fields: {
+    items: f.blocks({ heading, picture, group }),
+    arrangement: f.select({ options: ['row', 'stack', 'grid'] as const, segments: true }).setting(),
+    space: f.select({ options: ['small', 'medium', 'large'] as const }).setting(),
+  },
+})
+```
+
+A block with no settings has a form as before. `.setting()` acts on the fields of a block or a list item; on a field of a collection, a global or a group it changes nothing.
 
 ### Changing a block later: `version` and `upgrade`
 

@@ -2046,6 +2046,167 @@
                   "meta": {}
                 }
               ]
+            },
+            "layout": {
+              "label": {
+                "en": "Layout",
+                "cs": "Rozvržení"
+              },
+              "description": null,
+              "icon": "i-lucide-layout-grid",
+              "fields": [
+                {
+                  "key": "items",
+                  "type": "blocks",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldBlocks",
+                    "cell": "CmsCellBlocks"
+                  },
+                  "meta": {
+                    "blocks": {
+                      "quote": {
+                        "label": "Quote",
+                        "description": null,
+                        "icon": "i-lucide-square",
+                        "fields": [
+                          {
+                            "key": "text",
+                            "type": "text",
+                            "optional": false,
+                            "required": true,
+                            "unique": false,
+                            "ui": {
+                              "edit": "CmsFieldText",
+                              "cell": "CmsCellText"
+                            },
+                            "meta": {
+                              "multiline": true,
+                              "max": 400
+                            }
+                          },
+                          {
+                            "key": "by",
+                            "type": "text",
+                            "optional": true,
+                            "required": false,
+                            "unique": false,
+                            "ui": {
+                              "edit": "CmsFieldText",
+                              "cell": "CmsCellText"
+                            },
+                            "meta": {}
+                          }
+                        ]
+                      },
+                      "group": {
+                        "label": "Group",
+                        "description": null,
+                        "icon": "i-lucide-square",
+                        "fields": [
+                          {
+                            "key": "items",
+                            "type": "blocks",
+                            "optional": true,
+                            "required": false,
+                            "unique": false,
+                            "ui": {
+                              "edit": "CmsFieldBlocks",
+                              "cell": "CmsCellBlocks"
+                            },
+                            "meta": {
+                              "blocks": {
+                                "quote": {
+                                  "label": "Quote",
+                                  "description": null,
+                                  "icon": "i-lucide-square",
+                                  "fields": [
+                                    {
+                                      "key": "text",
+                                      "type": "text",
+                                      "optional": false,
+                                      "required": true,
+                                      "unique": false,
+                                      "ui": {
+                                        "edit": "CmsFieldText",
+                                        "cell": "CmsCellText"
+                                      },
+                                      "meta": {
+                                        "multiline": true,
+                                        "max": 400
+                                      }
+                                    },
+                                    {
+                                      "key": "by",
+                                      "type": "text",
+                                      "optional": true,
+                                      "required": false,
+                                      "unique": false,
+                                      "ui": {
+                                        "edit": "CmsFieldText",
+                                        "cell": "CmsCellText"
+                                      },
+                                      "meta": {}
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "key": "arrangement",
+                  "type": "select",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldSelect",
+                    "cell": "CmsCellBadge"
+                  },
+                  "meta": {
+                    "options": [
+                      "row",
+                      "stack",
+                      "grid"
+                    ],
+                    "icons": {
+                      "row": "i-lucide-columns-3",
+                      "stack": "i-lucide-rows-3"
+                    },
+                    "segments": true,
+                    "setting": true
+                  }
+                },
+                {
+                  "key": "space",
+                  "type": "select",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldSelect",
+                    "cell": "CmsCellBadge"
+                  },
+                  "meta": {
+                    "options": [
+                      "small",
+                      "medium",
+                      "large"
+                    ],
+                    "label": {
+                      "en": "Space between"
+                    },
+                    "setting": true
+                  }
+                }
+              ]
             }
           },
           "label": {

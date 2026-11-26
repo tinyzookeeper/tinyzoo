@@ -96,6 +96,12 @@ describe('Row: what a select returns, at the database keys', () => {
     expectTypeOf<NonNullable<Extract<EventRow['blocks'][number], { type: 'feature' }>['bullets']>[number]['type']>().toEqualTypeOf<'bullet'>()
     expectTypeOf<Feature>().toEqualTypeOf<EventRow['blocks']>()
     expectTypeOf<CmsBlock>().toMatchTypeOf<{ id: string; type: string }>()
+    // two levels of lists inside a block: a group of blocks among a layout's blocks
+    type Layout = Extract<Row<typeof Page>['sections'][number], { type: 'layout' }>
+    type Group = Extract<NonNullable<Layout['items']>[number], { type: 'group' }>
+    expectTypeOf<NonNullable<Layout['items']>[number]['type']>().toEqualTypeOf<'quote' | 'group'>()
+    expectTypeOf<NonNullable<Group['items']>[number]>().toEqualTypeOf<{ id: string; type: 'quote'; text: string; by?: string | null | undefined }>()
+    expectTypeOf<Layout['arrangement']>().toEqualTypeOf<'row' | 'stack' | 'grid'>()
   })
 
   it('is exact for the other entities, a singleton and the presets', () => {
@@ -454,6 +460,10 @@ describe('the typed content client (generated from the config)', () => {
     expectTypeOf<EventItem>().not.toHaveProperty('categoryId')
     expectTypeOf<CategoryItem>().not.toHaveProperty('order')
     // a page tree has an address and breadcrumbs
+    type LayoutItem = Extract<PageItem['sections'][number], { type: 'layout' }>
+    type GroupItem = Extract<LayoutItem['items'][number], { type: 'group' }>
+    expectTypeOf<GroupItem['items']>().toEqualTypeOf<Array<{ id: string; type: 'quote'; text: string; by: string | null }>>()
+    expectTypeOf<LayoutItem['arrangement']>().toEqualTypeOf<'row' | 'stack' | 'grid' | null>()
     expectTypeOf<PageItem['path']>().toEqualTypeOf<string | null>()
     expectTypeOf<PageItem['breadcrumbs']>().toEqualTypeOf<Array<{ title: string; path: string }>>()
   })

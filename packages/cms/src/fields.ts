@@ -135,6 +135,7 @@ interface Mods {
   group?: LocalizedText
   icon?: string
   access?: CmsFieldRule
+  setting?: boolean
 }
 
 function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
@@ -178,6 +179,7 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
   if (mods.group !== undefined) meta.group = mods.group
   if (mods.icon !== undefined) meta.icon = mods.icon
   if (mods.access !== undefined) meta.access = mods.access
+  if (mods.setting) meta.setting = true
 
   const descriptor = {
     type: cfg.type,
@@ -200,6 +202,7 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
     group: (label: LocalizedText) => createField(cfg, { ...mods, group: label }),
     icon: (name: string) => createField(cfg, { ...mods, icon: name }),
     access: (rules: CmsFieldAccess) => createField(cfg, { ...mods, access: normalizeFieldAccess(rules) }),
+    setting: () => createField(cfg, { ...mods, setting: true }),
   }
   return descriptor as unknown as FieldDescriptor
 }
@@ -335,6 +338,12 @@ export const f = {
       optionsBy?: { field: string; options: Record<string, readonly T[number][]> }
       /** A few colours per option (hex, e.g. `['#7a5a3a', '#faf8f4']`), shown as dots beside its name: a palette. */
       swatches?: Partial<Record<T[number], readonly string[]>>
+      /**
+       * Draw the choice as one row of segments (an arrangement: row, stack, grid), each with
+       * its label and its icon from `icons`, instead of a dropdown or buttons. For two to four
+       * options; with more it is drawn as any choice is. An empty value has no segment chosen.
+       */
+      segments?: boolean
     },
   ) => {
     for (const [value, list] of Object.entries(o.optionsBy?.options ?? {})) {
@@ -353,6 +362,7 @@ export const f = {
       meta: {
         options: o.options, ...(o.labels ? { labels: o.labels } : {}), ...(o.icons ? { icons: o.icons } : {}),
         ...(o.optionsBy ? { optionsBy: o.optionsBy } : {}), ...(o.swatches ? { swatches: o.swatches } : {}),
+        ...(o.segments ? { segments: true } : {}),
       },
       zod: () => z.enum([...o.options] as [string, ...string[]]),
     }, { default: o.default }))
@@ -388,8 +398,10 @@ export const f = {
    *   team: f.list({ fields: { name: f.text({ required: true }), role: f.text() }, max: 30 })
    *   // → [{ id: 'k3j…', type: 'item', name: 'Jana', role: 'Trenérka' }, …]
    *
-   * Item fields: text, slug, number, boolean, datetime, select, rich text, media.
-   * Can be `.localized()`. Items carry a `v` once `version` is above 1 (see `defineBlock`).
+   * Item fields: text, slug, number, boolean, datetime, select, rich text, media, groups
+   * and lists (as in a block: two levels of lists at most, counted from the item, and one
+   * less for a list that sits in a block). Can be `.localized()`. Items carry a `v` once `version` is above 1 (see
+   * `defineBlock`).
    */
   list: <const F extends Record<string, AnyFieldDescriptor>, const K extends string = 'item'>(o: {
     fields: F; max?: number; itemLabel?: LocalizedText

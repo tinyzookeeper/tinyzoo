@@ -102,7 +102,7 @@ export interface Page {
   title: string
   slug: string
   status: 'draft' | 'published'
-  sections: Array<{ id: string; type: 'feature'; heading: string; level: number | null; featured: boolean | null; shownFrom: string | null; tone: 'plain' | 'accent' | null; text: RichTextDoc | null; picture: CmsMedia | null; bullets: Array<{ id: string; type: 'bullet'; line: string; strong: boolean | null }>; cta: { label: string; url: string | null } | null } | { id: string; type: 'quote'; text: string; by: string | null }>
+  sections: Array<{ id: string; type: 'feature'; heading: string; level: number | null; featured: boolean | null; shownFrom: string | null; tone: 'plain' | 'accent' | null; text: RichTextDoc | null; picture: CmsMedia | null; bullets: Array<{ id: string; type: 'bullet'; line: string; strong: boolean | null }>; cta: { label: string; url: string | null } | null } | { id: string; type: 'quote'; text: string; by: string | null } | { id: string; type: 'layout'; items: Array<{ id: string; type: 'quote'; text: string; by: string | null } | { id: string; type: 'group'; items: Array<{ id: string; type: 'quote'; text: string; by: string | null }> }>; arrangement: 'row' | 'stack' | 'grid' | null; space: 'small' | 'medium' | 'large' | null }>
   parent: string | null
   position: number
   metaTitle: string | null
