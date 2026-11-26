@@ -16,7 +16,7 @@ const supporters = computed(() => level('supporter'))
     <svg class="hills text-paper" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true"><use href="#soutisk-hl2" fill="currentColor" /></svg>
     <div class="wrap grid lg:grid-cols-12 gap-x-10 gap-y-12">
       <div class="lg:col-span-7">
-        <p v-if="block.eyebrow" class="kicker">{{ block.eyebrow }}</p>
+        <p v-if="block.eyebrow" v-bind="cmsField('eyebrow')" class="kicker">{{ block.eyebrow }}</p>
         <component :is="first ? 'h1' : 'h2'" class="h2 mt-3"><KitMarked :text="block.heading" plain /></component>
         <dl class="mt-8">
           <template v-if="main.length">
@@ -26,7 +26,7 @@ const supporters = computed(() => level('supporter'))
             </dd>
           </template>
           <template v-if="partners.length">
-            <dt class="font-bold text-quiet mt-8">{{ block.partnerLabel }}</dt>
+            <dt v-bind="cmsField('partnerLabel')" class="font-bold text-quiet mt-8">{{ block.partnerLabel }}</dt>
             <dd class="disp text-[clamp(1.25rem,2.4vw,1.7rem)] leading-[1.5] mt-1 flex flex-wrap gap-x-7">
               <template v-for="p in partners" :key="p.id"><a v-if="p.url" :href="siteHref(p.url)" class="hover:underline decoration-[3px] underline-offset-4 decoration-c1" target="_blank" rel="noopener">{{ p.name }}</a><span v-else>{{ p.name }}</span></template>
             </dd>

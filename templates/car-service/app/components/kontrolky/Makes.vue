@@ -10,7 +10,7 @@ const asHeading = (names: string) => plainEmphasis(props.block.heading).trim() =
     <div class="wrap grid lg:grid-cols-12 gap-x-14 gap-y-12">
       <div class="lg:col-span-7">
         <p v-if="block.eyebrow" class="cap">{{ block.eyebrow }}</p>
-        <component :is="first ? 'h1' : 'h2'" class="mt-3 text-[38px] sm:text-[50px]">{{ plainEmphasis(block.heading) }}</component>
+        <component :is="first ? 'h1' : 'h2'" v-bind="cmsField('heading')" class="mt-3 text-[38px] sm:text-[50px]">{{ plainEmphasis(block.heading) }}</component>
         <template v-for="(g, i) in block.groups" :key="g.id">
           <p v-if="!asHeading(g.names)" class="dig font-medium text-[23px] sm:text-[26px] leading-[1.35]" :class="i === 0 ? 'mt-5' : 'mt-10'">{{ g.names }}</p>
           <p v-if="g.text" class="text-quiet max-w-[34em]" :class="asHeading(g.names) ? 'mt-5' : 'mt-3'">{{ tidyText(g.text) }}</p>

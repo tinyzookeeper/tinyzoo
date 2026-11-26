@@ -28,7 +28,7 @@ const { settings, name, words } = await useStay()
         <div class="lg:col-span-4">
           <h3 class="text-2xl flex items-center gap-3"><UIcon name="i-lucide-car-front" class="size-[1em] text-brand" aria-hidden="true" />{{ block.carHeading }}</h3>
           <ol class="route mt-6 num">
-            <li v-for="r in block.carRoutes" :key="r.id" class="stop"><strong class="font-semibold text-ink">{{ r.place }}</strong><span class="font-semibold text-ink">{{ r.distance }}</span><span v-if="r.note || r.time" class="col-span-2 text-quiet">{{ r.note || r.time }}</span></li>
+            <li v-for="r in block.carRoutes" :key="r.id" class="stop"><strong v-bind="cmsField('place', r.id)" class="font-semibold text-ink">{{ r.place }}</strong><span class="font-semibold text-ink">{{ r.distance }}</span><span v-if="r.note || r.time" class="col-span-2 text-quiet">{{ r.note || r.time }}</span></li>
             <li class="stop stop-end !pb-0"><strong class="font-semibold text-ink">{{ name }}</strong><span class="font-semibold text-brand">{{ words.youAreHere }}</span><span v-if="block.carNote" class="col-span-2 text-quiet">{{ tidyText(block.carNote) }}</span></li>
           </ol>
         </div>
@@ -36,7 +36,7 @@ const { settings, name, words } = await useStay()
         <div class="lg:col-span-4">
           <h3 class="text-2xl flex items-center gap-3"><UIcon name="i-lucide-train-front" class="size-[1em] text-brand" aria-hidden="true" />{{ block.trainHeading }}</h3>
           <ol class="route mt-6 num">
-            <li v-for="s in block.trainSteps" :key="s.id" class="stop"><strong class="font-semibold text-ink">{{ s.title }}</strong><span class="font-semibold text-ink">{{ s.value }}</span><span v-if="s.note" class="col-span-2 text-quiet">{{ tidyText(s.note) }}</span></li>
+            <li v-for="s in block.trainSteps" :key="s.id" class="stop"><strong v-bind="cmsField('title', s.id)" class="font-semibold text-ink">{{ s.title }}</strong><span class="font-semibold text-ink">{{ s.value }}</span><span v-if="s.note" class="col-span-2 text-quiet">{{ tidyText(s.note) }}</span></li>
             <li class="stop stop-end !pb-0"><strong class="font-semibold text-ink">{{ name }}</strong><span class="font-semibold text-brand">{{ words.youAreHere }}</span><span v-if="block.trainNote" class="col-span-2 text-quiet">{{ tidyText(block.trainNote) }}</span></li>
           </ol>
         </div>

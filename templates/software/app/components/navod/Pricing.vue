@@ -20,7 +20,7 @@ const contactHref = `/#${anchorOf('contact')}`
       <div class="grid gap-6 lg:grid-cols-12 lg:gap-12">
         <div class="lg:col-span-5">
           <p v-if="block.eyebrow" class="label text-quiet"><span class="text-brand">{{ number }}</span> · {{ block.eyebrow }}</p>
-          <component :is="first ? 'h1' : 'h2'" class="mt-4 text-[32px] font-semibold leading-[1.1] tracking-[-0.03em] text-ink lg:text-[42px]"><KitMarked :text="block.heading" /></component>
+          <component :is="first ? 'h1' : 'h2'" v-bind="cmsField('heading')" class="mt-4 text-[32px] font-semibold leading-[1.1] tracking-[-0.03em] text-ink lg:text-[42px]"><KitMarked :text="block.heading" /></component>
         </div>
         <p v-if="block.text" class="max-w-[36rem] lg:col-span-7 lg:pt-2">{{ tidyText(block.text) }}</p>
       </div>
