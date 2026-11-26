@@ -12,13 +12,18 @@
 //
 // What goes into the value is the twin's text, never its HTML (cmsTextOf in shared/builder.ts): a
 // paste is plain text, a field of one line stays one line, and a field's maximum holds.
+//
+// Since 2e a field may be shown by a text node beside other content of its element (`<strong>Title.</strong>
+// text`): its twin is a `<span>` put before it, and the text node is emptied (but for the space after it)
+// until the page has the new text; then it gets its text back, unless the page has drawn a new one.
 import { nextTick } from 'vue'
 import { cmsBuilderFieldValue, cmsTextClip, cmsTextOf, type CmsBuilderPath, type CmsBuilderToAdmin } from '../../shared/builder'
+import { cmsMatchOffset } from '../../shared/builder-match'
 import { cmsBuilderDraft, cmsBuilderHold } from './state'
 
-/** A text being typed: the element, its twin, the field and what was last sent. */
+/** A text being typed: the element (or text node), its twin, the field and what was last sent. */
 interface Typing {
-  el: HTMLElement
+  el: HTMLElement | Text
   twin: HTMLElement
   /** Where the text goes in the twin: the twin, or a paragraph inside it. */
   box: HTMLElement
@@ -30,6 +35,8 @@ interface Typing {
   last: string
   composing: boolean
   style: string | null
+  /** For a text node: its text, and the space put before the twin. */
+  saved: { text: string; rest: string; lead: Text | null } | null
   off: () => void
   /** Send the value when it changed (`end`: always, and the typing ended). */
   push: (end: boolean) => void
@@ -37,9 +44,10 @@ interface Typing {
 
 /** A twin whose typing ended, shown until the page has the new text. */
 interface Ended {
-  el: HTMLElement
+  el: HTMLElement | Text
   twin: HTMLElement
   style: string | null
+  saved: Typing['saved']
 }
 
 let current: Typing | null = null
@@ -65,12 +73,12 @@ const PAGE_STYLE = `
 `
 
 /** The text of an element as a visitor reads it, when the draft does not have the field's value. */
-function shownText(el: HTMLElement): string {
+function shownText(el: HTMLElement | Text): string {
   return (el.textContent ?? '').replace(/ /g, ' ').replace(/\s+/g, ' ').trim()
 }
 
-/** The offset in an element's text of the place under the pointer, or null. */
-function offsetAt(el: HTMLElement, x: number, y: number): number | null {
+/** The offset in an element's text (or a text node's) of the place under the pointer, or null. */
+function offsetAt(el: HTMLElement | Text, x: number, y: number): number | null {
   const doc = document as Document & {
     caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null
     caretRangeFromPoint?: (x: number, y: number) => Range | null
@@ -88,6 +96,7 @@ function offsetAt(el: HTMLElement, x: number, y: number): number | null {
     offset = r?.startOffset ?? 0
   }
   if (!node || !el.contains(node)) return null
+  if (el.nodeType === 3) return node === el ? offset : null
   if (node.nodeType !== 3) {
     // An element and the index of a child: the text before that child.
     const child = node.childNodes[offset] ?? null
@@ -174,7 +183,12 @@ function insertText(text: string) {
 }
 
 export interface StartTyping {
-  el: HTMLElement
+  /** The element that shows the field, or a text node beside other content of its element. */
+  el: HTMLElement | Text
+  /** For a text node: the field is this part of its text (the rest stays around it while it is typed). */
+  range?: [number, number]
+  /** The field's value as the page drew it (the block's values), when the admin has not sent its draft yet. */
+  drawn?: unknown
   path: CmsBuilderPath
   field: string
   item: string | null
@@ -196,33 +210,58 @@ export function startTyping(o: StartTyping) {
   }
   const { el } = o
   const stored = cmsBuilderFieldValue(cmsBuilderDraft.data, o.path, o.field, o.item)
-  // The field's own value (an empty field is null); what the element shows only when the draft does not have it.
-  const raw = typeof stored === 'string' ? stored : stored === null ? '' : shownText(el)
+  // The field's own value (an empty field is null): from the admin's draft, else as the page drew it (the
+  // admin sends its draft only after a first change), and what the element shows only when neither has it.
+  const raw = typeof stored === 'string' ? stored : stored === null ? '' : typeof o.drawn === 'string' ? o.drawn : o.drawn === null ? '' : shownText(el)
   const text = cmsTextClip(raw, { lines: o.lines, max: o.max })
-  const at = offsetAt(el, o.x, o.y)
+  // Where the click was in the text the page shows, and so in the raw value (its asterisks, its line breaks).
+  const part = el.nodeType === 3 && o.range ? o.range : null
+  const shownAt = offsetAt(el, o.x, o.y)
+  const seen = part ? (el.nodeValue ?? '').slice(part[0], part[1]) : el.textContent ?? ''
+  const at = shownAt === null ? null : cmsMatchOffset(seen, text, Math.max(0, shownAt - (part?.[0] ?? 0)))
 
-  const twin = el.cloneNode(false) as HTMLElement
-  for (const name of ['id', 'aria-hidden', 'data-cms-hidden']) twin.removeAttribute(name)
-  // Decorations at its start that hold no text (an icon, a stroke) stay, out of the way of the cursor.
-  for (const child of el.childNodes) {
-    if (child.nodeType === 3 && child.nodeValue?.trim()) break
-    if (child.nodeType !== 1) continue
-    const element = child as HTMLElement
-    if (element.textContent?.trim() || element.getAttribute('aria-hidden') !== 'true') break
-    const copy = element.cloneNode(true) as HTMLElement
-    copy.setAttribute('contenteditable', 'false')
-    twin.appendChild(copy)
+  let twin: HTMLElement
+  let box: HTMLElement
+  let saved: Typing['saved'] = null
+  const style = el.nodeType === 1 ? (el as HTMLElement).getAttribute('style') : null
+  if (el.nodeType === 3) {
+    // A text node: a span in its place, the text node emptied but for the space after it (and the one before it kept before the span).
+    const value = el.nodeValue ?? ''
+    const lead = part ? value.slice(0, part[0]) : /^\s*/.exec(value)![0]
+    const rest = part ? value.slice(part[1]) : /\s*$/.exec(value)![0]
+    twin = box = document.createElement('span')
+    fill(box, text)
+    const before = lead ? document.createTextNode(lead) : null
+    saved = { text: value, rest, lead: before }
+    if (before) el.before(before)
+    el.before(twin)
+    el.nodeValue = rest
   }
-  // A text drawn as paragraphs is typed in one paragraph of the same kind (a blank line between paragraphs).
-  const paragraphs = [...el.children].filter((c) => !c.hasAttribute('aria-hidden'))
-  const directText = [...el.childNodes].some((n) => n.nodeType === 3 && n.nodeValue?.trim())
-  const box = !directText && paragraphs.length && paragraphs.every((c) => c.nodeName === 'P') ? (paragraphs[0]!.cloneNode(false) as HTMLElement) : twin
-  if (box !== twin) {
-    box.removeAttribute('id')
-    twin.appendChild(box)
-    box.style.whiteSpace = 'pre-wrap'
+  else {
+    const element = el as HTMLElement
+    twin = element.cloneNode(false) as HTMLElement
+    for (const name of ['id', 'aria-hidden', 'data-cms-hidden', 'data-cms-hint']) twin.removeAttribute(name)
+    // Decorations at its start that hold no text (an icon, a stroke) stay, out of the way of the cursor.
+    for (const child of element.childNodes) {
+      if (child.nodeType === 3 && child.nodeValue?.trim()) break
+      if (child.nodeType !== 1) continue
+      const decoration = child as HTMLElement
+      if (decoration.textContent?.trim() || decoration.getAttribute('aria-hidden') !== 'true') break
+      const copy = decoration.cloneNode(true) as HTMLElement
+      copy.setAttribute('contenteditable', 'false')
+      twin.appendChild(copy)
+    }
+    // A text drawn as paragraphs is typed in one paragraph of the same kind (a blank line between paragraphs).
+    const paragraphs = [...element.children].filter((c) => !c.hasAttribute('aria-hidden'))
+    const directText = [...element.childNodes].some((n) => n.nodeType === 3 && n.nodeValue?.trim())
+    box = !directText && paragraphs.length && paragraphs.every((c) => c.nodeName === 'P') ? (paragraphs[0]!.cloneNode(false) as HTMLElement) : twin
+    if (box !== twin) {
+      box.removeAttribute('id')
+      twin.appendChild(box)
+      box.style.whiteSpace = 'pre-wrap'
+    }
+    fill(box, text)
   }
-  fill(box, text)
   if (!text && shownText(el)) twin.setAttribute('data-cms-placeholder', shownText(el))
   twin.toggleAttribute('data-cms-empty', !text)
   twin.setAttribute('data-cms-typing', '')
@@ -230,15 +269,17 @@ export function startTyping(o: StartTyping) {
   twin.spellcheck = true
   editable(twin)
 
-  const style = el.getAttribute('style')
-  el.before(twin)
-  el.style.setProperty('display', 'none', 'important')
-  el.setAttribute('data-cms-hidden', '')
+  if (el.nodeType === 1) {
+    const element = el as HTMLElement
+    element.before(twin)
+    element.style.setProperty('display', 'none', 'important')
+    element.setAttribute('data-cms-hidden', '')
+  }
   twin.focus({ preventScroll: true })
   caretAt(box, Math.min(at ?? text.length, text.length))
   cmsBuilderHold.count++
 
-  const t: Typing = { el, twin, box, path: o.path, field: o.field, item: o.item, lines: o.lines, max: o.max, last: text, composing: false, style, off: () => {}, push: () => {} }
+  const t: Typing = { el, twin, box, path: o.path, field: o.field, item: o.item, lines: o.lines, max: o.max, last: text, composing: false, style, saved, off: () => {}, push: () => {} }
   current = t
 
   t.push = (end: boolean) => {
@@ -341,7 +382,7 @@ export function endTyping() {
   t.twin.removeAttribute('data-cms-empty')
   const selection = getSelection()
   if (selection?.rangeCount && t.twin.contains(selection.getRangeAt(0).commonAncestorContainer)) selection.removeAllRanges()
-  ended.push({ el: t.el, twin: t.twin, style: t.style })
+  ended.push({ el: t.el, twin: t.twin, style: t.style, saved: t.saved })
   void cameBack(t, value).then(() => {
     cmsBuilderHold.count = Math.max(0, cmsBuilderHold.count - 1)
     return release()
@@ -383,10 +424,16 @@ async function release() {
     await nextTick()
   }
   for (const e of ended.splice(0)) {
-    if (e.el.isConnected) {
-      if (e.style === null) e.el.removeAttribute('style')
-      else e.el.setAttribute('style', e.style)
-      e.el.removeAttribute('data-cms-hidden')
+    if (e.saved) {
+      // The text node gets its text back, unless the page drew a new one in it.
+      if (e.el.isConnected && e.el.nodeValue === e.saved.rest) e.el.nodeValue = e.saved.text
+      e.saved.lead?.remove()
+    }
+    else if (e.el.isConnected) {
+      const element = e.el as HTMLElement
+      if (e.style === null) element.removeAttribute('style')
+      else element.setAttribute('style', e.style)
+      element.removeAttribute('data-cms-hidden')
     }
     e.twin.remove()
   }

@@ -111,14 +111,14 @@ export function listTakes(list: BlockList, type: string, def: BlockKindDef | und
 }
 
 /** What a list takes, for the page: each type's name and signature, and its own list, all the way down. */
-export function blockListKinds(list: { defs: BlockDefs; max: number | null }, label: (def: BlockKindDef, type: string) => string, depth = 4): CmsBuilderListKinds {
+export function blockListKinds(list: { defs: BlockDefs; max: number | null }, label: (def: BlockKindDef, type: string) => string, depth = 4, fieldLabel?: (f: BlockFieldDef) => string): CmsBuilderListKinds {
   const types: CmsBuilderListKinds['types'] = {}
   for (const [type, def] of Object.entries(list.defs)) {
     const inner = depth > 1 ? blockListField(def) : null
     types[type] = {
       label: label(def, type), sig: blockKindSig(def),
-      ...(inner ? { list: blockListKinds({ defs: inner.meta!.blocks, max: blockListMax(inner) }, label, depth - 1) } : {}),
-      fields: builderFields(def.fields ?? [], true),
+      ...(inner ? { list: blockListKinds({ defs: inner.meta!.blocks, max: blockListMax(inner) }, label, depth - 1, fieldLabel) } : {}),
+      fields: builderFields(def.fields ?? [], true, fieldLabel),
     }
   }
   return { types, max: list.max }
@@ -129,18 +129,20 @@ export function isPlainTextField(f: BlockFieldDef | undefined): boolean {
   return !!f && f.type === 'text' && !f.meta?.format && !f.meta?.setting
 }
 
-/** The fields of a block (and of the items of its lists, one level down) as the page knows them. */
-function builderFields(fields: BlockFieldDef[], withItems: boolean): Record<string, CmsBuilderField> {
+/** The fields of a block (and of the items of its lists, one level down) as the page knows them; since 2e with their names (`fieldLabel`). */
+function builderFields(fields: BlockFieldDef[], withItems: boolean, fieldLabel?: (f: BlockFieldDef) => string): Record<string, CmsBuilderField> {
   const out: Record<string, CmsBuilderField> = {}
   for (const f of fields) {
+    const name = fieldLabel?.(f)
+    const label = name ? { label: name.slice(0, 200) } : {}
     if (isPlainTextField(f)) {
       const max = typeof f.meta?.max === 'number' && f.meta.max > 0 ? Math.floor(f.meta.max) : undefined
-      out[f.key] = { text: f.meta?.multiline ? 'lines' : 'line', ...(max ? { max } : {}) }
+      out[f.key] = { text: f.meta?.multiline ? 'lines' : 'line', ...(max ? { max } : {}), ...label }
     }
     else if (withItems && f.type === 'blocks' && f.meta?.list && isRec(f.meta?.blocks)) {
-      out[f.key] = { items: builderFields(Object.values(f.meta.blocks as BlockDefs).flatMap((d) => d.fields ?? []), false) }
+      out[f.key] = { items: builderFields(Object.values(f.meta.blocks as BlockDefs).flatMap((d) => d.fields ?? []), false, fieldLabel), ...label }
     }
-    else out[f.key] = {}
+    else out[f.key] = label
   }
   return out
 }

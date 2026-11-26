@@ -12,7 +12,7 @@ import { defineComponent, Fragment, getCurrentInstance, h, onBeforeUnmount, onMo
 import type { ComponentPublicInstance, PropType } from 'vue'
 import type { CmsBlock } from '../../src/blocks'
 import type { CmsBlocksProps } from '../../src/frontend'
-import { cmsBuilderMarkers, cmsBuilderOn, cmsBuilderWords } from '../builder/state'
+import { cmsBuilderBlocks, cmsBuilderMarkers, cmsBuilderOn, cmsBuilderWords } from '../builder/state'
 
 const props = withDefaults(defineProps<CmsBlocksProps>(), { prefix: 'Block' })
 const pascal = (s: string) => s.replace(/(^|[-_])(\w)/g, (_m, _s, c: string) => c.toUpperCase())
@@ -55,10 +55,17 @@ function rootElements(instance: Element | ComponentPublicInstance | undefined): 
 }
 /** The blocks that draw nothing, while the tool is on. */
 const blank = shallowRef<ReadonlySet<string>>(new Set())
+/** The keys this list put in `cmsBuilderBlocks`, to take them out again. */
+let kept = new Set<string>()
 function mark() {
   if (!cmsBuilderOn.value) return
   const none = new Set<string>()
+  const now = new Set<string>()
   for (const x of items.value) {
+    // The block's values, for a text the editor finds by itself (it compares the page's text with them).
+    const key = `${listId}\n${x.block.id}`
+    cmsBuilderBlocks.set(key, x.block as Record<string, unknown>)
+    now.add(key)
     const els = rootElements(instances.get(x.block.id))
     if (!els.length && instances.has(x.block.id)) none.add(x.block.id)
     for (const el of els) {
@@ -67,6 +74,8 @@ function mark() {
       el.setAttribute('data-cms-block-list', listId)
     }
   }
+  for (const key of kept) if (!now.has(key)) cmsBuilderBlocks.delete(key)
+  kept = now
   if (none.size !== blank.value.size || [...none].some((id) => !blank.value.has(id))) blank.value = none
 }
 const BLANK = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.2rem;box-sizing:border-box;min-height:5rem;width:min(100% - 2rem, 72rem);margin:1.5rem auto;padding:1rem;border:1.5px dashed color-mix(in srgb, currentColor 26%, transparent);border-radius:10px;text-align:center;font:500 0.875rem/1.4 system-ui,sans-serif;color:inherit'
@@ -93,7 +102,10 @@ onMounted(() => {
   mark()
   cmsBuilderMarkers.add(mark)
 })
-onBeforeUnmount(() => cmsBuilderMarkers.delete(mark))
+onBeforeUnmount(() => {
+  cmsBuilderMarkers.delete(mark)
+  for (const key of kept) cmsBuilderBlocks.delete(key)
+})
 onUpdated(mark)
 watch(cmsBuilderOn, mark, { flush: 'post' })
 </script>

@@ -62,6 +62,8 @@ export interface CmsBuilderField {
   max?: number
   /** A list of items the block draws itself (`f.list()`): the fields of its items, by name. */
   items?: Record<string, CmsBuilderField>
+  /** Since 2e: the field's name in the admin's language, for the name the page shows over it. */
+  label?: string
 }
 
 /** What a list of blocks takes: its types, and at most how many. */
@@ -161,7 +163,8 @@ function isCmsBuilderFields(x: unknown, depth: number): x is Record<string, CmsB
   return Object.values(x).every((f) => isObject(f)
     && (f.text === undefined || f.text === 'line' || f.text === 'lines')
     && (f.max === undefined || (typeof f.max === 'number' && Number.isInteger(f.max) && f.max > 0))
-    && (f.items === undefined || isCmsBuilderFields(f.items, depth - 1)))
+    && (f.items === undefined || isCmsBuilderFields(f.items, depth - 1))
+    && (f.label === undefined || (typeof f.label === 'string' && f.label.length <= 200)))
 }
 
 /** A message the page may act on. Anything else (another tool's message, a wrong shape) is not one. */

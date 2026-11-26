@@ -25,7 +25,7 @@ const props = defineProps<{ field: any; entity: string; readOnly?: boolean }>()
 // Text inside blocks is edited on its own (not shared), even on a shared entry.
 provide('cmsCollab', null)
 const model = defineModel<any[] | null>()
-const { t, tl } = useCmsI18n()
+const { t, tl, fieldLabel } = useCmsI18n()
 const toast = useToast()
 // The editor in the preview (experimental): the page-blocks field of a form registers with it and makes
 // every change the page asks for, at any depth; a list inside a block follows what the page selects.
@@ -270,7 +270,7 @@ if (takesPart) {
       root: tree,
       ids: () => blocks.value.map((b) => b?.id).filter((x): x is string => typeof x === 'string'),
       labels: () => Object.fromEntries(Object.entries(defs.value).map(([type, def]) => [type, tl(def.label, type)])),
-      kinds: () => blockListKinds({ defs: defs.value, max: max.value }, (def, type) => tl(def.label as any, type)),
+      kinds: () => blockListKinds({ defs: defs.value, max: max.value }, (def, type) => tl(def.label as any, type), 4, (f) => fieldLabel({ key: f.key, meta: f.meta ?? undefined })),
       reveal: builderReveal, collapse: builderCollapse,
       move: builderMove, duplicate: builderDuplicate, remove: builderRemove, add: builderAdd,
       set(path, key, value) {

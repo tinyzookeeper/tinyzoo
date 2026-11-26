@@ -1,0 +1,8 @@
+---
+"tinyzoo": minor
+---
+
+Typing in the page works in every block, without the block's component marking its texts. Experimental, behind `NUXT_CMS_BUILDER=on`; without it the admin and the page are as before.
+
+- **For an owner.** With a block selected, one more click on one of its texts puts the cursor there, in a template's own blocks too, and in the rows of a block's own list (a step, a price, an opening-hours row). A double click on a text types into it at once, at any depth, with the cursor where the double click was. Over a text that can be typed in, the pointer is a text cursor and the text has a faint dotted outline; over a rich text or a picture of the selected block, the field's name shows. A click on a rich text puts the cursor in its editor in the panel, a click on a picture brings its field into view, and a double click on a picture opens its chooser. Clicks in the page no longer leave its text highlighted.
+- **For a developer.** The page finds the element that shows a field by comparing its text with the block's values: white space collapsed, non-breaking spaces read as spaces, a look's `*marked*` words without their asterisks, quotes or a period a look adds around a value left aside. A picture is found by its address. One text in two fields is offered only when the order tells them apart (one field of the items of one list, shown as many times as there are items). `cmsField()` is now needed only where the page cannot find a field (an empty one, one the component changes before drawing it), and a mark wins over what the page finds. `cmsField('off')` keeps an element and all inside it out. The admin sends each field's name with `lists` (`label`).

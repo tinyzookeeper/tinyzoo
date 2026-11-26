@@ -12,6 +12,13 @@ export const cmsBuilderOn = shallowRef(false)
  */
 export const cmsBuilderMarkers = new Set<() => void>()
 
+/**
+ * Since 2e: each marked block's values as <CmsBlocks> drew it, by its list and id (`<list>\n<id>`, as the
+ * overlay keys a block): a text a site's component does not mark is found by comparing the page's text
+ * with them (shared/builder-match.ts).
+ */
+export const cmsBuilderBlocks = new Map<string, Record<string, unknown>>()
+
 /** The admin's names of the block types and its word for a block that draws nothing, for what the page draws while the tool is on. */
 export const cmsBuilderWords = shallowRef<{ names: Record<string, string>; blank: string }>({ names: {}, blank: '' })
 

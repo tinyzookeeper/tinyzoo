@@ -20,8 +20,19 @@
 // (a rich text, a picture) selects its block and asks the admin to bring that field into view in its
 // panel, and a double click on a picture opens the panel's chooser. While a text is typed the toolbar
 // steps aside, the "+" and the hover names are not drawn, and nothing can be dragged.
-import { cmsBuilderFieldInfo, cmsFieldOf, type CmsBuilderKey, type CmsBuilderKind, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace, type CmsBuilderTexts, type CmsBuilderToAdmin, type CmsBuilderToPage } from '../../shared/builder'
-import { cmsBuilderMarkers } from './state'
+//
+// Since 2e a text a site's component does not mark is found by itself: the page compares the clicked
+// element's text with the block's own values (shared/builder-match.ts), so a look's own block is typed in
+// as the kit's are. A picture is found by its address. A double click on a text types into it at any
+// depth (it selects the path down to its block in the same gesture); over a text that can be typed in the
+// pointer is a text cursor and the text has a faint dotted outline; over another field of the selected
+// block, a pointer and the field's name. While the tools are on a press never selects the page's text.
+import { cmsBuilderFieldInfo, cmsBuilderFieldValue, cmsFieldOf, type CmsBuilderField, type CmsBuilderKey, type CmsBuilderKind, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace, type CmsBuilderTexts, type CmsBuilderToAdmin, type CmsBuilderToPage } from '../../shared/builder'
+import {
+  cmsMatchAt, cmsMatchChain, cmsMatchElements, cmsMatchFields, cmsMatchPictureOf, cmsMatchPictures, cmsMatchReport, cmsMatchShown, cmsMatchUnmarked, cmsSrcsetUrls,
+  type CmsMatchField, type CmsMatchPicture,
+} from '../../shared/builder-match'
+import { cmsBuilderBlocks, cmsBuilderMarkers } from './state'
 import { endTyping, setupTyping, startTyping, typingEl } from './typing'
 import {
   addSlots, axisOf, cellShifts, dropPlace, droppedOrder, edgeSpeed, innerArea, leastHidden, nearestBoundary, nearestSlot, oneLine, placeInList, sameSizes, selectDepth,
@@ -59,6 +70,13 @@ let scale = 1
 const k = () => 1 / scale
 let nodes: BNode[] = []
 let nodeOfEl = new WeakMap<Element, BNode>()
+/** What the pointer is over that a click (or a double click) edits: a text cursor, or a field of the selected block. */
+let hint: { el: HTMLElement; node: HTMLElement | Text; range?: [number, number]; kind: 'text' | 'field'; label: string } | null = null
+let hintTarget: Node | null = null
+/** When typing last started from a press or a click: the second press of a double click must not select a word. */
+let startedAt = 0
+/** Typing started on a double click's second press: the click that press makes is no click of the person's. */
+let swallow = 0
 const observed = new Set<Element>()
 
 /** A marked block on the page: its elements (one, or a fragment's), its parent block and its path. */
@@ -93,6 +111,7 @@ interface Ui {
   from: HTMLElement
   cell: HTMLElement
   typing: HTMLElement
+  hint: HTMLElement
   adds: HTMLButtonElement[]
   empties: HTMLButtonElement[]
 }
@@ -299,6 +318,7 @@ function render() {
   drawEmpties(host)
   drawDrop(host)
   drawTyping(host)
+  drawHint(host, sticky)
   if (current && keepInView && !scrollToSelected && !drag) {
     keepInView = false
     const r = rectOf(current)
@@ -559,6 +579,43 @@ function drawTyping(host: DOMRect) {
   place(ui.typing, host, { left: r.left - pad, top: r.top - pad, width: r.width + pad * 2, height: Math.max(r.height, 16 * k()) + pad * 2 })
 }
 
+/** A faint dotted outline around what the pointer is over that a click edits; over a field of the selected block, its name in the chip. */
+function drawHint(host: DOMRect, sticky: number) {
+  if (!ui) return
+  ui.hint.hidden = true
+  if (hint && !hint.el.isConnected) setHint(null)
+  if (!hint || drag || press || holding || typingEl()) return
+  const r = rectOfNode(hint.node, hint.range)
+  if (!r.width && !r.height) return
+  const pad = 2 * k()
+  place(ui.hint, host, { left: r.left - pad, top: r.top - pad, width: r.width + pad * 2, height: r.height + pad * 2 })
+  if (hint.kind === 'field' && hint.label && ui.chip.hidden) {
+    ui.chip.textContent = hint.label
+    above(ui.chip, host, r, 20, false, sticky)
+  }
+}
+
+/** The box of an element, or of a text node (a part of its element's text). */
+function rectOfNode(n: HTMLElement | Text, part?: [number, number]): DOMRect {
+  if (n.nodeType === 1) return (n as HTMLElement).getBoundingClientRect()
+  const range = document.createRange()
+  const length = n.nodeValue?.length ?? 0
+  if (part) {
+    range.setStart(n, Math.min(part[0], length))
+    range.setEnd(n, Math.min(part[1], length))
+  }
+  else range.selectNodeContents(n)
+  return range.getBoundingClientRect()
+}
+
+/** The element the pointer's hint is on: the page's cursor follows its attribute (a text cursor, or a pointer). */
+function setHint(next: typeof hint) {
+  if (hint?.node === next?.node && hint?.range?.[0] === next?.range?.[0] && hint?.kind === next?.kind && hint?.label === next?.label) return
+  hint?.el.removeAttribute('data-cms-hint')
+  hint = next
+  next?.el.setAttribute('data-cms-hint', next.kind)
+}
+
 /** Observe the marked blocks (and only them) for a change of size. */
 function watchBlocks() {
   const els = new Set(nodes.flatMap((n) => n.els))
@@ -575,9 +632,27 @@ const sizes = new ResizeObserver(() => {
 
 function track(e: PointerEvent) {
   if (press || e.composedPath().includes(ui!.host)) return
-  hover = nodeOf(e.composedPath()[0] as Node)
+  const target = e.composedPath()[0] as Node
+  hover = nodeOf(target)
   plus = plusNear(e.clientX, e.clientY)
+  if (target !== hintTarget || e.type === 'pointerdown') {
+    hintTarget = target
+    setHint(drag || typingEl() ? null : hintAt(target, e.clientX, e.clientY))
+  }
   schedule()
+}
+
+/**
+ * What a click there edits, for the pointer: a plain text anywhere (a double click types into it; in the
+ * selected block one click does), or another field of the selected block (a click brings it into view).
+ */
+function hintAt(target: Node, x: number, y: number): typeof hint {
+  const hit = fieldAt(target, x, y)
+  if (!hit) return null
+  if (hit.kind === 'text') return { el: hit.el, node: hit.node, range: hit.range, kind: 'text', label: '' }
+  const current = nodeAt(selected)
+  if (!current || current.key !== hit.owner.key) return null
+  return { el: hit.el, node: hit.node, kind: 'field', label: hit.info?.label ?? hit.field }
 }
 
 /** The "+" between two blocks of the page's list, near the pointer. */
@@ -595,6 +670,9 @@ function plusNear(x: number, y: number) {
 
 function choose(path: CmsBuilderPath | null) {
   selected = path
+  // What the pointer's hint says depends on the selection: asked again at the next move.
+  hintTarget = null
+  if (hint?.kind === 'field') setHint(null)
   send(path ? { type: 'cms:builder:select', id: path[path.length - 1]!, path } : { type: 'cms:builder:select', id: null })
   schedule()
 }
@@ -607,6 +685,11 @@ function onClick(e: MouseEvent) {
     calledOff = 0
     return
   }
+  // The click of the press that started typing (a double click's second one).
+  if (swallow && performance.now() - swallow < 700) {
+    swallow = 0
+    return
+  }
   const target = e.composedPath()[0] as Node
   // A click inside the text being typed moves the cursor, nothing else.
   const typing = typingEl()
@@ -617,19 +700,18 @@ function onClick(e: MouseEvent) {
   const chain = chainOf(node)
   const current = nodeAt(selected)
   const next = chain[selectDepth(chain.map((n) => n.id), current?.path ?? null)]!
-  const mark = fieldAt(target)
-  if (mark) {
-    const mine = !!current && current.key === mark.owner.key
+  const hit = fieldAt(target, e.clientX, e.clientY)
+  if (hit) {
+    const mine = !!current && current.key === hit.owner.key
     // A plain text of the selected block: the cursor goes there.
-    if (mine && mark.info?.text) {
-      startTyping({ el: mark.el, path: mark.owner.path, field: mark.field, item: mark.item, lines: mark.info.text === 'lines', max: mark.info.max, x: e.clientX, y: e.clientY })
-      schedule()
+    if (mine && hit.kind === 'text') {
+      begin(hit, e.clientX, e.clientY)
       return
     }
     // Another field of the block this click selects (or of the selected one): the panel brings it into view.
-    if (!mark.info?.text && (mine || next.key === mark.owner.key)) {
-      if (!mine) choose(mark.owner.path)
-      send({ type: 'cms:builder:field', id: mark.owner.id, path: mark.owner.path, field: mark.field, ...(mark.item ? { item: mark.item } : {}) })
+    if (hit.kind !== 'text' && (mine || next.key === hit.owner.key)) {
+      if (!mine) choose(hit.owner.path)
+      send({ type: 'cms:builder:field', id: hit.owner.id, path: hit.owner.path, field: hit.field, ...(hit.item ? { item: hit.item } : {}) })
       return
     }
   }
@@ -642,23 +724,212 @@ function onClick(e: MouseEvent) {
   choose(next.path)
 }
 
-/** A double click on a marked picture (or another field not typed in the page) of the selected block: the panel opens its chooser. */
-function onDoubleClick(e: MouseEvent) {
-  if (e.composedPath().includes(ui!.host) || typingEl()) return
-  const mark = fieldAt(e.composedPath()[0] as Node)
-  const current = nodeAt(selected)
-  if (!mark || mark.info?.text || !current || current.key !== mark.owner.key) return
-  e.preventDefault()
-  send({ type: 'cms:builder:field', id: mark.owner.id, path: mark.owner.path, field: mark.field, ...(mark.item ? { item: mark.item } : {}), open: true })
+/** Start typing in a plain text found under the pointer, the cursor where the press or the click was. */
+function begin(hit: FieldHit, x: number, y: number) {
+  if (!hit.info?.text) return
+  setHint(null)
+  const data = cmsBuilderBlocks.get(`${hit.owner.list}\n${hit.owner.id}`)
+  const drawn = data ? cmsBuilderFieldValue(data, [hit.owner.id], hit.field, hit.item) : undefined
+  startTyping({ el: hit.node, range: hit.range, drawn, path: hit.owner.path, field: hit.field, item: hit.item, lines: hit.info.text === 'lines', max: hit.info.max, x, y })
+  startedAt = performance.now()
+  schedule()
 }
 
-/** The marked field under the pointer (`cmsField()`): its element, its block, and what the admin says it is. */
-function fieldAt(target: Node | null): { el: HTMLElement; field: string; item: string | null; owner: BNode; info: ReturnType<typeof cmsBuilderFieldInfo> } | null {
-  const el = (target instanceof Element ? target : target?.parentElement)?.closest<HTMLElement>('[data-cms-field]:not([data-cms-hidden])') ?? null
-  const mark = el && cmsFieldOf(el)
-  const owner = el && nodeOf(el)
-  if (!el || !mark || !owner) return null
-  return { el, ...mark, owner, info: cmsBuilderFieldInfo(kindOf(owner), mark.field, mark.item) }
+/**
+ * A press on the page. While the tools are on it never selects the page's text (a double click would
+ * select a word, a drag a range); inside the text being typed it does what it does in any text field,
+ * except the second press of the double click that started typing. The second press of a double click
+ * on a text types into it at any depth: the path down to its block is selected in the same gesture and
+ * the cursor goes where the press was. On a rich text it brings the field into view in the panel.
+ */
+function onMouseDown(e: MouseEvent) {
+  if (e.button !== 0 || e.composedPath().includes(ui!.host)) return
+  const target = e.composedPath()[0] as Node
+  const typing = typingEl()
+  if (typing?.contains(target)) {
+    if (e.detail >= 2 && performance.now() - startedAt < 700) e.preventDefault()
+    return
+  }
+  e.preventDefault()
+  // A press whose default is prevented does not move the focus: the page still takes the keys (Escape, Alt with an arrow).
+  if (!document.hasFocus()) window.focus()
+  if (e.detail !== 2) return
+  nodes = scan()
+  const hit = fieldAt(target, e.clientX, e.clientY)
+  if (!hit || (hit.kind !== 'text' && hit.kind !== 'rich')) return
+  if (!samePath(selected, hit.owner.path)) choose(hit.owner.path)
+  if (hit.kind === 'rich') {
+    send({ type: 'cms:builder:field', id: hit.owner.id, path: hit.owner.path, field: hit.field, ...(hit.item ? { item: hit.item } : {}) })
+    swallow = performance.now()
+    return
+  }
+  begin(hit, e.clientX, e.clientY)
+  swallow = performance.now()
+}
+
+/** A double click on a picture (or another field not typed in the page) of the selected block: the panel opens its chooser. */
+function onDoubleClick(e: MouseEvent) {
+  if (e.composedPath().includes(ui!.host) || typingEl()) return
+  const hit = fieldAt(e.composedPath()[0] as Node, e.clientX, e.clientY)
+  const current = nodeAt(selected)
+  if (!hit || hit.kind === 'text' || (hit.found && hit.kind !== 'picture') || !current || current.key !== hit.owner.key) return
+  e.preventDefault()
+  send({ type: 'cms:builder:field', id: hit.owner.id, path: hit.owner.path, field: hit.field, ...(hit.item ? { item: hit.item } : {}), open: true })
+}
+
+/** A field under the pointer: its element, its block, what the admin says it is, and whether the page found it by itself. */
+interface FieldHit {
+  /** The element (for a text node, its element: the pointer's cursor is set on it). */
+  el: HTMLElement
+  /** What shows the field: the element, or a text node beside other content of its element. */
+  node: HTMLElement | Text
+  /** The field is this part of the text node's text. */
+  range?: [number, number]
+  field: string
+  item: string | null
+  owner: BNode
+  info: CmsBuilderField | null
+  /** A plain text (typed in the page), a rich text, a picture, or another marked field. */
+  kind: 'text' | 'rich' | 'picture' | 'other'
+  found: boolean
+}
+
+/**
+ * The field under the pointer: an element marked with `cmsField()` (the mark wins), else the text or the
+ * picture the page finds by itself in the block the pointer is in. `data-cms-field="off"` on the element
+ * or around it: nothing.
+ */
+function fieldAt(target: Node | null, x?: number, y?: number): FieldHit | null {
+  const start = (target instanceof Element ? target : target?.parentElement) ?? null
+  if (!start) return null
+  const marked = start.closest<HTMLElement>('[data-cms-field]:not([data-cms-hidden])')
+  if (marked?.getAttribute('data-cms-field') === 'off') return null
+  const mark = marked && cmsFieldOf(marked)
+  const owner = marked && nodeOf(marked)
+  if (marked && mark && owner) {
+    const info = cmsBuilderFieldInfo(kindOf(owner), mark.field, mark.item)
+    return { el: marked, node: marked, ...mark, owner, info, kind: info?.text ? 'text' : 'other', found: false }
+  }
+  if (start.closest('[data-cms-typing], [data-cms-hidden]')) return null
+  const node = nodeOf(start)
+  if (!node) return null
+  const hit = textFound(node, start as HTMLElement, x, y)
+  if (hit) return hit
+  return x === undefined || y === undefined ? null : pictureFound(node, start, x, y)
+}
+
+// ---- texts and pictures found by themselves (since 2e)
+
+/** Each element's text in the normal form, until the page changes. */
+let shownCache = new WeakMap<Node, string>()
+const shown = (n: Node): string => {
+  let t = shownCache.get(n)
+  if (t === undefined) {
+    t = cmsMatchShown(n as unknown as Parameters<typeof cmsMatchShown>[0])
+    shownCache.set(n, t)
+  }
+  return t
+}
+const changes = new MutationObserver(() => { shownCache = new WeakMap() })
+const visible = (el: Element) => el.getClientRects().length > 0
+
+/** A block's texts and pictures the page may find, from its values (kept while they stay the same). */
+const fieldsCache = new WeakMap<object, { kind: CmsBuilderKind | null; texts: CmsMatchField[]; pictures: CmsMatchPicture[] }>()
+function matchable(node: BNode): { texts: CmsMatchField[]; pictures: CmsMatchPicture[] } {
+  const data = cmsBuilderBlocks.get(`${node.list}\n${node.id}`)
+  const kind = kindOf(node)
+  if (!data || !kind?.fields) return { texts: [], pictures: [] }
+  const cached = fieldsCache.get(data)
+  if (cached && cached.kind === kind) return cached
+  const made = { kind, texts: cmsMatchFields(data, kind.fields), pictures: cmsMatchPictures(data, kind.fields) }
+  fieldsCache.set(data, made)
+  return made
+}
+
+/** The elements of a block that show something, in the page's order (not those of a block inside it). */
+const elementsOf = (node: BNode) => (cmsMatchElements(node.els as never[]) as unknown as HTMLElement[]).filter(visible)
+/** The same, with the text nodes that stand beside other content of their element. */
+const partsOf = (node: BNode) => (cmsMatchElements(node.els as never[], { texts: true, text: shown as never }) as unknown as (HTMLElement | Text)[])
+  .filter((n) => visible(n.nodeType === 3 ? n.parentElement! : n as HTMLElement))
+
+/** The text node under the pointer, inside `el`, and the place in its text; or null. */
+function textNodeAt(el: Element, x: number, y: number): { node: Text; offset: number } | null {
+  const doc = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null
+    caretRangeFromPoint?: (x: number, y: number) => Range | null
+  }
+  let n: Node | null | undefined
+  let offset = 0
+  if (doc.caretPositionFromPoint) {
+    const p = doc.caretPositionFromPoint(x, y)
+    n = p?.offsetNode
+    offset = p?.offset ?? 0
+  }
+  else {
+    const r = doc.caretRangeFromPoint?.(x, y)
+    n = r?.startContainer
+    offset = r?.startOffset ?? 0
+  }
+  return n && n.nodeType === 3 && el.contains(n) ? { node: n as Text, offset } : null
+}
+
+/** The plain or rich text of the block that the element (or one around it, up to the block) shows. */
+function textFound(node: BNode, el: HTMLElement, x?: number, y?: number): FieldHit | null {
+  const { texts } = matchable(node)
+  if (!texts.length) return null
+  const under = x !== undefined && y !== undefined ? textNodeAt(el, x, y) : null
+  const chain = cmsMatchChain((under?.node ?? el) as never, node.els as never[])
+  const m = cmsMatchAt(chain, cmsMatchUnmarked(texts, cmsMatchElements(node.els as never[])), () => partsOf(node) as never[], shown as never, under?.offset ?? null)
+  if (!m || !('field' in m)) return null
+  const info = cmsBuilderFieldInfo(kindOf(node), m.field.field, m.field.item)
+  if (m.field.kind === 'text' && !info?.text) return null
+  const hit = m.el as unknown as HTMLElement | Text
+  return {
+    el: hit.nodeType === 3 ? hit.parentElement! : hit as HTMLElement, node: hit, ...(m.range ? { range: m.range } : {}),
+    field: m.field.field, item: m.field.item, owner: node, info, kind: m.field.kind, found: true,
+  }
+}
+
+const sourcesOf = (img: HTMLImageElement) => [img.currentSrc, img.getAttribute('src') ?? '', ...cmsSrcsetUrls(img.getAttribute('srcset'))]
+
+/** The picture field of the block whose picture is under the pointer (a layer drawn over a picture lets the click through to it). */
+function pictureFound(node: BNode, start: Element, x: number, y: number): FieldHit | null {
+  const { pictures } = matchable(node)
+  if (!pictures.length) return null
+  const img = (start instanceof HTMLImageElement ? start : null)
+    ?? document.elementsFromPoint(x, y).find((el): el is HTMLImageElement => el instanceof HTMLImageElement && nodeOf(el) === node)
+  if (!img) return null
+  const own = sourcesOf(img)
+  const same = elementsOf(node).filter((el): el is HTMLImageElement => el instanceof HTMLImageElement && (el.currentSrc || el.src) === (img.currentSrc || img.src))
+  const p = cmsMatchPictureOf(own, pictures, { index: same.indexOf(img), count: same.length })
+  if (!p) return null
+  return { el: img, node: img, field: p.field, item: p.item, owner: node, info: cmsBuilderFieldInfo(kindOf(node), p.field, p.item), kind: 'picture', found: true }
+}
+
+/**
+ * For the measuring script (templates/app/scripts/typing-coverage.mjs): per block, its plain and rich texts
+ * and pictures, and which of them a click finds (and why not). Reads only; on `window` while the tools are on.
+ */
+function coverage() {
+  nodes = scan()
+  return nodes.map((node) => {
+    const { texts, pictures } = matchable(node)
+    const report = cmsMatchReport(node.els as never[], texts, visible as never, shown as never)
+    const imgs = elementsOf(node).filter((el): el is HTMLImageElement => el instanceof HTMLImageElement)
+    const seen = new Set<CmsMatchPicture>()
+    for (const img of imgs) {
+      const same = imgs.filter((el) => (el.currentSrc || el.src) === (img.currentSrc || img.src))
+      const p = cmsMatchPictureOf(sourcesOf(img), pictures, { index: same.indexOf(img), count: same.length })
+      if (p) seen.add(p)
+    }
+    const name = (f: { field: string; item: string | null }) => (f.item ? `${f.field}@${f.item.slice(0, 6)}` : f.field)
+    return {
+      path: node.path, type: node.type,
+      found: report.found.map((x) => ({ field: name(x.field), kind: x.field.kind, marked: x.marked, inItem: !!x.field.item })),
+      missed: report.missed.map((x) => ({ field: name(x.field), kind: x.field.kind, inItem: !!x.field.item, reason: x.reason, value: x.field.norm.slice(0, 80) })),
+      pictures: { total: pictures.length, found: seen.size, missed: pictures.filter((p) => !seen.has(p)).map(name) },
+    }
+  })
 }
 
 function stop(e: Event) {
@@ -1061,6 +1332,7 @@ svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .empty{position:absolute;pointer-events:auto;transform:translate(-50%,-50%) scale(var(--k));display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px 0 9px;border-radius:999px;border:1px solid rgba(47,98,214,.45);background:#fff;color:#2f62d6;font:600 12px/1 system-ui,sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.1);transition:background-color 150ms ease-out,color 150ms ease-out}
 .empty:hover{background:#2f62d6;color:#fff}
 .empty svg{width:14px;height:14px}
+.hint{border-radius:calc(3px * var(--k));outline:calc(1px * var(--k)) dotted rgba(47,98,214,.75);outline-offset:0}
 .typing{border-radius:calc(4px * var(--k));outline:calc(1.5px * var(--k)) solid rgba(47,98,214,.45);outline-offset:0;background:rgba(47,98,214,.04)}
 .drop{position:absolute;pointer-events:none;border-radius:calc(3px * var(--k));background:#2f62d6;box-shadow:0 0 0 calc(2px * var(--k)) rgba(255,255,255,.75)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -1099,6 +1371,7 @@ function build(): Ui {
   const cell = make('div', 'o cell', root)
   const into = make('div', 'o into', root)
   const typing = make('div', 'o typing', root)
+  const hintBox = make('div', 'o hint', root)
   const drop = make('div', 'drop', root)
   const line = make('div', 'line', root)
   const chip = make('div', 'chip', root)
@@ -1111,7 +1384,7 @@ function build(): Ui {
   const duplicate = tool(bar, ICONS.copy, 'tool')
   const remove = tool(bar, ICONS.trash, 'tool')
   const add = tool(root, ICONS.plus, 'add')
-  for (const el of [context, hoverBox, chip, box, into, from, cell, typing, drop, line, bar, add]) el.hidden = true
+  for (const el of [context, hoverBox, chip, box, into, from, cell, typing, hintBox, drop, line, bar, add]) el.hidden = true
   document.body.appendChild(host)
   handle.addEventListener('pointerdown', startPress)
   prev.addEventListener('click', () => step(-1))
@@ -1119,12 +1392,25 @@ function build(): Ui {
   duplicate.addEventListener('click', () => act('cms:builder:duplicate'))
   remove.addEventListener('click', () => act('cms:builder:remove'))
   add.addEventListener('click', () => { if (plus) send({ type: 'cms:builder:add', place: { after: plus.after } }) })
-  return { host, root, hover: hoverBox, chip, context, box, bar, name, prev, next, duplicate, remove, handle, line, add, drop, into, from, cell, typing, adds: [], empties: [] }
+  return { host, root, hover: hoverBox, chip, context, box, bar, name, prev, next, duplicate, remove, handle, line, add, drop, into, from, cell, typing, hint: hintBox, adds: [], empties: [] }
 }
+
+/** The page's cursor over what a click edits (the element carries `data-cms-hint`, set by the overlay). */
+const HINT_STYLE = `
+[data-cms-hint="text"],[data-cms-hint="text"] *{cursor:text!important}
+[data-cms-hint="field"],[data-cms-hint="field"] *{cursor:pointer!important}
+`
 
 function start() {
   ui = build()
   setupTyping(send, schedule)
+  const style = document.createElement('style')
+  style.id = 'cms-builder-hint'
+  style.textContent = HINT_STYLE
+  document.head.appendChild(style)
+  changes.observe(document.body, { childList: true, subtree: true, characterData: true })
+  ;(window as unknown as { __cmsBuilderCoverage?: typeof coverage }).__cmsBuilderCoverage = coverage
+  window.addEventListener('mousedown', onMouseDown, true)
   window.addEventListener('click', onClick, true)
   window.addEventListener('dblclick', onDoubleClick, true)
   window.addEventListener('submit', stop, true)
@@ -1135,7 +1421,7 @@ function start() {
     keepInView = true
     schedule()
   })
-  document.documentElement.addEventListener('pointerleave', () => { hover = null; plus = null; schedule() })
+  document.documentElement.addEventListener('pointerleave', () => { hover = null; plus = null; hintTarget = null; setHint(null); schedule() })
   sizes.observe(document.documentElement)
   new MutationObserver(() => {
     textCache = null
@@ -1171,6 +1457,8 @@ export function handleCmsBuilderMessage(message: CmsBuilderToPage) {
     // Another block selected from the admin ends the typing (its text stays).
     if (typingEl() && !samePath(path, selected)) endTyping()
     selected = path
+    hintTarget = null
+    if (hint?.kind === 'field') setHint(null)
     scrollToSelected = message.scroll && message.id !== null
   }
   else {

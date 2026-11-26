@@ -15,6 +15,11 @@ import { cmsBuilderOn } from '../builder/state'
  *
  * A plain text (`f.text()`, one line or several) is then typed right in the page; a click on a rich
  * text, a picture or a link brings that field into view in the admin's panel.
+ *
+ * Since 2e the page finds a field's element by itself, by comparing its text with the block's values, so
+ * a mark is needed only where it cannot (an empty field, a value the component changes before drawing
+ * it, one text in two fields); a mark wins over what the page finds. `cmsField('off')` keeps an element
+ * and everything inside it out (so a field named `off` cannot be marked).
  */
 export function cmsField(field: string, item?: string | null): Record<string, string> {
   return cmsBuilderOn.value ? cmsFieldAttrs(field, item) : {}
