@@ -1,0 +1,10 @@
+---
+"tinyzoo": minor
+---
+
+The editor in the preview lets an owner type a page's texts right in the page, and `cmsField()`. Experimental, behind `NUXT_CMS_BUILDER=on`; without it the admin and the page are as before.
+
+- **For an owner.** With a block selected, one more click on its heading or another short text puts the cursor there. The form follows at once, and the page follows the form. Enter ends a text of one line and starts a new line in a longer one; Escape or a click elsewhere ends it and keeps the text. A paste comes in as plain text, and a field's maximum holds. Typing in the page is one step of *Undo* per field per pause, as in the form. A click on a rich text, a picture or a link selects its block and brings that field into view in the panel; a rich text gets the cursor there, and a double click on a picture opens its chooser. While the preview is narrow, *Larger preview* in the preview's bar gives it the form's room; a selected block then opens in a panel over the page's left edge. A block that is carried smaller while it is dragged now shrinks in 150 ms.
+- **For a developer.** `cmsField(field, item?)`, new in the frontend kit: bind it on the element that shows a field of the block (`v-bind="cmsField('heading')"`), with the item's id for a field of an item of the block's own list. It gives `data-cms-field` (and `data-cms-item`) while an editor works on the page in the preview, and nothing on the live site or on the server. The page sends a typed text with `cms:builder:text` and a click on another field with `cms:builder:field`; the admin sends each block type's fields with `lists`. With the setting off, the HTML of a live page is again exactly as it was before the editor in the preview: `<CmsBlocks>` no longer leaves an empty comment where a placeholder could be.
+- **The admin's panel.** Opened from the list with the keyboard, the panel takes the keyboard focus, and *All sections* gives it back to the row. Inside the panel, the rich-text editor's own undo says that it undoes the text only.
+- **New text:** *Larger preview*, *Smaller preview*, *Undo in this text*, *Redo in this text*, in English, Czech and German.

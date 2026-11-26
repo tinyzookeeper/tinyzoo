@@ -8,8 +8,9 @@
 //
 //   <CmsBlocks :blocks="page.sections" />
 //   <CmsBlocks :blocks="page.sections" prefix="Section" />   // → <SectionHero>
-import { Fragment, getCurrentInstance, onBeforeUnmount, onMounted, onUpdated, resolveDynamicComponent, shallowRef, watch } from 'vue'
-import type { ComponentPublicInstance } from 'vue'
+import { defineComponent, Fragment, getCurrentInstance, h, onBeforeUnmount, onMounted, onUpdated, resolveDynamicComponent, shallowRef, watch } from 'vue'
+import type { ComponentPublicInstance, PropType } from 'vue'
+import type { CmsBlock } from '../../src/blocks'
 import type { CmsBlocksProps } from '../../src/frontend'
 import { cmsBuilderMarkers, cmsBuilderOn, cmsBuilderWords } from '../builder/state'
 
@@ -69,6 +70,25 @@ function mark() {
   if (none.size !== blank.value.size || [...none].some((id) => !blank.value.has(id))) blank.value = none
 }
 const BLANK = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.2rem;box-sizing:border-box;min-height:5rem;width:min(100% - 2rem, 72rem);margin:1.5rem auto;padding:1rem;border:1.5px dashed color-mix(in srgb, currentColor 26%, transparent);border-radius:10px;text-align:center;font:500 0.875rem/1.4 system-ui,sans-serif;color:inherit'
+/** The placeholder of a block that draws nothing (only while the tool is on). */
+const Blank = defineComponent({
+  props: { block: { type: Object as PropType<CmsBlock>, required: true }, list: { type: String, required: true } },
+  setup(p) {
+    return () => h('div', { 'style': BLANK, 'aria-hidden': 'true', 'data-cms-block': p.block.id, 'data-cms-block-type': p.block.type, 'data-cms-block-list': p.list }, [
+      h('span', { style: 'opacity:0.75' }, cmsBuilderWords.value.names[p.block.type] ?? p.block.type),
+      cmsBuilderWords.value.blank ? h('span', { style: 'font-size:0.8125rem;opacity:0.5' }, cmsBuilderWords.value.blank) : null,
+    ])
+  },
+})
+// One list for the template, with the placeholders in it only while the tool is on: off, it is the
+// blocks alone and the page's HTML is what it was before the tool (no empty comment for a placeholder).
+const entries = computed(() => {
+  if (!cmsBuilderOn.value || !blank.value.size) return items.value.map((x) => ({ key: x.block.id, is: x.is, props: { block: x.block, index: x.index }, id: x.block.id }))
+  return items.value.flatMap((x) => {
+    const own = { key: x.block.id, is: x.is, props: { block: x.block, index: x.index } as Record<string, unknown>, id: x.block.id as string | null }
+    return blank.value.has(x.block.id) ? [own, { key: `${x.block.id}:blank`, is: Blank, props: { block: x.block, list: listId }, id: null }] : [own]
+  })
+})
 onMounted(() => {
   mark()
   cmsBuilderMarkers.add(mark)
@@ -79,14 +99,5 @@ watch(cmsBuilderOn, mark, { flush: 'post' })
 </script>
 
 <template>
-  <template v-for="x in items" :key="x.block.id">
-    <component :is="x.is" :ref="(i: any) => keep(x.block.id, i)" :block="x.block" :index="x.index" />
-    <div
-      v-if="cmsBuilderOn && blank.has(x.block.id)" :style="BLANK" aria-hidden="true"
-      :data-cms-block="x.block.id" :data-cms-block-type="x.block.type" :data-cms-block-list="listId"
-    >
-      <span style="opacity:0.75">{{ cmsBuilderWords.names[x.block.type] ?? x.block.type }}</span>
-      <span v-if="cmsBuilderWords.blank" style="font-size:0.8125rem;opacity:0.5">{{ cmsBuilderWords.blank }}</span>
-    </div>
-  </template>
+  <component :is="x.is" v-for="x in entries" :key="x.key" :ref="(i: any) => x.id && keep(x.id, i)" v-bind="x.props" />
 </template>

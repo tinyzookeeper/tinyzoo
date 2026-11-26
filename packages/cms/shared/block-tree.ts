@@ -7,7 +7,7 @@
 //
 // A block is found by its path of ids from the root list down (see shared/builder.ts). A block's
 // list is its first `f.blocks()` field.
-import { cmsBuilderMove, cmsBuilderPlaceAnchor, cmsBuilderPlaceIndex, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace } from './builder'
+import { cmsBuilderMove, cmsBuilderPlaceAnchor, cmsBuilderPlaceIndex, cmsTextClip, type CmsBuilderField, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace } from './builder'
 
 /** One field of a block type, as the admin graph describes it. */
 export interface BlockFieldDef {
@@ -118,9 +118,60 @@ export function blockListKinds(list: { defs: BlockDefs; max: number | null }, la
     types[type] = {
       label: label(def, type), sig: blockKindSig(def),
       ...(inner ? { list: blockListKinds({ defs: inner.meta!.blocks, max: blockListMax(inner) }, label, depth - 1) } : {}),
+      fields: builderFields(def.fields ?? [], true),
     }
   }
   return { types, max: list.max }
+}
+
+/** A field the page edits in place: a text with no format (not a link, an address, a colour), not a setting. */
+export function isPlainTextField(f: BlockFieldDef | undefined): boolean {
+  return !!f && f.type === 'text' && !f.meta?.format && !f.meta?.setting
+}
+
+/** The fields of a block (and of the items of its lists, one level down) as the page knows them. */
+function builderFields(fields: BlockFieldDef[], withItems: boolean): Record<string, CmsBuilderField> {
+  const out: Record<string, CmsBuilderField> = {}
+  for (const f of fields) {
+    if (isPlainTextField(f)) {
+      const max = typeof f.meta?.max === 'number' && f.meta.max > 0 ? Math.floor(f.meta.max) : undefined
+      out[f.key] = { text: f.meta?.multiline ? 'lines' : 'line', ...(max ? { max } : {}) }
+    }
+    else if (withItems && f.type === 'blocks' && f.meta?.list && isRec(f.meta?.blocks)) {
+      out[f.key] = { items: builderFields(Object.values(f.meta.blocks as BlockDefs).flatMap((d) => d.fields ?? []), false) }
+    }
+    else out[f.key] = {}
+  }
+  return out
+}
+
+/**
+ * A plain text typed in the page, as a change of the block at `path`: the field to set and its value
+ * (the text clipped to the field's maximum), or for a field of an item of the block's own list
+ * (`f.list()`), the list with that item changed. `null` when the block, the item or a plain text field
+ * of that name is not there.
+ */
+export function textEdit(root: BlockList, path: CmsBuilderPath, field: string, item: string | null, value: string): { key: string; value: unknown } | null {
+  const found = findBlock(root, path)
+  if (!found || isLockedBlock(found.list.defs, found.block)) return null
+  const fields = found.list.defs[found.block.type]?.fields ?? []
+  const clip = (f: BlockFieldDef) => cmsTextClip(value, { lines: !!f.meta?.multiline, max: typeof f.meta?.max === 'number' && f.meta.max > 0 ? f.meta.max : undefined })
+  if (item === null) {
+    const f = fields.find((x) => x.key === field)
+    return f && isPlainTextField(f) ? { key: field, value: clip(f) } : null
+  }
+  for (const list of fields) {
+    if (list.type !== 'blocks' || !list.meta?.list || !Array.isArray(found.block[list.key])) continue
+    const items = found.block[list.key] as any[]
+    const at = items.findIndex((x) => isRec(x) && x.id === item)
+    if (at < 0) continue
+    const f = ((list.meta.blocks as BlockDefs | undefined)?.[items[at].type]?.fields ?? []).find((x) => x.key === field)
+    if (!f || !isPlainTextField(f)) return null
+    const next = [...items]
+    next[at] = { ...items[at], [field]: clip(f) }
+    return { key: list.key, value: next }
+  }
+  return null
 }
 
 // ── finding ──

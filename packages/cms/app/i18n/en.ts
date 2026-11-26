@@ -310,6 +310,8 @@ export default {
     previewUndo: 'Undo',
     previewRedo: 'Redo',
     previewScale: 'Shown at {percent} of its size',
+    previewLarger: 'Larger preview',
+    previewSmaller: 'Smaller preview',
     previewMissingTitle: 'The website has no page here yet',
     previewMissingBody: 'Nothing answers at {path}. Your content is saved either way. The developer adds the page to the website.',
     previewErrorTitle: 'The preview didn’t load',
@@ -350,7 +352,7 @@ export default {
     toolbar: {
       bold: 'Bold', italic: 'Italic', strike: 'Strikethrough', h2: 'Heading', h3: 'Subheading',
       bulletList: 'Bulleted list', orderedList: 'Numbered list', quote: 'Quote', code: 'Inline code',
-      link: 'Link', image: 'Insert image', imageAlt: 'Image description', undo: 'Undo', redo: 'Redo',
+      link: 'Link', image: 'Insert image', imageAlt: 'Image description', undo: 'Undo', redo: 'Redo', undoText: 'Undo in this text', redoText: 'Redo in this text',
     },
     showHelp: 'Show help',
     open: 'Open',

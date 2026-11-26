@@ -55,6 +55,11 @@ function opened(id: string) {
   const path = pathTo(id)
   if (path) builderRef.value?.opened(path)
 }
+/** A row of the focus panel's list: the block opens alone; opened with the keyboard (no pointer), the keyboard goes into the panel. */
+function openRow(id: string, e: MouseEvent) {
+  if (e.detail === 0 && builderRef.value) builderRef.value.focusPanel.value = true
+  opened(id)
+}
 function toggle(id: string) {
   open[id] = !open[id]
   if (open[id]) opened(id)
@@ -548,7 +553,7 @@ const choices = computed(() => {
           <button
             type="button" class="flex flex-1 min-w-0 items-center gap-2.5 text-left"
             :aria-expanded="panelMode ? undefined : !!open[b.id]"
-            @click="panelMode ? opened(b.id) : toggle(b.id)"
+            @click="(e: MouseEvent) => panelMode ? openRow(b.id, e) : toggle(b.id)"
           >
             <UIcon v-if="!panelMode" name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0 transition-transform" :class="open[b.id] ? 'rotate-90' : ''" />
             <template v-if="list">

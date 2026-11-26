@@ -309,6 +309,8 @@ export default {
     previewUndo: 'Rückgängig',
     previewRedo: 'Wiederholen',
     previewScale: 'Angezeigt in {percent} der Größe',
+    previewLarger: 'Größere Vorschau',
+    previewSmaller: 'Kleinere Vorschau',
     previewMissingTitle: 'Hier hat die Website noch keine Seite',
     previewMissingBody: 'Unter {path} ist keine Seite erreichbar. Ihre Inhalte sind trotzdem gespeichert. Die Seite muss noch von der Entwicklung ergänzt werden.',
     previewErrorTitle: 'Die Vorschau wurde nicht geladen',
@@ -349,7 +351,7 @@ export default {
     toolbar: {
       bold: 'Fett', italic: 'Kursiv', strike: 'Durchgestrichen', h2: 'Überschrift', h3: 'Unterüberschrift',
       bulletList: 'Aufzählung', orderedList: 'Nummerierte Liste', quote: 'Zitat', code: 'Code im Text',
-      link: 'Link', image: 'Bild einfügen', imageAlt: 'Bildbeschreibung', undo: 'Rückgängig', redo: 'Wiederholen',
+      link: 'Link', image: 'Bild einfügen', imageAlt: 'Bildbeschreibung', undo: 'Rückgängig', redo: 'Wiederholen', undoText: 'In diesem Text rückgängig', redoText: 'In diesem Text wiederholen',
     },
     showHelp: 'Hilfe anzeigen',
     open: 'Öffnen',

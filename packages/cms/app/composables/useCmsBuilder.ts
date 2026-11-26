@@ -1,6 +1,6 @@
 import type { ComputedRef, InjectionKey, Ref, ShallowRef } from 'vue'
 import { cmsBuilderPathOf, cmsBuilderPlaceAnchor, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace, type CmsBuilderToAdmin, type CmsBuilderToPage } from '../../shared/builder'
-import { changedBlock, kindsAlong, pathOfId, pathOfListKey, type BlockKindDef, type BlockList } from '../../shared/block-tree'
+import { changedBlock, findBlock, kindsAlong, pathOfId, pathOfListKey, textEdit, type BlockKindDef, type BlockList } from '../../shared/block-tree'
 import { createBuilderHistory } from '../../shared/builder-history'
 
 // The editor in the preview (experimental, NUXT_CMS_BUILDER=on), admin side: a bridge between the
@@ -18,6 +18,10 @@ import { createBuilderHistory } from '../../shared/builder-history'
 // The bridge also keeps the history of the page-blocks field's changes while the editor is open (undo and
 // redo, shared/builder-history.ts): the field records each change it makes, the bridge applies an undo
 // through the field and selects what changed, in the page and in the form.
+//
+// A plain text typed in the page (since 2d) is set through the field like any typing in the form, so it
+// is one step of the history per field per pause too. A click in the page on a field that is not typed
+// there (a rich text, a picture) asks the panel to bring that field into view (`fieldRequest`).
 
 /** What a page-blocks field lets the bridge do. The changes do nothing on a field that is read-only. */
 export interface CmsBuilderList {
@@ -91,6 +95,10 @@ export interface CmsBuilder {
   panel: Ref<boolean>
   /** The form shows the selected block alone now: the panel is on and the selected block is in the form's value. */
   focused: ComputedRef<boolean>
+  /** Since 2d: a field the page asked to bring into view in the panel (`open`: and open its chooser). */
+  fieldRequest: Readonly<ShallowRef<{ path: CmsBuilderPath; field: string; item: string | null; open: boolean; at: number } | null>>
+  /** Since 2d: the panel takes the keyboard focus when it opens next (a row opened with the keyboard, not a click in the page). */
+  focusPanel: Ref<boolean>
   /** The history of the page-blocks field's changes while the editor is open. */
   history: {
     canUndo: Readonly<Ref<boolean>>
@@ -118,6 +126,8 @@ function createBridge(): CmsBuilder {
     set: (id) => { selectedPath.value = id === null ? null : [id] },
   })
   const openPath = shallowRef<{ path: CmsBuilderPath; at: number } | null>(null)
+  const fieldRequest = shallowRef<{ path: CmsBuilderPath; field: string; item: string | null; open: boolean; at: number } | null>(null)
+  const focusPanel = ref(false)
   let panel: CmsBuilderPanel | null = null
   const owner = (id: string | undefined) => (id === undefined ? lists.value[0] : lists.value.find((l) => l.ids().includes(id)))
   const labels = computed(() => Object.assign({}, ...lists.value.map((l) => l.labels())) as Record<string, string>)
@@ -195,7 +205,7 @@ function createBridge(): CmsBuilder {
   const panelOn = ref(false)
   const focused = computed(() => panelOn.value && !!selection.value && selection.value.along.length === selection.value.path.length)
   return {
-    lists, selected, selectedPath, selection, openPath, labels, kinds, select, history,
+    lists, selected, selectedPath, selection, openPath, labels, kinds, select, history, fieldRequest, focusPanel,
     panel: panelOn, focused,
     register(list) {
       lists.value = [...lists.value, list]
@@ -225,6 +235,27 @@ function createBridge(): CmsBuilder {
       }
       if (message.type === 'cms:builder:history') {
         history[message.action]()
+        return
+      }
+      if (message.type === 'cms:builder:text') {
+        const path = cmsBuilderPathOf(message)
+        const list = owner(path[0])
+        if (!list) return
+        const edit = textEdit(list.root(), path, message.field, message.item ?? null, message.value)
+        // The end of typing sends the text again: no step of the history when nothing changed.
+        const now = findBlock(list.root(), path)?.block[edit?.key ?? '']
+        if (edit && JSON.stringify(now ?? null) !== JSON.stringify(edit.value ?? null)) list.set(path, edit.key, edit.value)
+        // The typing ended: the page waits for its text in the draft before it shows the page again.
+        if (message.end) changed()
+        return
+      }
+      if (message.type === 'cms:builder:field') {
+        const path = cmsBuilderPathOf(message)
+        if (selectedPath.value?.join('/') !== path.join('/')) {
+          selectedPath.value = path
+          owner(path[0])?.reveal(path)
+        }
+        fieldRequest.value = { path, field: message.field, item: message.item ?? null, open: message.open === true, at: Date.now() }
         return
       }
       if (message.type === 'cms:builder:add') {
@@ -265,6 +296,30 @@ export function provideCmsBuilder(on: Ref<boolean>): ShallowRef<CmsBuilder | nul
 /** The editor's bridge as a ref (`null` inside: the switch is off, or not known yet; outside an editor, a ref that stays `null`). */
 export function useCmsBuilder(): ShallowRef<CmsBuilder | null> {
   return inject(KEY, NONE)
+}
+
+const LARGE_KEY = 'cms-preview-large'
+/**
+ * The preview takes the form's room (a narrow admin, where a desktop page is drawn small): remembered per
+ * person in this browser. With the form hidden, a selected block's panel is a sheet over the preview's
+ * left edge. Only while the editor in the preview is on.
+ */
+export function useCmsLargePreview(): { large: Ref<boolean>; toggle: () => void } {
+  const large = useState<boolean>('cms-preview-large', () => false)
+  onMounted(() => {
+    try {
+      large.value = localStorage.getItem(LARGE_KEY) === '1'
+    }
+    catch { /* storage blocked: as it is */ }
+  })
+  function toggle() {
+    large.value = !large.value
+    try {
+      localStorage.setItem(LARGE_KEY, large.value ? '1' : '0')
+    }
+    catch { /* storage blocked: for this visit only */ }
+  }
+  return { large, toggle }
 }
 
 /**

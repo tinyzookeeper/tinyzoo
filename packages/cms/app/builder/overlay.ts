@@ -14,8 +14,15 @@
 // it says so (`scale`), and the tools are drawn larger by as much (`k`), so their chips, toolbars, "+"
 // and lines keep their size on the screen and their targets stay easy to hit. Every distance the tool
 // measures on the screen (how far a drag starts, how near a "+" shows) is counted in screen pixels too.
-import type { CmsBuilderKey, CmsBuilderKind, CmsBuilderListKinds, CmsBuilderPath, CmsBuilderPlace, CmsBuilderTexts, CmsBuilderToAdmin, CmsBuilderToPage } from '../../shared/builder'
+//
+// A site marks the element that shows a field with `cmsField()` (since 2d). With its block selected, one
+// more click on a marked plain text puts the cursor there (typing.ts); a click on another marked field
+// (a rich text, a picture) selects its block and asks the admin to bring that field into view in its
+// panel, and a double click on a picture opens the panel's chooser. While a text is typed the toolbar
+// steps aside, the "+" and the hover names are not drawn, and nothing can be dragged.
+import { cmsBuilderFieldInfo, cmsFieldOf, type CmsBuilderKey, type CmsBuilderKind, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace, type CmsBuilderTexts, type CmsBuilderToAdmin, type CmsBuilderToPage } from '../../shared/builder'
 import { cmsBuilderMarkers } from './state'
+import { endTyping, setupTyping, startTyping, typingEl } from './typing'
 import {
   addSlots, axisOf, cellShifts, dropPlace, droppedOrder, edgeSpeed, innerArea, leastHidden, nearestBoundary, nearestSlot, oneLine, placeInList, sameSizes, selectDepth,
   shiftFor, slotsOf, targetAmongOthers,
@@ -85,6 +92,7 @@ interface Ui {
   into: HTMLElement
   from: HTMLElement
   cell: HTMLElement
+  typing: HTMLElement
   adds: HTMLButtonElement[]
   empties: HTMLButtonElement[]
 }
@@ -139,7 +147,8 @@ function scan(): BNode[] {
   const byKey = new Map<string, BNode>()
   nodeOfEl = new WeakMap()
   for (const el of document.querySelectorAll<HTMLElement>(MARK)) {
-    if (!el.isConnected) continue
+    // An element hidden behind the twin a text is typed in (typing.ts) is not drawn: its twin stands for it.
+    if (!el.isConnected || el.hasAttribute('data-cms-hidden')) continue
     const id = el.dataset.cmsBlock ?? ''
     const list = el.dataset.cmsBlockList ?? ''
     const k = `${list}\n${id}`
@@ -289,6 +298,7 @@ function render() {
   drawAdds(current, host)
   drawEmpties(host)
   drawDrop(host)
+  drawTyping(host)
   if (current && keepInView && !scrollToSelected && !drag) {
     keepInView = false
     const r = rectOf(current)
@@ -317,7 +327,8 @@ function drawSelection(current: BNode | null, host: DOMRect, sticky: number) {
   place(ui.box, host, rect)
   ui.box.classList.toggle('sub', !!current.parent)
   if (current.parent && !drag) place(ui.context, host, rectOf(current.parent))
-  if (drag) return
+  // While a text is typed the toolbar steps aside: it never covers the line being typed.
+  if (drag || typingEl()) return
   const list = siblingsOf(current)
   const at = list.indexOf(current)
   const axis = axisOfList(list, list.map(boxOf), current.parent)
@@ -400,7 +411,7 @@ function drawHover(current: BNode | null, host: DOMRect, sticky: number) {
   if (!ui) return
   ui.hover.hidden = ui.chip.hidden = true
   if (hover && !hover.els.some((el) => el.isConnected)) hover = null
-  if (!hover || drag) return
+  if (!hover || drag || typingEl()) return
   // The block the next click would select.
   const chain = chainOf(hover)
   const next = chain[selectDepth(chain.map((n) => n.id), current?.path ?? null)] ?? null
@@ -416,7 +427,7 @@ function drawHover(current: BNode | null, host: DOMRect, sticky: number) {
 function drawPlus(host: DOMRect) {
   if (!ui) return
   ui.add.hidden = ui.line.hidden = true
-  if (!plus || drag) return
+  if (!plus || drag || typingEl()) return
   const items = nodes.filter((n) => !n.parent && n.list === plus!.list)
   const at = items.findIndex((n) => n.id === plus!.after)
   if (at < 0) return
@@ -444,7 +455,7 @@ function pool(list: HTMLButtonElement[], count: number, make: () => HTMLButtonEl
 /** A "+" at each place of the selected container's list, along its direction. */
 function drawAdds(current: BNode | null, host: DOMRect) {
   if (!ui) return
-  const context = drag || holding ? null : addContext(current)
+  const context = drag || holding || typingEl() ? null : addContext(current)
   const list = context ? listKindsOf(context.container) : null
   const full = !!list && list.max !== null && (context?.items.length ?? 0) >= list.max
   const items = context && list && !full ? context.items : []
@@ -470,7 +481,7 @@ function drawAdds(current: BNode | null, host: DOMRect) {
 /** In every block whose list is empty (a new layout, a new group): "Add a block", which adds at the end of that list. */
 function drawEmpties(host: DOMRect) {
   if (!ui) return
-  const empty = drag ? [] : nodes.filter((n) => listKindsOf(n) && !nodes.some((c) => c.parent === n))
+  const empty = drag || typingEl() ? [] : nodes.filter((n) => listKindsOf(n) && !nodes.some((c) => c.parent === n))
   pool(ui.empties, empty.length, () => {
     const b = make('button', 'empty', ui!.root) as HTMLButtonElement
     b.type = 'button'
@@ -537,6 +548,17 @@ function drawDrop(host: DOMRect) {
   else place(ui.drop, host, { left: s.x1 - scrollX, top: s.y1 - scrollY - t / 2, width: s.x2 - s.x1, height: t })
 }
 
+/** A quiet outline around the text being typed, a little outside it. */
+function drawTyping(host: DOMRect) {
+  if (!ui) return
+  const el = typingEl()
+  ui.typing.hidden = true
+  if (!el) return
+  const r = el.getBoundingClientRect()
+  const pad = 4 * k()
+  place(ui.typing, host, { left: r.left - pad, top: r.top - pad, width: r.width + pad * 2, height: Math.max(r.height, 16 * k()) + pad * 2 })
+}
+
 /** Observe the marked blocks (and only them) for a change of size. */
 function watchBlocks() {
   const els = new Set(nodes.flatMap((n) => n.els))
@@ -585,12 +607,58 @@ function onClick(e: MouseEvent) {
     calledOff = 0
     return
   }
+  const target = e.composedPath()[0] as Node
+  // A click inside the text being typed moves the cursor, nothing else.
+  const typing = typingEl()
+  if (typing?.contains(target)) return
   nodes = scan()
-  const node = nodeOf(e.composedPath()[0] as Node)
+  const node = nodeOf(target)
   if (!node) return choose(null)
   const chain = chainOf(node)
   const current = nodeAt(selected)
-  choose(chain[selectDepth(chain.map((n) => n.id), current?.path ?? null)]!.path)
+  const next = chain[selectDepth(chain.map((n) => n.id), current?.path ?? null)]!
+  const mark = fieldAt(target)
+  if (mark) {
+    const mine = !!current && current.key === mark.owner.key
+    // A plain text of the selected block: the cursor goes there.
+    if (mine && mark.info?.text) {
+      startTyping({ el: mark.el, path: mark.owner.path, field: mark.field, item: mark.item, lines: mark.info.text === 'lines', max: mark.info.max, x: e.clientX, y: e.clientY })
+      schedule()
+      return
+    }
+    // Another field of the block this click selects (or of the selected one): the panel brings it into view.
+    if (!mark.info?.text && (mine || next.key === mark.owner.key)) {
+      if (!mine) choose(mark.owner.path)
+      send({ type: 'cms:builder:field', id: mark.owner.id, path: mark.owner.path, field: mark.field, ...(mark.item ? { item: mark.item } : {}) })
+      return
+    }
+  }
+  // A folded answer of the selected block opens and closes by its summary, as it does for a visitor.
+  const summary = (target instanceof Element ? target : target.parentElement)?.closest('summary')
+  if (summary && current && nodeOf(summary)?.key === current.key && summary.parentElement instanceof HTMLDetailsElement) {
+    summary.parentElement.open = !summary.parentElement.open
+    return
+  }
+  choose(next.path)
+}
+
+/** A double click on a marked picture (or another field not typed in the page) of the selected block: the panel opens its chooser. */
+function onDoubleClick(e: MouseEvent) {
+  if (e.composedPath().includes(ui!.host) || typingEl()) return
+  const mark = fieldAt(e.composedPath()[0] as Node)
+  const current = nodeAt(selected)
+  if (!mark || mark.info?.text || !current || current.key !== mark.owner.key) return
+  e.preventDefault()
+  send({ type: 'cms:builder:field', id: mark.owner.id, path: mark.owner.path, field: mark.field, ...(mark.item ? { item: mark.item } : {}), open: true })
+}
+
+/** The marked field under the pointer (`cmsField()`): its element, its block, and what the admin says it is. */
+function fieldAt(target: Node | null): { el: HTMLElement; field: string; item: string | null; owner: BNode; info: ReturnType<typeof cmsBuilderFieldInfo> } | null {
+  const el = (target instanceof Element ? target : target?.parentElement)?.closest<HTMLElement>('[data-cms-field]:not([data-cms-hidden])') ?? null
+  const mark = el && cmsFieldOf(el)
+  const owner = el && nodeOf(el)
+  if (!el || !mark || !owner) return null
+  return { el, ...mark, owner, info: cmsBuilderFieldInfo(kindOf(owner), mark.field, mark.item) }
 }
 
 function stop(e: Event) {
@@ -639,7 +707,7 @@ function key(name: CmsBuilderKey | string, alt: boolean): boolean {
     else return false
     return true
   }
-  if (!alt || !selected) return false
+  if (!alt || !selected || typingEl()) return false
   if (name === 'ArrowUp' || name === 'ArrowLeft') step(-1)
   else if (name === 'ArrowDown' || name === 'ArrowRight') step(1)
   else return false
@@ -671,7 +739,7 @@ function onKey(e: KeyboardEvent) {
 
 function startPress(e: PointerEvent) {
   const node = selectedNode()
-  if (!node || holding || e.button !== 0) return
+  if (!node || holding || e.button !== 0 || typingEl()) return
   e.preventDefault()
   press = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, node }
   ui!.handle.setPointerCapture(e.pointerId)
@@ -742,6 +810,12 @@ function beginDrag(node: BNode, x: number, y: number) {
       const r = el.getBoundingClientRect()
       el.style.transformOrigin = `${x - r.left}px ${y - r.top}px`
     }
+  }
+  // A block carried smaller shrinks in 150 ms, not at once; then it follows the pointer without delay.
+  if (drag.shrink < 1 && !reduced()) {
+    const carried = drag
+    for (const el of node.els) el.style.transition = `transform 150ms ${EASE}`
+    setTimeout(() => { if (drag === carried) for (const el of node.els) el.style.transition = 'none' }, 160)
   }
   hover = null
   plus = null
@@ -987,6 +1061,7 @@ svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .empty{position:absolute;pointer-events:auto;transform:translate(-50%,-50%) scale(var(--k));display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px 0 9px;border-radius:999px;border:1px solid rgba(47,98,214,.45);background:#fff;color:#2f62d6;font:600 12px/1 system-ui,sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.1);transition:background-color 150ms ease-out,color 150ms ease-out}
 .empty:hover{background:#2f62d6;color:#fff}
 .empty svg{width:14px;height:14px}
+.typing{border-radius:calc(4px * var(--k));outline:calc(1.5px * var(--k)) solid rgba(47,98,214,.45);outline-offset:0;background:rgba(47,98,214,.04)}
 .drop{position:absolute;pointer-events:none;border-radius:calc(3px * var(--k));background:#2f62d6;box-shadow:0 0 0 calc(2px * var(--k)) rgba(255,255,255,.75)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 `
@@ -1023,6 +1098,7 @@ function build(): Ui {
   const from = make('div', 'o from', root)
   const cell = make('div', 'o cell', root)
   const into = make('div', 'o into', root)
+  const typing = make('div', 'o typing', root)
   const drop = make('div', 'drop', root)
   const line = make('div', 'line', root)
   const chip = make('div', 'chip', root)
@@ -1035,7 +1111,7 @@ function build(): Ui {
   const duplicate = tool(bar, ICONS.copy, 'tool')
   const remove = tool(bar, ICONS.trash, 'tool')
   const add = tool(root, ICONS.plus, 'add')
-  for (const el of [context, hoverBox, chip, box, into, from, cell, drop, line, bar, add]) el.hidden = true
+  for (const el of [context, hoverBox, chip, box, into, from, cell, typing, drop, line, bar, add]) el.hidden = true
   document.body.appendChild(host)
   handle.addEventListener('pointerdown', startPress)
   prev.addEventListener('click', () => step(-1))
@@ -1043,12 +1119,14 @@ function build(): Ui {
   duplicate.addEventListener('click', () => act('cms:builder:duplicate'))
   remove.addEventListener('click', () => act('cms:builder:remove'))
   add.addEventListener('click', () => { if (plus) send({ type: 'cms:builder:add', place: { after: plus.after } }) })
-  return { host, root, hover: hoverBox, chip, context, box, bar, name, prev, next, duplicate, remove, handle, line, add, drop, into, from, cell, adds: [], empties: [] }
+  return { host, root, hover: hoverBox, chip, context, box, bar, name, prev, next, duplicate, remove, handle, line, add, drop, into, from, cell, typing, adds: [], empties: [] }
 }
 
 function start() {
   ui = build()
+  setupTyping(send, schedule)
   window.addEventListener('click', onClick, true)
+  window.addEventListener('dblclick', onDoubleClick, true)
   window.addEventListener('submit', stop, true)
   window.addEventListener('pointermove', track)
   window.addEventListener('pointerdown', track)
@@ -1089,7 +1167,10 @@ export function handleCmsBuilderMessage(message: CmsBuilderToPage) {
   }
   else if (message.type === 'cms:builder:select') {
     if (!ui) return
-    selected = message.id === null ? null : message.path ?? [message.id]
+    const path = message.id === null ? null : message.path ?? [message.id]
+    // Another block selected from the admin ends the typing (its text stays).
+    if (typingEl() && !samePath(path, selected)) endTyping()
+    selected = path
     scrollToSelected = message.scroll && message.id !== null
   }
   else {

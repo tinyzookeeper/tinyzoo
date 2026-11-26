@@ -162,6 +162,9 @@ function togglePreview() {
 const split = computed(() => wide.value && previewOpen.value && !!previewUrl.value)
 // The editor in the preview: while the page is beside the form, the form shows a selected block alone.
 watchEffect(() => { if (builder.value) builder.value.panel.value = split.value })
+// A larger preview (chosen in the preview's bar): the form column is hidden, a selected block's panel is a sheet.
+const { large: largePreview } = useCmsLargePreview()
+const largeSplit = computed(() => split.value && !!builder.value && largePreview.value)
 useCmsFocus(split)
 
 // Before the first save there is nothing to translate yet: the languages show, with
@@ -226,7 +229,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       </UTooltip>
     </template>
 
-    <div class="cms-editor cms-editor--no-aside" :class="split ? 'cms-editor--split' : ''">
+    <div class="cms-editor cms-editor--no-aside" :class="[split ? 'cms-editor--split' : '', largeSplit ? 'cms-editor--large' : '', largeSplit && builder?.focused.value ? 'cms-editor--sheet' : '']">
       <fieldset class="cms-fieldset contents" :disabled="readOnly">
       <div class="cms-editor__main">
         <div class="cms-editor__column">

@@ -359,6 +359,25 @@ const editing = useCmsEditing()
 
 Beside the preview, the form shows the selected block alone: a way back to all sections, the path as a breadcrumb, its fields, its settings, and a block's own list as rows that each go a level deeper. A desktop page is laid out 1280 px wide and drawn scaled to fit the panel; the page is told its scale (`cms:builder:view`), so the tools keep their size. Undo and redo keep the changes to the page's blocks while the editor is open (at most 50 steps; typing in a field is one step per pause), with Ctrl/⌘ Z and Ctrl/⌘ ⇧ Z outside a text field; the page passes those keys on with `cms:builder:history`.
 
+**Typing in the page.** A block's component says which element shows which field with `cmsField()`, bound in the template. It gives the element `data-cms-field` (and `data-cms-item`) while an editor works on the page, and nothing on the live site, so a visitor's page is as it was:
+
+```vue
+<template>
+  <section>
+    <h2 v-bind="cmsField('heading')">{{ block.heading }}</h2>
+    <p v-bind="cmsField('intro')">{{ block.intro }}</p>
+    <CmsContent :doc="block.body" v-bind="cmsField('body')" />
+    <article v-for="card in block.cards" :key="card.id">
+      <h3 v-bind="cmsField('title', card.id)">{{ card.title }}</h3>
+    </article>
+  </section>
+</template>
+```
+
+The block is the nearest block around the element. A field of an item of the block's own list (`f.list()`), which the component draws itself, is named with the item's id. With the block selected, one more click on a marked plain text (`f.text()`, one line or several) puts the cursor there: the editor types in the page and the form follows at once (`cms:builder:text`). Enter ends a text of one line and starts a new line in a text of several; Escape or a click elsewhere ends it and keeps the text. A paste comes in as plain text, a field's `max` holds, and the page is not drawn anew while a text is typed. Typing in the page is one step of undo per field per pause, as typing in the form is. An empty text can be typed in where it shows its placeholder (`useCmsEditingLabel()`).
+
+Rich text is not typed in the page. A click on a marked rich text, a picture or a link selects its block and brings that field into view in the panel (`cms:builder:field`); a rich text gets the cursor in its editor there, and a double click on a picture opens its chooser. An element drawn by something the template does not own (a look's own heading) can be marked after it is drawn, with the same attributes.
+
 ### Form sections
 
 Forms read as a few titled sections. Name them as plain questions, and give fields the icons and options that make them quick to fill in. Empty optional fields wait behind "+ Add …". Long forms get a section menu beside them.

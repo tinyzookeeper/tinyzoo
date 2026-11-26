@@ -16,6 +16,8 @@ const props = defineProps<{ url: string; entity: string; id: string; locale: str
 const emit = defineEmits<{ close: [] }>()
 const { t, locale: adminLanguage } = useCmsI18n()
 const builder = useCmsBuilder()
+// The preview may take the form's room (a narrow admin): the editor's page hides the form column then.
+const { large, toggle: toggleLarge } = useCmsLargePreview()
 
 const frame = ref<HTMLIFrameElement | null>(null)
 const stage = ref<HTMLElement | null>(null)
@@ -273,6 +275,12 @@ onBeforeUnmount(() => {
       </div>
       <div class="flex items-center gap-1">
         <span v-if="zoom" class="mr-1 text-xs text-muted tabular-nums" :title="t('editor.previewScale', { percent: zoom })">{{ zoom }}</span>
+        <UTooltip v-if="builder && !sheet" :text="large ? t('editor.previewSmaller') : t('editor.previewLarger')">
+          <UButton
+            size="xs" variant="ghost" :color="large ? 'primary' : 'neutral'" :icon="large ? 'i-lucide-minimize-2' : 'i-lucide-maximize-2'"
+            :aria-label="t('editor.previewLarger')" :aria-pressed="large" @click="toggleLarge"
+          />
+        </UTooltip>
         <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-rotate-cw" :aria-label="t('editor.previewReload')" @click="() => { reloads++ }" />
         <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-external-link" :to="url" target="_blank" :aria-label="t('editor.preview')" />
         <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" :aria-label="t('common.close')" @click="emit('close')" />

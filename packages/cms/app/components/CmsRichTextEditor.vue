@@ -32,6 +32,7 @@ const form = inject<{ quiet?: (fn: () => void) => void } | null>('cmsForm', null
 const shared = props.collab ? inject<CmsCollab | null>('cmsCollab', null) : null
 // A page that opens read-only (the person may not save here) says so; typing is off.
 const readOnly = inject<Ref<boolean> | null>('cmsReadOnly', null)
+const inBuilderPanel = inject<boolean>('cmsInBuilderPanel', false)
 const canType = () => !props.collab?.readOnly && !readOnly?.value
 // What visitors see while this translation is empty: the default language's text, behind the editor.
 const showFallback = computed(() => (props.fallback as any)?.type === 'doc' && !isEmptyRichText(props.fallback) && (model.value == null || isEmptyRichText(model.value)))
@@ -262,8 +263,15 @@ const tools = computed<Tool[]>(() => {
           :aria-label="t('fields.toolbar.imageAlt')" @click="editAlt"
         >{{ t('fields.toolbar.imageAlt') }}</UButton>
         <div class="ml-auto flex gap-0.5">
-          <UButton icon="i-lucide-undo-2" size="xs" variant="ghost" color="neutral" :aria-label="t('fields.toolbar.undo')" @click="() => { editor?.chain().focus().undo().run() }" />
-          <UButton icon="i-lucide-redo-2" size="xs" variant="ghost" color="neutral" :aria-label="t('fields.toolbar.redo')" @click="() => { editor?.chain().focus().redo().run() }" />
+          <!-- in the builder's panel the preview's bar has an undo of its own: these say they undo the text only -->
+          <UButton
+            icon="i-lucide-undo-2" size="xs" variant="ghost" color="neutral" :aria-label="inBuilderPanel ? t('fields.toolbar.undoText') : t('fields.toolbar.undo')"
+            :title="inBuilderPanel ? t('fields.toolbar.undoText') : undefined" @click="() => { editor?.chain().focus().undo().run() }"
+          />
+          <UButton
+            icon="i-lucide-redo-2" size="xs" variant="ghost" color="neutral" :aria-label="inBuilderPanel ? t('fields.toolbar.redoText') : t('fields.toolbar.redo')"
+            :title="inBuilderPanel ? t('fields.toolbar.redoText') : undefined" @click="() => { editor?.chain().focus().redo().run() }"
+          />
         </div>
       </div>
       <div class="cms-rte__body" :class="showFallback ? 'cms-rte__body--fallback' : ''">

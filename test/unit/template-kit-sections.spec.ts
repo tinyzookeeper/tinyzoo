@@ -82,6 +82,36 @@ describe('the looks\' main button', () => {
   })
 })
 
+describe('the looks\' section heading', () => {
+  // A large heading of a Layout section is drawn as the look's own sections' heading: `heading` in looks.ts
+  // holds the classes the look's Text part gives its heading. Kept equal to the Text part here, so they cannot drift.
+  it('is in every look, equal to the classes of its Text part\'s heading', () => {
+    const wrong: string[] = []
+    let count = 0
+    for (const id of templates) {
+      const source = readFileSync(join(repoRoot, 'templates', id, 'looks.ts'), 'utf8')
+      const looks = [...source.matchAll(/^ {4}id: '([a-z0-9-]+)',\n(?: {4}button: '[^']*',\n)?(?: {4}heading: '([^']*)',\n)?/gm)]
+      for (const [, look, heading] of looks) {
+        count++
+        const text = readFileSync(join(repoRoot, 'templates', id, 'app', 'components', look!, 'Text.vue'), 'utf8')
+        const tag = /<component :is="[^"]*" v-if="block\.heading"([^>]*)>/.exec(text)?.[1] ?? ''
+        const own = / class="([^"]*)"/.exec(tag)?.[1]
+        // A heading whose size follows its length (Šachovnice): the static classes and the long text's size from the template's helpers.
+        const dynamic = /:class="(\w+)\(block\.heading\)"/.exec(tag)?.[1]
+        let expected = own
+        if (dynamic) {
+          const helpers = readFileSync(join(repoRoot, 'templates', id, 'app', 'utils', 'site.ts'), 'utf8')
+          const fallback = new RegExp(`export const ${dynamic} = [^\\n]*'([^']+)'\\)\\s*$`, 'm').exec(helpers)?.[1]
+          expected = `${own} ${fallback}`
+        }
+        if (heading !== expected) wrong.push(`${id}/${look}: ${heading} ≠ ${expected}`)
+      }
+    }
+    expect(wrong).toEqual([])
+    expect(count).toBe(52)
+  })
+})
+
 describe('the settings every section has', () => {
   it('are the look\'s width and no close, unless the block says otherwise', () => {
     for (const v of [null, undefined, {}, { width: '' }, { width: 'wide' }, { width: 1 }, { close: 'true' }, { close: 1 }, 'x', 5]) expect(sectionLook(v)).toEqual({ narrow: false, close: false })
@@ -343,6 +373,13 @@ describe('layout: how it is read', () => {
   it('gives the container its classes', () => {
     expect(layoutClasses(layoutBox({}))).toEqual(['kit-lay', 'kit-lay-row', 'kit-lay-gap-medium', 'kit-lay-align-start'])
     expect(layoutClasses(layoutBox({ arrangement: 'grid', columns: '2', space: 'small', align: 'center' }))).toEqual(['kit-lay', 'kit-lay-grid', 'kit-lay-gap-small', 'kit-lay-align-center', 'kit-lay-cols-2'])
+
+    // A grid of pictures only may hold two side by side on a phone; with any other block, or not a grid, it is as before.
+    const pics = [{ type: 'picture' }, { type: 'picture' }]
+    expect(layoutClasses(layoutBox({ arrangement: 'grid' }), pics)).toContain('kit-lay-pics')
+    expect(layoutClasses(layoutBox({ arrangement: 'grid' }), [...pics, { type: 'heading' }])).not.toContain('kit-lay-pics')
+    expect(layoutClasses(layoutBox({ arrangement: 'row' }), pics)).not.toContain('kit-lay-pics')
+    expect(layoutClasses(layoutBox({ arrangement: 'grid' }), [])).not.toContain('kit-lay-pics')
   })
 
   it('has the settings every section has', () => {

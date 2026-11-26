@@ -9,12 +9,19 @@
 //
 // An error the panel does not show where it is (in another section, in a block along the path) is
 // counted on the way back and on the part of the breadcrumb that leads to it.
+//
+// A click in the page on a field that is not typed there (a rich text, a picture) brings that field
+// into view here with a short highlight; a rich text gets the cursor, a picture's chooser opens on a
+// double click (since 2d). The panel takes the keyboard focus when it was opened from the list with the
+// keyboard, and gives it back to the list's row with *All sections*.
 import type { CmsBuilderPath } from '../../shared/builder'
 import { blockListFull, findBlock, isLockedBlock, issueCounts, keyOfPath } from '../../shared/block-tree'
 
 const props = defineProps<{ entity: string; readOnly?: boolean }>()
 // Text inside blocks is edited on its own (not shared), as in the form's list.
 provide('cmsCollab', null)
+// The rich-text editor's own undo says it undoes the text only (the preview's bar has the builder's undo).
+provide('cmsInBuilderPanel', true)
 const { t, tl } = useCmsI18n()
 const builder = useCmsBuilder()
 const form = inject<{ issues?: Record<string, string> } | null>('cmsForm', null)
@@ -67,9 +74,60 @@ function set(fieldKey: string, value: unknown) {
   // The preview follows as it follows any typing (after a short pause).
   owner.value.set(path.value, fieldKey, value)
 }
+const root = ref<HTMLElement | null>(null)
+const heading = ref<HTMLElement | null>(null)
 function back() {
+  const section = path.value[0]
   builder.value?.select(null)
+  // The keyboard goes back to the row of the section that was open.
+  void nextTick(() => {
+    const row = section ? [...document.querySelectorAll<HTMLElement>('[data-cms-block-row]')].find((el) => el.dataset.cmsBlockRow === section && el.offsetParent !== null) : null
+    row?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true })
+  })
 }
+
+// ── a field asked for from the page ──
+const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+/** The field's box in the panel: the field itself, or the list that holds the item. */
+function fieldBox(request: { field: string; item: string | null }): HTMLElement | null {
+  let key = request.field
+  if (request.item) {
+    const list = (def.value?.fields ?? []).find((f: any) => f.type === 'blocks' && f.meta?.list && Array.isArray(block.value?.[f.key]) && block.value![f.key].some((x: any) => x?.id === request.item))
+    if (!list) return null
+    key = list.key
+  }
+  return [...(root.value?.querySelectorAll<HTMLElement>('[data-cms-panel-field]') ?? [])].find((el) => el.dataset.cmsPanelField === key) ?? null
+}
+function bringField(request: { path: CmsBuilderPath; field: string; item: string | null; open: boolean; at: number } | null) {
+  if (!request || Date.now() - request.at > 2000 || request.path.join('/') !== path.value.join('/')) return
+  // The panel may still be sliding in: try for a moment.
+  let tries = 0
+  const attempt = () => {
+    const box = fieldBox(request)
+    if (!box) {
+      if (++tries < 20) requestAnimationFrame(attempt)
+      return
+    }
+    box.scrollIntoView({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' })
+    box.classList.remove('cms-focus__flash')
+    void box.offsetWidth
+    box.classList.add('cms-focus__flash')
+    setTimeout(() => box.classList.remove('cms-focus__flash'), 1300)
+    const editor = box.querySelector<HTMLElement>('.ProseMirror[contenteditable="true"]')
+    if (editor) editor.focus({ preventScroll: true })
+    else if (request.open) box.querySelector<HTMLElement>('[data-cms-media-field]')?.dispatchEvent(new CustomEvent('cms-builder-choose'))
+  }
+  void nextTick(attempt)
+}
+watch(() => builder.value?.fieldRequest.value ?? null, (request) => bringField(request))
+onMounted(() => {
+  bringField(builder.value?.fieldRequest.value ?? null)
+  // Opened from the list with the keyboard: the keyboard comes along (a click in the page leaves it there).
+  if (builder.value?.focusPanel.value) {
+    builder.value.focusPanel.value = false
+    heading.value?.focus({ preventScroll: true })
+  }
+})
 function go(depth: number) {
   builder.value?.select(path.value.slice(0, depth + 1))
 }
@@ -90,7 +148,7 @@ function remove() {
 </script>
 
 <template>
-  <div v-if="block" class="cms-focus" :aria-label="name(path.length - 1)" role="region">
+  <div v-if="block" ref="root" class="cms-focus" :aria-label="name(path.length - 1)" role="region">
     <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
       <button type="button" class="cms-focus__back" @click="back">
         <UIcon name="i-lucide-chevron-left" class="size-4" aria-hidden="true" />
@@ -115,7 +173,7 @@ function remove() {
     <div class="flex items-center gap-3">
       <span class="cms-focus__icon"><UIcon :name="def?.icon ?? 'i-lucide-square'" class="size-[1.125rem]" aria-hidden="true" /></span>
       <div class="min-w-0">
-        <h2 class="cms-focus__title">{{ name(path.length - 1) }}</h2>
+        <h2 ref="heading" class="cms-focus__title" tabindex="-1">{{ name(path.length - 1) }}</h2>
         <p class="text-xs text-muted truncate">{{ about }}</p>
       </div>
     </div>
@@ -132,22 +190,24 @@ function remove() {
     </template>
     <template v-else>
       <div class="space-y-5">
-        <CmsField
-          v-for="f in fields.content" :key="f.key"
-          :model-value="block[f.key]" :field="fieldOf(f)" :entity="entity" :id-prefix="`${owner?.key}-${block.id}-`"
-          :error="errorOf(f)"
-          @update:model-value="(v: unknown) => set(f.key, v)"
-        />
-      </div>
-      <div v-if="fields.settings.length" role="group" :aria-labelledby="`cms-focus-${block.id}-settings`" class="cms-focus__settings">
-        <h3 :id="`cms-focus-${block.id}-settings`" class="cms-focus__sub">{{ t('blocks.settings') }}</h3>
-        <div class="space-y-5">
+        <div v-for="f in fields.content" :key="f.key" :data-cms-panel-field="f.key" class="cms-focus__field">
           <CmsField
-            v-for="f in fields.settings" :key="f.key"
             :model-value="block[f.key]" :field="fieldOf(f)" :entity="entity" :id-prefix="`${owner?.key}-${block.id}-`"
             :error="errorOf(f)"
             @update:model-value="(v: unknown) => set(f.key, v)"
           />
+        </div>
+      </div>
+      <div v-if="fields.settings.length" role="group" :aria-labelledby="`cms-focus-${block.id}-settings`" class="cms-focus__settings">
+        <h3 :id="`cms-focus-${block.id}-settings`" class="cms-focus__sub">{{ t('blocks.settings') }}</h3>
+        <div class="space-y-5">
+          <div v-for="f in fields.settings" :key="f.key" :data-cms-panel-field="f.key" class="cms-focus__field">
+            <CmsField
+              :model-value="block[f.key]" :field="fieldOf(f)" :entity="entity" :id-prefix="`${owner?.key}-${block.id}-`"
+              :error="errorOf(f)"
+              @update:model-value="(v: unknown) => set(f.key, v)"
+            />
+          </div>
         </div>
       </div>
     </template>
@@ -183,6 +243,16 @@ button.cms-focus__crumb:hover { background: var(--ui-bg-elevated); color: var(--
   font-size: 0.6875rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ui-bg); background: var(--ui-error);
 }
 .cms-focus__icon { display: grid; place-items: center; flex: none; width: 2.25rem; height: 2.25rem; border-radius: 0.625rem; background: var(--cms-nav-active); color: var(--ui-text-highlighted); }
+.cms-focus__title:focus { outline: none; }
+.cms-focus__title:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 2px; border-radius: 4px; }
+/* A field asked for from the page: a short glow around it, so the eye finds it. */
+.cms-focus__field { border-radius: 0.625rem; }
+.cms-focus__flash { animation: cms-focus-flash 1.2s cubic-bezier(.2,.7,.2,1); }
+@keyframes cms-focus-flash {
+  0%, 35% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--ui-primary) 28%, transparent); background: color-mix(in srgb, var(--ui-primary) 6%, transparent); }
+  100% { box-shadow: 0 0 0 4px transparent; background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .cms-focus__flash { animation-duration: 1ms; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 28%, transparent); } }
 .cms-focus__title { margin: 0; font-family: var(--cms-font-display); font-size: 1.0625rem; font-weight: 700; line-height: 1.25; color: var(--ui-text-highlighted); }
 .cms-focus__settings { padding-top: 1rem; border-top: 1px solid var(--ui-border); }
 .cms-focus__sub { margin: 0 0 0.875rem; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ui-text-muted); }

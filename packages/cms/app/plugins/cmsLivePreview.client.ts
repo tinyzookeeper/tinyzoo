@@ -11,7 +11,7 @@
 // A site that renders from something else can listen too: the message is
 // { type: 'cms:preview', entity, id, locale, data } with the form's values.
 import { cmsBuilderNames, isCmsBuilderToPage, type CmsBuilderToAdmin } from '../../shared/builder'
-import { cmsBuilderOn, cmsBuilderWords } from '../builder/state'
+import { cmsBuilderDraft, cmsBuilderHold, cmsBuilderOn, cmsBuilderWords } from '../builder/state'
 
 export default defineNuxtPlugin((nuxtApp) => {
   if (window.parent === window) return
@@ -37,9 +37,20 @@ export default defineNuxtPlugin((nuxtApp) => {
       return
     }
     if (e.data?.type !== 'cms:preview') return
+    cmsBuilderDraft.data = e.data.data
+    for (const listener of cmsBuilderDraft.listeners) listener(e.data.data)
+    // A text is being typed in the page (the editor in the preview): the refetch waits until it ends.
+    if (cmsBuilderHold.count > 0) {
+      cmsBuilderHold.missed = true
+      return
+    }
     clearTimeout(timer)
     timer = setTimeout(() => { refreshNuxtData() }, 30)
   })
+  cmsBuilderHold.refresh = () => {
+    clearTimeout(timer)
+    return refreshNuxtData()
+  }
   // The admin cannot tell when this listener exists (the frame's load event can come first).
   window.parent.postMessage({ type: 'cms:builder:ready' } satisfies CmsBuilderToAdmin, location.origin)
 })

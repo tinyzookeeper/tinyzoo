@@ -309,6 +309,8 @@ export default {
     previewUndo: 'Zpět',
     previewRedo: 'Znovu',
     previewScale: 'Zobrazeno na {percent} velikosti',
+    previewLarger: 'Větší náhled',
+    previewSmaller: 'Menší náhled',
     previewMissingTitle: 'Na webu tu zatím žádná stránka není',
     previewMissingBody: 'Na adrese {path} nic není. Obsah se uloží tak jako tak, stránku na web přidá vývojář.',
     previewErrorTitle: 'Náhled se nenačetl',
@@ -349,7 +351,7 @@ export default {
     toolbar: {
       bold: 'Tučně', italic: 'Kurzíva', strike: 'Přeškrtnuté', h2: 'Nadpis', h3: 'Podnadpis',
       bulletList: 'Odrážky', orderedList: 'Číslovaný seznam', quote: 'Citace', code: 'Kód',
-      link: 'Odkaz', image: 'Vložit obrázek', imageAlt: 'Popis obrázku', undo: 'Zpět', redo: 'Znovu',
+      link: 'Odkaz', image: 'Vložit obrázek', imageAlt: 'Popis obrázku', undo: 'Zpět', redo: 'Znovu', undoText: 'Zpět v tomto textu', redoText: 'Znovu v tomto textu',
     },
     showHelp: 'Zobrazit nápovědu',
     open: 'Otevřít',

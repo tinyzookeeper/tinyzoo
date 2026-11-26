@@ -457,6 +457,10 @@ const split = computed(() => wide.value && previewOpen.value && !!previewUrl.val
 // The editor in the preview: while the page is beside the form, the form shows a selected block alone.
 watchEffect(() => { if (builder.value) builder.value.panel.value = split.value })
 const builderFocused = computed(() => !!builder.value?.focused.value)
+// A larger preview (the editor in the preview, chosen in the preview's bar): the form column is hidden, and a
+// selected block's panel slides over the preview's left edge as a sheet.
+const { large: largePreview } = useCmsLargePreview()
+const largeSplit = computed(() => split.value && !!builder.value && largePreview.value)
 // Form and preview show every field in titled sections (admin.sections; tabs read as
 // sections there) with a details column; write keeps the text apart from the details.
 const sectioned = computed(() => arrangement.value !== 'write')
@@ -1042,11 +1046,15 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
 
     <div
       class="cms-editor"
-      :class="[arrangement === 'write' && !split ? 'cms-editor--write' : '', split ? 'cms-editor--split' : '', !showAside ? 'cms-editor--no-aside' : '', comparing && !split ? 'cms-editor--compare' : '']"
+      :class="[arrangement === 'write' && !split ? 'cms-editor--write' : '', split ? 'cms-editor--split' : '', !showAside ? 'cms-editor--no-aside' : '', comparing && !split ? 'cms-editor--compare' : '', largeSplit ? 'cms-editor--large' : '', largeSplit && builderFocused ? 'cms-editor--sheet' : '']"
     >
       <!-- someone who cannot save here can read everything and change nothing -->
       <fieldset class="cms-fieldset contents" :disabled="readOnly">
       <div class="cms-editor__main">
+        <UButton
+          v-if="largeSplit && builderFocused" class="cms-editor__sheet-close" size="sm" variant="ghost" color="neutral" icon="i-lucide-x"
+          :aria-label="t('common.close')" @click="builder?.select(null)"
+        />
         <div class="cms-editor__column">
           <UAlert
             v-if="lostText" color="warning" variant="subtle" icon="i-lucide-cloud-off" class="mb-6" role="alert"

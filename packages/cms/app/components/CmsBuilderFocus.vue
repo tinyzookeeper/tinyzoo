@@ -34,7 +34,11 @@ watch(focused, async (now, was) => {
   const el = scroller()
   if (now && !was) listScroll = el.scrollTop
   await nextTick()
-  if (now) showTop(el)
+  // The panel may scroll in an element of its own (a larger preview's sheet): found again once it shows.
+  if (now) {
+    scrolling = null
+    showTop(scroller())
+  }
   else if (listScroll !== null) {
     el.scrollTop = listScroll
     listScroll = null
@@ -42,9 +46,9 @@ watch(focused, async (now, was) => {
 }, { flush: 'pre' })
 watch(at, async () => {
   if (!focused.value || !import.meta.client) return
-  const el = scroller()
   await nextTick()
-  showTop(el)
+  scrolling = null
+  showTop(scroller())
 }, { flush: 'pre' })
 </script>
 

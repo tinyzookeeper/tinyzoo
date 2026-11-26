@@ -34,6 +34,7 @@ export const KIT_COMPOSABLES: KitComposable[] = [
   { name: 'useCmsUiLocale', file: 'app/composables/useCmsUiLocale.ts', about: 'Nuxt UI\'s own words in the admin\'s language on /admin pages; for `<UApp :locale>`.' },
   { name: 'useCmsEditing', file: 'app/composables/useCmsEditing.ts', about: 'Whether an editor works on the page in the admin\'s preview with the editor in the preview on (experimental); false on the live site.' },
   { name: 'useCmsEditingLabel', file: 'app/composables/useCmsEditingLabel.ts', about: 'A block type\'s name in the admin\'s language while an editor works on the page in the preview (experimental); empty on the live site.' },
+  { name: 'cmsField', file: 'app/composables/cmsField.ts', about: 'Marks an element as showing one field of its block, for typing in the page in the preview (experimental): `v-bind="cmsField(\'heading\')"`, or with an item\'s id; nothing on the live site.' },
 ]
 
 const parse = (name: string, text: string) => ts.createSourceFile(name, text, ts.ScriptTarget.ES2023, true, ts.ScriptKind.TS)

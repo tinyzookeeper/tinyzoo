@@ -46,6 +46,22 @@ export interface CmsBuilderKind {
   sig: string
   /** The block's list of blocks (its first `f.blocks()` field), if it has one. */
   list?: CmsBuilderListKinds
+  /** Since 2d: the block's fields by name, as the page needs to know them for a text marked with `cmsField()`. */
+  fields?: Record<string, CmsBuilderField>
+}
+
+/**
+ * Since 2d: a field of a block as the page knows it. A plain text (`text`) is typed in the page; any
+ * other field (a rich text, a picture, a link) is filled in the admin's panel, which a click on it
+ * brings into view.
+ */
+export interface CmsBuilderField {
+  /** A plain text: one line, or several lines. */
+  text?: 'line' | 'lines'
+  /** At most this many characters (a plain text). */
+  max?: number
+  /** A list of items the block draws itself (`f.list()`): the fields of its items, by name. */
+  items?: Record<string, CmsBuilderField>
 }
 
 /** What a list of blocks takes: its types, and at most how many. */
@@ -86,6 +102,13 @@ export type CmsBuilderToAdmin =
   | { type: 'cms:builder:add'; place: CmsBuilderPlace }
   /** Since 2c: Ctrl/⌘ Z (`undo`) or Ctrl/⌘ ⇧ Z, Ctrl Y (`redo`) pressed in the page outside a text field. */
   | { type: 'cms:builder:history'; action: 'undo' | 'redo' }
+  /**
+   * Since 2d: a plain text typed in the page: field `field` of the block (or of the item `item` of the
+   * block's own list) is now `value`. `end`: the typing ended (the admin sends the draft at once).
+   */
+  | { type: 'cms:builder:text'; id: string; path?: CmsBuilderPath; field: string; item?: string; value: string; end?: boolean }
+  /** Since 2d: a marked field that is not typed in the page was clicked: the panel brings it into view (`open`: and opens its chooser). */
+  | { type: 'cms:builder:field'; id: string; path?: CmsBuilderPath; field: string; item?: string; open?: boolean }
 
 const isObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
 const isId = (x: unknown): x is string => typeof x === 'string' && x.length > 0 && x.length <= 200
@@ -129,7 +152,16 @@ export function isCmsBuilderListKinds(x: unknown, depth = 4): x is CmsBuilderLis
   if (!(x.max === null || (typeof x.max === 'number' && Number.isInteger(x.max) && x.max > 0))) return false
   if (!isObject(x.types)) return false
   return Object.values(x.types).every((k) => isObject(k) && typeof k.label === 'string' && typeof k.sig === 'string'
-    && (k.list === undefined || isCmsBuilderListKinds(k.list, depth - 1)))
+    && (k.list === undefined || isCmsBuilderListKinds(k.list, depth - 1))
+    && (k.fields === undefined || isCmsBuilderFields(k.fields, 2)))
+}
+
+function isCmsBuilderFields(x: unknown, depth: number): x is Record<string, CmsBuilderField> {
+  if (!isObject(x) || depth <= 0) return false
+  return Object.values(x).every((f) => isObject(f)
+    && (f.text === undefined || f.text === 'line' || f.text === 'lines')
+    && (f.max === undefined || (typeof f.max === 'number' && Number.isInteger(f.max) && f.max > 0))
+    && (f.items === undefined || isCmsBuilderFields(f.items, depth - 1)))
 }
 
 /** A message the page may act on. Anything else (another tool's message, a wrong shape) is not one. */
@@ -166,8 +198,142 @@ export function isCmsBuilderToAdmin(x: unknown): x is CmsBuilderToAdmin {
     case 'cms:builder:remove': return isId(x.id) && pathOk(x)
     case 'cms:builder:add': return isCmsBuilderPlace(x.place)
     case 'cms:builder:history': return x.action === 'undo' || x.action === 'redo'
+    case 'cms:builder:text': return isId(x.id) && pathOk(x) && isCmsFieldName(x.field) && (x.item === undefined || isId(x.item))
+      && typeof x.value === 'string' && x.value.length <= TEXT_MOST && (x.end === undefined || typeof x.end === 'boolean')
+    case 'cms:builder:field': return isId(x.id) && pathOk(x) && isCmsFieldName(x.field) && (x.item === undefined || isId(x.item))
+      && (x.open === undefined || typeof x.open === 'boolean')
     default: return false
   }
+}
+
+// ── typing in the page (since 2d) ──
+
+/** The longest text the page may send: more than any plain text field holds. */
+const TEXT_MOST = 100_000
+
+/** A field's name as a block's definition spells it. */
+export const isCmsFieldName = (x: unknown): x is string => typeof x === 'string' && /^[A-Za-z_$][\w$]{0,63}$/.test(x)
+
+/**
+ * The attributes that mark an element as showing a field of its block, while the editor in the preview
+ * is on: `cmsField('heading')`, or `cmsField('title', item.id)` for a field of an item of the block's
+ * own list (`f.list()`) that the component draws itself. The block is the nearest block around the
+ * element (`<CmsBlocks>` marks it).
+ */
+export function cmsFieldAttrs(field: string, item?: string | null): Record<string, string> {
+  if (!isCmsFieldName(field)) return {}
+  return item === undefined || item === null || item === '' ? { 'data-cms-field': field } : { 'data-cms-field': field, 'data-cms-item': String(item) }
+}
+
+/** The field an element marks (`cmsFieldAttrs`), or `null`. */
+export function cmsFieldOf(el: { getAttribute: (name: string) => string | null }): { field: string; item: string | null } | null {
+  const field = el.getAttribute('data-cms-field')
+  if (!isCmsFieldName(field)) return null
+  const item = el.getAttribute('data-cms-item')
+  return { field, item: item && isId(item) ? item : null }
+}
+
+/** A node as `cmsTextOf` reads it: a DOM node, or anything shaped like one. */
+export interface CmsTextNode {
+  nodeType: number
+  nodeName: string
+  nodeValue: string | null
+  childNodes: ArrayLike<CmsTextNode>
+  getAttribute?: (name: string) => string | null
+}
+
+const BLOCKS = new Set(['P', 'DIV', 'LI', 'UL', 'OL', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'PRE', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'TABLE', 'TR', 'DT', 'DD'])
+const PARA = '\u0001'
+const LINE = '\u0002'
+const BREAK = '\u0003'
+
+/**
+ * The text an element holds as a plain-text field's value, never its HTML: its text in order, a `<br>`
+ * a line break (the last one of a block is the browser's own and does not count), a paragraph a blank
+ * line and another block a line break. An element marked `contenteditable="false"` (a decoration kept
+ * beside the text) does not count. `lines: false` keeps one line (breaks become spaces). At most `max`
+ * characters, a pair of surrogates never cut in two.
+ */
+export function cmsTextOf(root: CmsTextNode, options: { lines: boolean; max?: number }): string {
+  const walk = (n: CmsTextNode): string => {
+    if (n.nodeType === 3) return (n.nodeValue ?? '').replace(/[\u0001-\u0003]/g, '')
+    if (n.nodeType !== 1) return ''
+    if (n.getAttribute?.('contenteditable') === 'false') return ''
+    const name = n.nodeName.toUpperCase()
+    if (name === 'BR') return BREAK
+    let inner = ''
+    for (let i = 0; i < n.childNodes.length; i++) inner += walk(n.childNodes[i]!)
+    if (!BLOCKS.has(name)) return inner
+    const mark = name === 'P' ? PARA : LINE
+    return mark + inner + mark
+  }
+  let text = ''
+  for (let i = 0; i < root.childNodes.length; i++) text += walk(root.childNodes[i]!)
+  text = text
+    // The browser's own <br> at the end of a block (or of everything) holds the line open; it is no line of its own.
+    .replace(new RegExp(`${BREAK}(?=[${PARA}${LINE}]|$)`, 'g'), '')
+    .replace(new RegExp(BREAK, 'g'), '\n')
+    .replace(new RegExp(`^[${PARA}${LINE}]+|[${PARA}${LINE}]+$`, 'g'), '')
+    .replace(new RegExp(`[${PARA}${LINE}]+`, 'g'), (run) => (run.includes(PARA) ? '\n\n' : '\n'))
+    .replace(/\r\n?/g, '\n')
+  return cmsTextClip(text, options)
+}
+
+/** A plain-text value as a field takes it: one line when it has one (breaks become spaces), at most `max` characters. */
+export function cmsTextClip(text: string, options: { lines: boolean; max?: number }): string {
+  let out = text.replace(/\r\n?/g, '\n')
+  if (!options.lines) out = out.replace(/\n+/g, ' ')
+  if (options.max !== undefined && out.length > options.max) {
+    out = out.slice(0, options.max)
+    if (/[\uD800-\uDBFF]$/.test(out)) out = out.slice(0, -1)
+  }
+  return out
+}
+
+/**
+ * A field's value in the form's values (`data` of the `cms:preview` message): the block with the last id
+ * of `path`, wherever it is in them, and its field, or the field of its item `item`. `undefined` when
+ * the block, the item or the field is not there.
+ */
+export function cmsBuilderFieldValue(data: unknown, path: CmsBuilderPath, field: string, item: string | null = null): unknown {
+  const id = path[path.length - 1]
+  if (!id) return undefined
+  const find = (v: unknown, want: string, depth: number): Record<string, unknown> | undefined => {
+    if (depth > 12) return undefined
+    if (Array.isArray(v)) {
+      for (const x of v) {
+        const hit = find(x, want, depth + 1)
+        if (hit) return hit
+      }
+      return undefined
+    }
+    if (!isObject(v)) return undefined
+    if (v.id === want) return v
+    for (const x of Object.values(v)) {
+      if (typeof x !== 'object' || x === null) continue
+      const hit = find(x, want, depth + 1)
+      if (hit) return hit
+    }
+    return undefined
+  }
+  const block = find(data, id, 0)
+  if (!block) return undefined
+  if (item === null) return Object.hasOwn(block, field) ? block[field] : undefined
+  for (const x of Object.values(block)) {
+    if (!Array.isArray(x)) continue
+    const found = x.find((i) => isObject(i) && i.id === item) as Record<string, unknown> | undefined
+    if (found) return Object.hasOwn(found, field) ? found[field] : undefined
+  }
+  return undefined
+}
+
+/** What the page knows of a block's field (from its kind): the field itself, or the field of an item of one of its lists. */
+export function cmsBuilderFieldInfo(kind: CmsBuilderKind | null | undefined, field: string, item: string | null): CmsBuilderField | null {
+  const fields = kind?.fields
+  if (!fields) return null
+  if (item === null) return Object.hasOwn(fields, field) ? fields[field]! : null
+  for (const f of Object.values(fields)) if (f.items && Object.hasOwn(f.items, field)) return f.items[field]!
+  return null
 }
 
 /** Where a place is in a list of ids, as the index to insert at; `null` when its block is not in the list. The end of a list is its length. */

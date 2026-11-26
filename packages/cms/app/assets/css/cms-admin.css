@@ -453,6 +453,27 @@ html[data-cms-admin] .cms-editor__preview { display: none; }
 @media (min-width: 1536px) {
   html[data-cms-admin] .cms-editor--split { grid-template-columns: minmax(24rem, 34rem) minmax(0, 1fr); }
 }
+/* A larger preview (the editor in the preview): the page takes the form's room. A selected block's panel
+   (the form column, which shows it alone) slides over the preview's left edge as a sheet. */
+@media (min-width: 1024px) {
+  html[data-cms-admin] .cms-editor--split.cms-editor--large { position: relative; grid-template-columns: minmax(0, 1fr); }
+  html[data-cms-admin] .cms-editor--large .cms-editor__main,
+  html[data-cms-admin] .cms-editor--large .cms-editor__aside { display: none; }
+  html[data-cms-admin] .cms-editor--large .cms-editor__preview { grid-column: 1; padding-left: 1.5rem; }
+  html[data-cms-admin] .cms-editor--large.cms-editor--sheet .cms-editor__main {
+    display: block; position: absolute; z-index: 30; inset: 3.25rem auto 0 0; width: min(28rem, 46%); overflow-y: auto;
+    padding: 1.5rem 1.5rem 2rem; background: var(--ui-bg); border: 1px solid var(--ui-border); border-left: 0; border-radius: 0 0.75rem 0 0;
+    box-shadow: 12px 0 32px -18px rgb(0 0 0 / 0.28);
+    animation: cms-sheet-in 200ms cubic-bezier(.2,.7,.2,1);
+  }
+  html[data-cms-admin] .cms-editor__sheet-close { position: absolute; top: 0.75rem; right: 0.75rem; z-index: 1; }
+}
+html[data-cms-admin] .cms-editor__sheet-close { display: none; }
+html[data-cms-admin] .cms-editor--sheet .cms-editor__sheet-close { display: inline-flex; }
+@keyframes cms-sheet-in { from { transform: translateX(-16px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  html[data-cms-admin] .cms-editor--large.cms-editor--sheet .cms-editor__main { animation: none; }
+}
 
 /* Write: the text gets the room, in a slightly wider centred column. */
 html[data-cms-admin] .cms-editor--write .cms-editor__column { max-width: 42rem; }
