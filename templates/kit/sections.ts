@@ -1,6 +1,6 @@
 // The page blocks the kit draws for every look (docs/builder-plan.md): the two blocks of a
 // site's own content types, with the choices an owner has for how they are shown, and the
-// sections (Text and picture, Cards, Questions, Layout), which belong to no template.
+// sections (Text and picture, Cards, Questions, Layout, List with your own card), which belong to no template.
 //
 //   import { kitEntryBlocks, kitSections } from 'tinyzoo-template-kit/sections'
 //   export const Page = definePages({ blocks: { hero, text, ...kitEntryBlocks(), ...kitSections() } })
@@ -9,7 +9,8 @@
 // on a wide screen, two on a tablet and one on a phone. The owner sets nothing per screen size.
 // An empty choice is the default (app/utils/customTypes.ts reads them), so a block saved before
 // a choice existed is drawn as a new one. Blocks are stored in one column: no migration.
-import { customTypeBlocks, defineBlock, f } from 'tinyzoo'
+import { customTypeBlocks, customTypeCard, customTypeFieldRef, defineBlock, f } from 'tinyzoo'
+import { CARD_ARRANGEMENTS, CARD_COLUMNS, CARD_DATE_FORMS, CARD_GROUP_ARRANGEMENTS, CARD_GROUP_MAX, CARD_HEADING_SIZES, CARD_MAX, CARD_PICTURE_SHAPES, CARD_SURFACES, CARD_TAKES, CARD_TEXT_SIZES } from './app/utils/card'
 
 /** How many cards stand side by side at most. The default is the first. */
 export const ENTRY_COLUMNS = ['3', '2', '4'] as const
@@ -274,6 +275,109 @@ function smallBlocks() {
   }
 }
 
+/** The width of a block of a card (the card's blocks are their own definitions, not Layout's). */
+function cardSize(fallback: 'fill' | 'content' = 'fill') {
+  return itemSize(fallback)
+}
+
+/** The field a small block of a card shows: one of the bound type's fields whose kind the block takes (CARD_TAKES). */
+function cardField(block: keyof typeof CARD_TAKES, label = { en: 'Content from', cs: 'Obsah bere z', de: 'Inhalt aus' }) {
+  return customTypeFieldRef({ takes: CARD_TAKES[block] }).label(label)
+}
+
+const ownText = (multiline = false) => f.text(multiline ? { multiline: true } : {}).label({ en: 'Own text', cs: 'Vlastní text', de: 'Eigener Text' })
+  .help({
+    en: 'Shown when no field is chosen, the same on every card.',
+    cs: 'Zobrazí se, když není vybrané pole, na každé kartě stejný.',
+    de: 'Wird gezeigt, wenn kein Feld gewählt ist, auf jeder Karte gleich.',
+  })
+
+/** The small blocks of a card: each shows one field of the bound type, or a text of its own. */
+function cardBlocks() {
+  return {
+    heading: defineBlock({
+      label: { en: 'Heading', cs: 'Nadpis', de: 'Überschrift' },
+      icon: 'i-lucide-heading',
+      fields: {
+        field: cardField('heading'),
+        text: ownText(),
+        level: f.select({
+          options: ['large', 'medium', 'small'],
+          default: CARD_HEADING_SIZES[0],
+          segments: true,
+          labels: {
+            large: { en: 'Large', cs: 'Velký', de: 'Groß' },
+            medium: { en: 'Medium', cs: 'Střední', de: 'Mittel' },
+            small: { en: 'Small', cs: 'Malý', de: 'Klein' },
+          },
+        }).label({ en: 'Size', cs: 'Velikost', de: 'Größe' }).setting(),
+        size: cardSize(),
+      },
+    }),
+    text: defineBlock({
+      label: { en: 'Text', cs: 'Text', de: 'Text' },
+      icon: 'i-lucide-text',
+      fields: {
+        field: cardField('text'),
+        text: ownText(true),
+        before: f.text().label({ en: 'Before a number', cs: 'Před číslem', de: 'Vor der Zahl' }),
+        after: f.text().label({ en: 'After a number', cs: 'Za číslem', de: 'Nach der Zahl' }),
+        date: f.select({
+          options: [...CARD_DATE_FORMS],
+          default: CARD_DATE_FORMS[0],
+          segments: true,
+          labels: {
+            long: { en: '14 March 2027', cs: '14. března 2027', de: '14. März 2027' },
+            short: { en: '14/03/2027', cs: '14. 3. 2027', de: '14.3.2027' },
+            weekday: { en: 'Sun 14/03', cs: 'ne 14. 3.', de: 'So., 14.3.' },
+          },
+        }).label({ en: 'A date as', cs: 'Datum jako', de: 'Datum als' }).setting(),
+        scale: f.select({
+          options: ['larger', 'normal', 'small'],
+          default: CARD_TEXT_SIZES[0],
+          segments: true,
+          labels: {
+            larger: { en: 'Larger', cs: 'Větší', de: 'Größer' },
+            normal: { en: 'Normal', cs: 'Běžná', de: 'Normal' },
+            small: { en: 'Small', cs: 'Drobná', de: 'Klein' },
+          },
+        }).label({ en: 'Type size', cs: 'Velikost písma', de: 'Schriftgröße' }).setting(),
+        size: cardSize(),
+      },
+    }),
+    picture: defineBlock({
+      label: { en: 'Picture', cs: 'Obrázek', de: 'Bild' },
+      icon: 'i-lucide-image',
+      fields: {
+        field: cardField('picture'),
+        shape: f.select({
+          options: ['original', 'landscape', 'square', 'portrait'],
+          default: CARD_PICTURE_SHAPES[0],
+          segments: true,
+          labels: {
+            original: { en: 'Original', cs: 'Původní', de: 'Original' },
+            landscape: { en: 'Landscape', cs: 'Na šířku', de: 'Querformat' },
+            square: { en: 'Square', cs: 'Čtverec', de: 'Quadrat' },
+            portrait: { en: 'Portrait', cs: 'Na výšku', de: 'Hochformat' },
+          },
+          icons: { original: 'i-lucide-image', landscape: 'i-lucide-rectangle-horizontal', square: 'i-lucide-square', portrait: 'i-lucide-rectangle-vertical' },
+        }).label({ en: 'Shape', cs: 'Tvar', de: 'Form' }).setting(),
+        size: cardSize(),
+      },
+    }),
+    button: defineBlock({
+      label: { en: 'Button', cs: 'Tlačítko', de: 'Knopf' },
+      icon: 'i-lucide-mouse-pointer-click',
+      fields: {
+        field: cardField('button', { en: 'Leads to', cs: 'Vede na', de: 'Führt zu' }),
+        label: f.text().label({ en: 'Button text', cs: 'Text tlačítka', de: 'Text des Knopfs' })
+          .help({ en: 'The same on every card.', cs: 'Na každé kartě stejný.', de: 'Auf jeder Karte gleich.' }),
+        size: cardSize('content'),
+      },
+    }),
+  }
+}
+
 /**
  * The kit's sections: blocks no template has, drawn by the kit in the look's own frame
  * (BlockSectionTextPicture, BlockSectionCards, BlockSectionQuestions, BlockSectionLayout). Spread them next to
@@ -282,6 +386,10 @@ function smallBlocks() {
  * Layout holds small blocks (a heading, a text, a picture, a button) and groups of them, in a row,
  * a stack or a grid: three levels at most (page, section, group), written out, not recursive. Its
  * settings are choices from short lists; nothing is set in pixels or per screen size.
+ *
+ * List with your own card shows the entries of one of the site's own types (`customTypeCard()`) with a
+ * card the owner designs from small blocks of its own, each naming the field it shows
+ * (`customTypeFieldRef()`, the kinds of CARD_TAKES). Without the site's own types the admin leaves it out.
  */
 export function kitSections() {
   return {
@@ -412,6 +520,89 @@ export function kitSections() {
             en: 'For a grid. On a wide screen; narrow screens show fewer, a phone shows one.',
             cs: 'Pro mřížku. Na široké obrazovce; na užší jich je méně, na telefonu jeden.',
             de: 'Für ein Raster. Auf einem breiten Bildschirm; schmalere zeigen weniger, ein Telefon einen.',
+          })
+          .setting(),
+        ...sectionSettings(),
+      },
+    }),
+    section_list: defineBlock({
+      label: { en: 'List with your own card', cs: 'Seznam s vlastní kartou', de: 'Liste mit eigener Karte' },
+      description: {
+        en: 'The entries of one of your content types, each on a card you design.',
+        cs: 'Záznamy jednoho z vašich typů obsahu, každý na kartě, kterou si navrhnete.',
+        de: 'Die Einträge eines Ihrer Inhaltstypen, jeder auf einer Karte, die Sie gestalten.',
+      },
+      icon: 'i-lucide-layout-list',
+      fields: {
+        heading: heading(),
+        text: shortText(),
+        source: customTypeCard().label({ en: 'What it shows', cs: 'Co zobrazuje', de: 'Was er zeigt' }),
+        items: f.blocks({
+          ...cardBlocks(),
+          group: defineBlock({
+            label: { en: 'Group', cs: 'Skupina', de: 'Gruppe' },
+            description: {
+              en: 'Blocks of the card side by side or one under another, as one block of it.',
+              cs: 'Bloky karty vedle sebe nebo pod sebou, jako jeden její blok.',
+              de: 'Blöcke der Karte nebeneinander oder untereinander, als einer ihrer Blöcke.',
+            },
+            icon: 'i-lucide-group',
+            fields: {
+              items: f.blocks(cardBlocks(), { max: CARD_GROUP_MAX }).label({ en: 'Blocks', cs: 'Bloky', de: 'Blöcke' }),
+              arrangement: f.select({ options: ['row', 'stack'], default: CARD_GROUP_ARRANGEMENTS[0], segments: true, labels: ARRANGEMENT_LABELS, icons: ARRANGEMENT_ICONS })
+                .label(arrangementLabel).help(arrangementHelp).setting(),
+              space: spacing().space,
+              size: cardSize(),
+            },
+          }),
+        }, { max: CARD_MAX }).label({ en: 'Card', cs: 'Karta', de: 'Karte' })
+          .help({
+            en: 'One card, repeated for every entry.',
+            cs: 'Jedna karta, opakuje se pro každý záznam.',
+            de: 'Eine Karte, für jeden Eintrag wiederholt.',
+          }),
+        arrangement: f.select({
+          options: [...CARD_ARRANGEMENTS],
+          default: CARD_ARRANGEMENTS[0],
+          segments: true,
+          labels: {
+            cards: { en: 'Cards', cs: 'Karty', de: 'Karten' },
+            rows: { en: 'Rows', cs: 'Řádky', de: 'Zeilen' },
+          },
+          icons: { cards: 'i-lucide-layout-grid', rows: 'i-lucide-rows-3' },
+        }).label({ en: 'Entries as', cs: 'Záznamy jako', de: 'Einträge als' })
+          .help({
+            en: 'Rows: one entry per line, its first picture at the side. Where there is not enough room, the picture is above.',
+            cs: 'Řádky: jeden záznam na řádek, jeho první obrázek po straně. Kde není dost místa, je obrázek nahoře.',
+            de: 'Zeilen: ein Eintrag pro Zeile, sein erstes Bild seitlich. Wo der Platz nicht reicht, steht das Bild darüber.',
+          })
+          .setting(),
+        columns: f.select({
+          options: ['2', '3', '4'],
+          default: CARD_COLUMNS[0],
+          segments: true,
+          labels: { 2: { en: '2', cs: '2', de: '2' }, 3: { en: '3', cs: '3', de: '3' }, 4: { en: '4', cs: '4', de: '4' } },
+        }).label({ en: 'Most side by side', cs: 'Nejvíc vedle sebe', de: 'Höchstens nebeneinander' })
+          .help({
+            en: 'For cards. On a wide screen; narrow screens show fewer, a phone shows one.',
+            cs: 'Pro karty. Na široké obrazovce; na užší jich je méně, na telefonu jedna.',
+            de: 'Für Karten. Auf einem breiten Bildschirm; schmalere zeigen weniger, ein Telefon eine.',
+          })
+          .setting(),
+        space: spacing().space,
+        surface: f.select({
+          options: [...CARD_SURFACES],
+          default: CARD_SURFACES[0],
+          segments: true,
+          labels: {
+            soft: { en: 'Soft background', cs: 'Jemný podklad', de: 'Sanfter Hintergrund' },
+            none: { en: 'None', cs: 'Bez podkladu', de: 'Ohne' },
+          },
+        }).label({ en: 'Behind each card', cs: 'Pod každou kartou', de: 'Hinter jeder Karte' })
+          .help({
+            en: 'A soft background is a faint tint of the text colour.',
+            cs: 'Jemný podklad je slabý nádech barvy textu.',
+            de: 'Ein sanfter Hintergrund ist ein schwacher Hauch der Textfarbe.',
           })
           .setting(),
         ...sectionSettings(),

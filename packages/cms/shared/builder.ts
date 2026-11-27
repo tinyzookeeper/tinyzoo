@@ -55,6 +55,12 @@ export interface CmsBuilderTexts {
   untitled?: string
   /** Since 2g: what the page says while content from elsewhere is typed in ("The change shows everywhere this appears."). */
   shared?: string
+  /** Since 3b: the words of a card's placeholders (a list with a card of the owner's own). `fieldMissing` and `fieldUnfit` hold `{name}`. */
+  chooseField?: string
+  fieldMissing?: string
+  fieldUnfit?: string
+  emptyCard?: string
+  sampleCard?: string
 }
 
 /** One type of block the page may hold in a list: its name, and its own list if it has one. */
@@ -203,7 +209,7 @@ export function cmsBuilderPathOf(message: { id: string; path?: CmsBuilderPath })
 }
 
 const TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['drag', 'moveUp', 'moveDown', 'duplicate', 'remove', 'insertHere']
-const MORE_TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['moveLeft', 'moveRight', 'addBlock', 'blank', 'edit', 'more', 'openIn', 'untitled', 'shared']
+const MORE_TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['moveLeft', 'moveRight', 'addBlock', 'blank', 'edit', 'more', 'openIn', 'untitled', 'shared', 'chooseField', 'fieldMissing', 'fieldUnfit', 'emptyCard', 'sampleCard']
 const KEYS: CmsBuilderKey[] = ['Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
 const isScale = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x >= 0.1 && x <= 4
 

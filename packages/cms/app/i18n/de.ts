@@ -832,6 +832,13 @@ export default {
     toFix: { one: '{count} zu prüfen', other: '{count} zu prüfen' },
     blank: 'Noch nichts zu sehen',
   },
+  builderCard: {
+    chooseField: 'Feld wählen',
+    fieldMissing: 'Feld {name} fehlt',
+    fieldUnfit: 'Feld {name} passt hier nicht',
+    emptyCard: 'Die Karte ist leer. Fügen Sie ein Feld oder einen Block hinzu.',
+    sampleCard: 'Beispielkarte: dieser Typ hat noch keine Einträge',
+  },
   builderSources: {
     title: 'Inhalt von anderswo',
     fromCollection: 'Dieser Abschnitt zeigt Einträge aus {name}.',

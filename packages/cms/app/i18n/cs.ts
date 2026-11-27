@@ -891,6 +891,13 @@ export default {
     toFix: { one: '{count} k opravě', few: '{count} k opravě', many: '{count} k opravě', other: '{count} k opravě' },
     blank: 'Zatím tu nic není vidět',
   },
+  builderCard: {
+    chooseField: 'Vyberte pole',
+    fieldMissing: 'Pole {name} chybí',
+    fieldUnfit: 'Pole {name} se sem nehodí',
+    emptyCard: 'Karta je prázdná. Přidejte do ní pole nebo blok.',
+    sampleCard: 'Ukázková karta: tento typ zatím nemá žádné záznamy',
+  },
   builderSources: {
     title: 'Obsah odjinud',
     fromCollection: 'Tato sekce ukazuje záznamy ze sekce {name}.',

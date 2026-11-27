@@ -834,6 +834,13 @@ export default {
     toFix: { one: '{count} to fix', other: '{count} to fix' },
     blank: 'Nothing to show yet',
   },
+  builderCard: {
+    chooseField: 'Choose a field',
+    fieldMissing: 'Field {name} is missing',
+    fieldUnfit: 'Field {name} does not fit here',
+    emptyCard: 'The card is empty. Add a field or a block to it.',
+    sampleCard: 'Sample card: this type has no entries yet',
+  },
   builderSources: {
     title: 'Content from elsewhere',
     fromCollection: 'This section shows entries from {name}.',

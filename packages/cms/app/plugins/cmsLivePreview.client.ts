@@ -30,7 +30,9 @@ export default defineNuxtPlugin((nuxtApp) => {
       const message = e.data
       void hydrated.then(() => {
         if (message.type === 'cms:builder:on') {
-          cmsBuilderWords.value = { names: cmsBuilderNames(message.labels, message.lists), blank: message.texts.blank ?? '' }
+          cmsBuilderWords.value = { names: cmsBuilderNames(message.labels, message.lists), blank: message.texts.blank ?? '',
+            texts: { chooseField: message.texts.chooseField ?? '', fieldMissing: message.texts.fieldMissing ?? '', fieldUnfit: message.texts.fieldUnfit ?? '', emptyCard: message.texts.emptyCard ?? '', sampleCard: message.texts.sampleCard ?? '' },
+          }
           cmsBuilderOn.value = true
           // What the page loads through the content API is kept while the tools are on (since 2f).
           return import('../builder/sources').then((sources) => sources.recordCmsContent(nuxtApp)).then(() => import('../builder/overlay'))

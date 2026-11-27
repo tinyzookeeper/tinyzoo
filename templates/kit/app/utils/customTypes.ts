@@ -6,6 +6,7 @@
 //
 // Drawing never fails: a binding that names a type the site does not have gives nothing to
 // draw, and a field the type no longer has is left out.
+import type { CustomFieldKind } from 'tinyzoo'
 import { dateParts, formatDate } from './format'
 
 /** Text a person reads, by language: `{ cs: 'Kurzy', en: 'Courses' }`. */
@@ -15,6 +16,8 @@ export type CustomLabel = Record<string, string>
 export interface CustomTypeField {
   key: string
   type: 'text' | 'richtext' | 'number' | 'boolean' | 'datetime' | 'select' | 'media' | 'file' | 'gallery' | 'color' | 'relation' | (string & {})
+  /** What a block that shows it sees (tinyzoo's customFieldKind); null for a kind tinyzoo does not know. Given since part 3a. */
+  kind?: CustomFieldKind | null
   label: CustomLabel
   help?: CustomLabel | null
   long?: boolean
@@ -248,10 +251,19 @@ export function customBlockPlan(block: unknown, types: CustomType[] | null | und
     if (!ids.length) return { ok: false, reason: 'no entries are chosen' }
     return { ok: true, type, show, layout, columns, picture, heading, text, request: { kind: 'chosen', paths: ids.map((id) => `${base}/${encodeURIComponent(id)}`) } }
   }
-  const raw = Number(binding.limit)
+  return { ok: true, type, show, layout, columns, picture, heading, text, request: customListRequest(type, binding) }
+}
+
+/**
+ * The request for a list of a type's entries: the binding's order, else the type's own order, else the
+ * API's default (a type arranged by hand comes in that order by itself); the binding's limit, else 6, at most 48.
+ */
+export function customListRequest(type: CustomType, binding: unknown): Extract<CustomRequest, { kind: 'list' }> {
+  const b = isObject(binding) ? binding : {}
+  const raw = Number(b.limit)
   const limit = Number.isInteger(raw) && raw >= 1 ? Math.min(raw, CUSTOM_LIST_MAX) : CUSTOM_LIST_LIMIT
-  const order = validOrder(type, binding.order) ?? (type.order === 'manual' ? null : validOrder(type, type.order))
-  return { ok: true, type, show, layout, columns, picture, heading, text, request: { kind: 'list', path: base, query: { limit, ...(order ? { sort: order.by, dir: order.dir } : {}) } } }
+  const order = validOrder(type, b.order) ?? (type.order === 'manual' ? null : validOrder(type, type.order))
+  return { kind: 'list', path: `/api/content/${encodeURIComponent(type.name)}`, query: { limit, ...(order ? { sort: order.by, dir: order.dir } : {}) } }
 }
 
 /** One entry as a card or a row draws it. Each part is null or empty when the entry has nothing for it. */

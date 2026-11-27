@@ -27,7 +27,10 @@ export const cmsBuilderBlocks = new Map<string, Record<string, unknown>>()
 export const cmsBuilderInstances = new Map<string, ComponentInternalInstance>()
 
 /** The admin's names of the block types and its word for a block that draws nothing, for what the page draws while the tool is on. */
-export const cmsBuilderWords = shallowRef<{ names: Record<string, string>; blank: string }>({ names: {}, blank: '' })
+export const cmsBuilderWords = shallowRef<{ names: Record<string, string>; blank: string; texts: CmsBuilderCardTexts }>({ names: {}, blank: '', texts: { chooseField: '', fieldMissing: '', fieldUnfit: '', emptyCard: '', sampleCard: '' } })
+
+/** Since 3b: the admin's words for a card's placeholders (`fieldMissing` and `fieldUnfit` hold `{name}`); `''` for a word the admin did not send. */
+export interface CmsBuilderCardTexts { chooseField: string; fieldMissing: string; fieldUnfit: string; emptyCard: string; sampleCard: string }
 
 /**
  * The form's values as the admin last sent them (`cms:preview`), and who wants to hear of the next ones:

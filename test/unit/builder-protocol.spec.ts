@@ -13,6 +13,7 @@ describe('builder messages to the page', () => {
   it('accepts the two messages of the admin', () => {
     expect(isCmsBuilderToPage({ type: 'cms:builder:on', labels: { hero: 'Hero' }, texts, selected: null })).toBe(true)
     expect(isCmsBuilderToPage({ type: 'cms:builder:on', labels: {}, texts, selected: 'x' })).toBe(true)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:on', labels: {}, texts: { ...texts, chooseField: 'a', fieldMissing: 'b {name}', fieldUnfit: 'c', emptyCard: 'd', sampleCard: 'e' }, selected: null })).toBe(true)
     expect(isCmsBuilderToPage({ type: 'cms:builder:select', id: 'x', scroll: true })).toBe(true)
     expect(isCmsBuilderToPage({ type: 'cms:builder:select', id: null, scroll: false })).toBe(true)
   })
@@ -23,6 +24,7 @@ describe('builder messages to the page', () => {
     expect(isCmsBuilderToPage({ type: 'cms:preview' })).toBe(false)
     expect(isCmsBuilderToPage({ type: 'cms:builder:on', labels: { hero: 1 }, texts, selected: null })).toBe(false)
     expect(isCmsBuilderToPage({ type: 'cms:builder:on', labels: {}, texts: { drag: 'a' }, selected: null })).toBe(false)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:on', labels: {}, texts: { ...texts, emptyCard: 1 }, selected: null })).toBe(false)
     expect(isCmsBuilderToPage({ type: 'cms:builder:on', labels: {}, texts, selected: '' })).toBe(false)
     expect(isCmsBuilderToPage({ type: 'cms:builder:on', labels: [], texts, selected: null })).toBe(false)
     expect(isCmsBuilderToPage({ type: 'cms:builder:select', id: 'x' })).toBe(false)

@@ -179,6 +179,8 @@ function sendOn() {
       moveLeft: t('blocks.moveLeft'), moveRight: t('blocks.moveRight'), addBlock: t('blocks.pickerTitle'), blank: t('builderPanel.blank'),
       edit: t('builderSources.edit'), more: t('builderSources.more'), openIn: t('builderSources.openIn', { name: '{name}' }), untitled: t('common.untitled'),
       shared: t('builderPending.shared'),
+      chooseField: t('builderCard.chooseField'), fieldMissing: t('builderCard.fieldMissing', { name: '{name}' }),
+      fieldUnfit: t('builderCard.fieldUnfit', { name: '{name}' }), emptyCard: t('builderCard.emptyCard'), sampleCard: t('builderCard.sampleCard'),
     },
     selected: bridge.selected.value,
     selectedPath: bridge.selectedPath.value,

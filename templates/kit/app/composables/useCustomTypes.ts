@@ -1,3 +1,4 @@
+import type { Ref } from 'vue'
 import type { CustomType } from '../utils/customTypes'
 
 // The site's own content types (custom types), from `GET /api/content/_types`: fetched once per
@@ -63,5 +64,46 @@ export async function useCustomBlock(block: () => Record<string, any>, kind: 'en
   const cards = computed(() => (plan.value.ok ? customCards(data.value ?? [], plan.value, { lang: custom.lang, types: custom.types.value }) : []))
   if (!plan.value.ok) warn(plan.value.reason)
   else if (!cards.value.length) warn('no entries')
+  return { plan, cards }
+}
+
+/**
+ * The cards of a list with a card of its own (`section_list`): its plan (cardListPlan) and one card
+ * per entry (cardEntries), the entries fetched on the server with a key of the block's own, so the
+ * page comes drawn complete. No cards when the block names no type or one the site does not have, or
+ * when the request fails; while `editing` the readers give a sample card (no entries) or an empty card.
+ *
+ * `custom` is what `await useCustomTypes()` gave the component, and `editing` is useCmsEditing():
+ * Nuxt's composables keep their context across an `await` of a component's setup, not across one
+ * inside another composable.
+ */
+export async function useCustomCard(block: () => Record<string, any>, custom: Awaited<ReturnType<typeof useCustomTypes>>, editing: Ref<boolean>) {
+  const route = useRoute()
+  const fetcher = useRequestFetch()
+  const plan = computed(() => cardListPlan(block(), custom.types.value, custom.lang))
+  // A draft is previewed with ?preview, as for useCustomBlock.
+  const query = 'preview' in route.query ? { preview: '' } : {}
+  const warn = (why: string) => { if (import.meta.dev) console.warn(`[${block()?.type ?? 'section_list'}] block ${block()?.id ?? ''} draws nothing: ${why}`) }
+  const { data } = await useAsyncData(
+    () => `custom-card:${block()?.id ?? ''}:${plan.value.ok ? JSON.stringify(plan.value.request) : ''}`,
+    async () => {
+      const p = plan.value
+      if (!p.ok) return []
+      const get = fetcher as (url: string, opts: { query: Record<string, unknown> }) => Promise<any>
+      try {
+        const res = await get(p.request.path, { query: { ...p.request.query, ...query } })
+        return Array.isArray(res?.items) ? res.items : []
+      }
+      catch (err: any) {
+        warn(`the content API answered ${err?.statusCode ?? err?.message ?? err}`)
+        return []
+      }
+    },
+  )
+  const cards = computed(() => {
+    const p = plan.value
+    return p.ok ? cardEntries(p, data.value ?? [], { lang: custom.lang, editing: editing.value }) : []
+  })
+  if (!plan.value.ok) warn(plan.value.reason)
   return { plan, cards }
 }

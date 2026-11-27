@@ -4,6 +4,9 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { BUTTON_SIZES, GROUP_ARRANGEMENTS, GROUP_MAX, HEADING_SIZES, kitSections, LAYOUT_ALIGNS, LAYOUT_ARRANGEMENTS, LAYOUT_COLUMNS, LAYOUT_MAX, LAYOUT_SIZES, LAYOUT_SPACES, PICTURE_SHAPES, SECTION_ANSWERS, SECTION_SIDES, SECTION_SIZES, SECTION_WIDTHS } from '../../templates/kit/sections'
+import {
+  CARD_ARRANGEMENTS, CARD_COLUMNS, CARD_DATE_FORMS, CARD_GROUP_ARRANGEMENTS, CARD_GROUP_MAX, CARD_HEADING_SIZES, CARD_MAX, CARD_PICTURE_SHAPES, CARD_SIZES, CARD_SPACES, CARD_SURFACES, CARD_TAKES, CARD_TEXT_SIZES,
+} from '../../templates/kit/app/utils/card'
 import { cardsPlan, pictureRatio, questionsPlan, sectionLook, textPicturePlan } from '../../templates/kit/app/utils/sections'
 import { GROUP_MOST, LAYOUT_MOST, layoutBox, layoutClasses, layoutItem, layoutPlan, ownRatio } from '../../templates/kit/app/utils/layout'
 
@@ -18,8 +21,8 @@ const fieldsOf = (name: keyof ReturnType<typeof kitSections>) => kitSections()[n
 describe('the kit\'s sections: the blocks', () => {
   const blocks = kitSections()
 
-  it('are four, named with the prefix section_', () => {
-    expect(Object.keys(blocks)).toEqual(['section_text_picture', 'section_cards', 'section_questions', 'section_layout'])
+  it('are five, named with the prefix section_', () => {
+    expect(Object.keys(blocks)).toEqual(['section_text_picture', 'section_cards', 'section_questions', 'section_layout', 'section_list'])
   })
 
   it('have their fields in this order, the shared settings last', () => {
@@ -27,6 +30,7 @@ describe('the kit\'s sections: the blocks', () => {
     expect(Object.keys(blocks.section_cards.fields)).toEqual(['heading', 'text', 'items', 'columns', 'picture', 'width', 'close'])
     expect(Object.keys(blocks.section_questions.fields)).toEqual(['heading', 'text', 'items', 'answers', 'width', 'close'])
     expect(Object.keys(blocks.section_layout.fields)).toEqual(['items', 'arrangement', 'space', 'align', 'columns', 'width', 'close'])
+    expect(Object.keys(blocks.section_list.fields)).toEqual(['heading', 'text', 'source', 'items', 'arrangement', 'columns', 'space', 'surface', 'width', 'close'])
   })
 
   it('offer their choices, the default first', () => {
@@ -441,6 +445,148 @@ describe('layout: how it is drawn', () => {
     for (const s of selectors) {
       expect(s, s).toMatch(/^\.kit-section /)
       expect((s.match(/\.[a-z][a-z0-9-]*/g) ?? []).length, s).toBeGreaterThanOrEqual(3)
+    }
+  })
+})
+
+describe('list with your own card: the block', () => {
+  const list = kitSections().section_list as unknown as { label: Record<string, string>; icon: string; fields: Record<string, Field> }
+  const items = list.fields.items!
+  const group = items.blocks!.group!
+  const settingsOf = (fields: Record<string, Field>) => Object.entries(fields).filter(([, f]) => f.meta.setting === true).map(([k]) => k)
+  const defaultOf = (field: Field) => (field as unknown as { default?: string }).default
+  const small = ['heading', 'text', 'picture', 'button'] as const
+  // every small block, at both levels
+  const everywhere: [string, { label: Record<string, string>; fields: Record<string, Field> }][] = [
+    ...Object.entries(items.blocks!).map(([k, b]) => [k, b] as [string, typeof b]),
+    ...Object.entries(group.fields.items!.blocks!).map(([k, b]) => [`group.${k}`, b] as [string, typeof b]),
+  ]
+
+  it('is "List with your own card" in three languages, with a card binding as its source', () => {
+    expect(list.label).toEqual({ en: 'List with your own card', cs: 'Seznam s vlastní kartou', de: 'Liste mit eigener Karte' })
+    expect(list.icon).toMatch(/^i-lucide-/)
+    expect(list.fields.source!.type).toBe('binding')
+    expect(list.fields.source!.meta.binding).toBe('card')
+    expect(list.fields.source!.meta.label.cs).toBe('Co zobrazuje')
+  })
+
+  it('holds a heading, a text, a picture, a button and a group, at most 12, and a group holds no group', () => {
+    expect(items.type).toBe('blocks')
+    expect(Object.keys(items.blocks!)).toEqual(['heading', 'text', 'picture', 'button', 'group'])
+    expect(Object.keys(group.fields.items!.blocks!)).toEqual(['heading', 'text', 'picture', 'button'])
+    expect(CARD_MAX).toBe(12)
+    expect(CARD_GROUP_MAX).toBe(8)
+    expect((items as unknown as Meta).meta.max).toBe(CARD_MAX)
+    expect((group.fields.items as unknown as Meta).meta.max).toBe(CARD_GROUP_MAX)
+    expect(Object.fromEntries(Object.entries(items.blocks!).map(([k, b]) => [k, b.label.cs]))).toEqual({ heading: 'Nadpis', text: 'Text', picture: 'Obrázek', button: 'Tlačítko', group: 'Skupina' })
+    for (const b of Object.values(items.blocks!)) expect(Object.keys(b.label)).toEqual(['en', 'cs', 'de'])
+  })
+
+  it('names the field each small block shows, taking the kinds of CARD_TAKES at both levels', () => {
+    for (const [name, b] of everywhere) {
+      if (name === 'group') continue
+      const type = name.replace('group.', '') as keyof typeof CARD_TAKES
+      const ref = b.fields.field!
+      expect(ref.meta.format, name).toBe('field')
+      expect(ref.meta.ref.takes, name).toEqual([...CARD_TAKES[type]])
+      expect(ref.meta.setting, name).toBeUndefined()
+    }
+    expect(CARD_TAKES.button).toContain('page')
+    expect(CARD_TAKES.heading).not.toContain('page')
+  })
+
+  it('has the fields of each small block in this order, the settings last', () => {
+    for (const level of [items.blocks!, group.fields.items!.blocks!]) {
+      expect(Object.keys(level.heading!.fields)).toEqual(['field', 'text', 'level', 'size'])
+      expect(Object.keys(level.text!.fields)).toEqual(['field', 'text', 'before', 'after', 'date', 'scale', 'size'])
+      expect(Object.keys(level.picture!.fields)).toEqual(['field', 'shape', 'size'])
+      expect(Object.keys(level.button!.fields)).toEqual(['field', 'label', 'size'])
+      expect(settingsOf(level.heading!.fields)).toEqual(['level', 'size'])
+      expect(settingsOf(level.text!.fields)).toEqual(['date', 'scale', 'size'])
+      expect(settingsOf(level.picture!.fields)).toEqual(['shape', 'size'])
+      expect(settingsOf(level.button!.fields)).toEqual(['size'])
+    }
+    expect(Object.keys(group.fields)).toEqual(['items', 'arrangement', 'space', 'size'])
+    expect(settingsOf(group.fields)).toEqual(['arrangement', 'space', 'size'])
+    expect(settingsOf(list.fields)).toEqual(['arrangement', 'columns', 'space', 'surface', 'width', 'close'])
+  })
+
+  it('offers its choices, the constants listing the default first', () => {
+    expect(CARD_ARRANGEMENTS).toEqual(['cards', 'rows'])
+    expect(CARD_COLUMNS).toEqual(['3', '2', '4'])
+    expect(CARD_SPACES).toEqual(['medium', 'small', 'large'])
+    expect(CARD_SURFACES).toEqual(['soft', 'none'])
+    expect(CARD_HEADING_SIZES).toEqual(['medium', 'large', 'small'])
+    expect(CARD_TEXT_SIZES).toEqual(['normal', 'larger', 'small'])
+    expect(CARD_DATE_FORMS).toEqual(['long', 'short', 'weekday'])
+    expect(CARD_PICTURE_SHAPES).toEqual(['landscape', 'square', 'portrait', 'original'])
+    expect(CARD_GROUP_ARRANGEMENTS).toEqual(['row', 'stack'])
+    expect(CARD_SIZES).toEqual(['fill', 'content'])
+    const choices: [Field, readonly string[], readonly string[], string][] = [
+      [list.fields.arrangement!, ['cards', 'rows'], CARD_ARRANGEMENTS, 'arrangement'],
+      [list.fields.columns!, ['2', '3', '4'], CARD_COLUMNS, 'columns'],
+      [list.fields.space!, ['small', 'medium', 'large'], CARD_SPACES, 'space'],
+      [list.fields.surface!, ['soft', 'none'], CARD_SURFACES, 'surface'],
+      [group.fields.arrangement!, ['row', 'stack'], CARD_GROUP_ARRANGEMENTS, 'group arrangement'],
+      [group.fields.space!, ['small', 'medium', 'large'], CARD_SPACES, 'group space'],
+    ]
+    for (const level of [items.blocks!, group.fields.items!.blocks!]) {
+      choices.push(
+        [level.heading!.fields.level!, ['large', 'medium', 'small'], CARD_HEADING_SIZES, 'heading level'],
+        [level.text!.fields.date!, ['long', 'short', 'weekday'], CARD_DATE_FORMS, 'text date'],
+        [level.text!.fields.scale!, ['larger', 'normal', 'small'], CARD_TEXT_SIZES, 'text scale'],
+        [level.picture!.fields.shape!, ['original', 'landscape', 'square', 'portrait'], CARD_PICTURE_SHAPES, 'picture shape'],
+      )
+    }
+    for (const [field, options, constant, name] of choices) {
+      expect(field.meta.options, name).toEqual(options)
+      expect([...constant].sort(), name).toEqual([...options].sort())
+      expect(defaultOf(field), name).toBe(constant[0])
+    }
+  })
+
+  it('gives every small block and the group one size, a setting; a button is as wide as its text by default', () => {
+    for (const [name, b] of everywhere) {
+      expect(b.fields.size!.meta.options, name).toEqual(['fill', 'content'])
+      expect([...CARD_SIZES].sort(), name).toEqual([...b.fields.size!.meta.options].sort())
+      expect(defaultOf(b.fields.size!), name).toBe(name.endsWith('button') ? 'content' : CARD_SIZES[0])
+      expect(b.fields.size!.meta.setting, name).toBe(true)
+    }
+  })
+
+  it('draws every setting that is a choice of two to four as segments', () => {
+    const all: [string, Record<string, Field>][] = [['list', list.fields], ['group', group.fields], ...everywhere.map(([k, b]) => [k, b.fields] as [string, Record<string, Field>])]
+    for (const [name, fields] of all) {
+      for (const [key, field] of Object.entries(fields)) {
+        if (field.type !== 'select' || !field.meta.setting) continue
+        expect(field.meta.segments === true, `${name}.${key}`).toBe(field.meta.options.length >= 2 && field.meta.options.length <= 4)
+      }
+    }
+  })
+
+  it('names every label and every option in English, Czech and German', () => {
+    const all: [string, Record<string, Field>][] = [['list', list.fields], ['group', group.fields], ...everywhere.map(([k, b]) => [k, b.fields] as [string, Record<string, Field>])]
+    const full = (text: unknown) => expect(text !== null && typeof text === 'object' && ['en', 'cs', 'de'].every((l) => typeof (text as Record<string, unknown>)[l] === 'string' && (text as Record<string, string>)[l]!.trim() !== '')).toBe(true)
+    for (const [name, fields] of all) {
+      for (const [key, field] of Object.entries(fields)) {
+        if (!field.meta.label) throw new Error(`${name}.${key} has no label`)
+        full(field.meta.label)
+        if (field.type === 'select') {
+          for (const option of field.meta.options) {
+            if (!field.meta.labels?.[option]) throw new Error(`${name}.${key}.${option} has no label`)
+            full(field.meta.labels[option])
+          }
+        }
+        if (field.meta.help) full(field.meta.help)
+      }
+    }
+    for (const [name, b] of everywhere) full(b.label), expect(name).toBeTruthy()
+    for (const b of Object.values(items.blocks!)) full(b.label)
+  })
+
+  it('has a segment icon for every option where it gives icons', () => {
+    for (const field of [list.fields.arrangement!, group.fields.arrangement!, ...everywhere.map(([, b]) => b.fields.shape ?? b.fields.size!)]) {
+      if (field.meta.icons) expect(Object.keys(field.meta.icons)).toEqual(expect.arrayContaining(field.meta.options))
     }
   })
 })

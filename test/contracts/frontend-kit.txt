@@ -124,6 +124,10 @@ returns: a value (see the signature)
 export function useCmsEditingLabel(type: MaybeRefOrGetter<string>): ComputedRef<string>
 returns: a value (see the signature)
 
+// useCmsEditingWords (app/composables/useCmsEditingWords.ts): The words of a card's placeholders in the admin's language while an editor works on the page in the preview (experimental); empty on the live site.
+export function useCmsEditingWords(): ComputedRef<CmsEditingWords>
+returns: a value (see the signature)
+
 // cmsField (app/composables/cmsField.ts): Marks an element as showing one field of its block, for typing in the page in the preview (experimental): `v-bind="cmsField('heading')"`, or with an item's id; nothing on the live site.
 export function cmsField(field: string, item?: string | null): Record<string, string>
 returns: a value (see the signature)

@@ -24,6 +24,8 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   // A folder of its own for each design's type check (scripts/typecheck.mjs), so checks can run side by side.
   ...(process.env.TZ_BUILD_DIR ? { buildDir: process.env.TZ_BUILD_DIR } : {}),
+  // A server built into a folder of its own (TZ_OUTPUT_DIR), so a check never builds over the `.output` a running server uses.
+  ...(process.env.TZ_OUTPUT_DIR ? { nitro: { output: { dir: process.env.TZ_OUTPUT_DIR } } } : {}),
   // A server draws pages of several designs at once: Nuxt keeps each page's app across `await`, so
   // the templates' composables find the site's design there too (kit/app/composables/useDesign.ts).
   experimental: { asyncContext: true },
