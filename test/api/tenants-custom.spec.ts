@@ -1141,9 +1141,9 @@ describe('blocks that show a type of the site', () => {
     expect(c).toMatchObject({ label: text('Courses'), labelSingular: text('Course'), titleField: 'title', path: '/kurzy/:slug', prefix: 'kurzy', publish: true, page: { image: null, summary: null } })
     const by = Object.fromEntries(c.fields.map((x: any) => [x.key, x]))
     expect(Object.keys(by)).toEqual(expect.arrayContaining(['title', 'level', 'cover', 'author', 'teacher', 'startsAt', 'perex']))
-    expect(by.perex).toEqual({ key: 'perex', type: 'text', label: text('Perex'), long: true })
-    expect(by.level).toEqual({ key: 'level', type: 'select', label: text('Level'), options: [{ value: 'beginner', label: text('Beginner') }, { value: 'advanced', label: text('Advanced') }] })
-    expect(by.author).toMatchObject({ type: 'relation', to: 'author' })
+    expect(by.perex).toEqual({ key: 'perex', type: 'text', kind: 'longText', label: text('Perex'), long: true })
+    expect(by.level).toEqual({ key: 'level', type: 'select', kind: 'choice', label: text('Level'), options: [{ value: 'beginner', label: text('Beginner') }, { value: 'advanced', label: text('Advanced') }] })
+    expect(by.author).toMatchObject({ type: 'relation', kind: 'relation', to: 'author' })
     // B's type is B's.
     expect(JSON.stringify(a)).not.toMatch(/custom_recipe|recepty|minutes/)
     const b = await typesOf(t.b)

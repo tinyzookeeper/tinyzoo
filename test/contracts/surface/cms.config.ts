@@ -1,4 +1,4 @@
-import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineRoles, defineSingleton, eq, f, seo } from 'tinyzoo'
+import { customTypeCard, customTypeFieldRef, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineRoles, defineSingleton, eq, f, seo } from 'tinyzoo'
 
 // The typed config of the 1.0 freeze: every field factory and every option of it, every
 // option of an entity, a global and the presets, written once. From it:
@@ -56,6 +56,20 @@ export const layout = defineBlock({
     items: f.blocks({ quote, group: defineBlock({ label: 'Group', fields: { items: f.blocks({ quote }, { max: 4 }) } }) }, { max: 6 }),
     arrangement: f.select({ options: ['row', 'stack', 'grid'] as const, icons: { row: 'i-lucide-columns-3', stack: 'i-lucide-rows-3' }, segments: true }).setting(),
     space: f.select({ options: ['small', 'medium', 'large'] as const }).setting().label({ en: 'Space between' }),
+  },
+})
+
+/**
+ * Experimental: a card bound to one of the site's own content types. The binding is the block's own field; the small
+ * blocks of its list, and of a row's list inside it, name the field they show (a text in storage, types and OpenAPI).
+ */
+const cardHeading = defineBlock({ label: 'Heading', fields: { field: customTypeFieldRef({ takes: ['text', 'number', 'date', 'choice'] }), text: f.text() } })
+const cardPicture = defineBlock({ label: 'Picture', fields: { field: customTypeFieldRef({ takes: ['picture'] }) } })
+export const entries = defineBlock({
+  label: { en: 'Entries', cs: 'Záznamy' },
+  fields: {
+    source: customTypeCard(),
+    items: f.blocks({ heading: cardHeading, picture: cardPicture, row: defineBlock({ label: 'Row', fields: { items: f.blocks({ heading: cardHeading, picture: cardPicture }) } }) }),
   },
 })
 
@@ -178,7 +192,7 @@ export const Venue = defineEntity('venue', {
   content: { public: true, search: false },
 })
 
-export const Page = definePages({ blocks: { feature, quote, layout }, localized: true, tree: { maxDepth: 5 }, path: { cs: '/:slug', en: '/en/:slug', de: '/de/:slug' } })
+export const Page = definePages({ blocks: { feature, quote, layout, entries }, localized: true, tree: { maxDepth: 5 }, path: { cs: '/:slug', en: '/en/:slug', de: '/de/:slug' } })
 
 export const Settings = defineSingleton('settings', {
   label: { en: 'Settings' },

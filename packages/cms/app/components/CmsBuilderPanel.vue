@@ -19,6 +19,7 @@
 // elsewhere*), as the page found it: each collection or global it shows, the entries it shows now (a click
 // edits one beside the page), *Add entry* and *All entries*. What the person may not do is not offered.
 import type { CmsBuilderPath } from '../../shared/builder'
+import { cmsCardBindingOf } from '../utils/cmsFieldRef'
 import { blockListFull, findBlock, isLockedBlock, issueCounts, keyOfPath } from '../../shared/block-tree'
 
 const props = defineProps<{ entity: string; readOnly?: boolean }>()
@@ -40,6 +41,15 @@ const owner = computed(() => {
 const tree = computed(() => owner.value?.root() ?? null)
 const found = computed(() => (tree.value && path.value.length ? findBlock(tree.value, path.value) : null))
 const block = computed(() => found.value?.block ?? null)
+// A small block that names a field of the entries a card shows finds the card's binding in the section
+// the selected block is in (the first part of the path), as it does in the form's list.
+const rootList = computed(() => (tree.value && path.value[0] ? findBlock(tree.value, [path.value[0]]) : null))
+provide('cmsCardRoot', {
+  get key() { return owner.value?.key ?? '' },
+  blocks: () => tree.value?.items ?? [],
+  defs: () => tree.value?.defs ?? {},
+})
+provide('cmsCardSource', computed(() => (rootList.value ? cmsCardBindingOf(rootList.value.block, rootList.value.list.defs[rootList.value.block.type]) : undefined)))
 const def = computed(() => (found.value ? found.value.list.defs[found.value.block.type] : undefined))
 const locked = computed(() => !found.value || isLockedBlock(found.value.list.defs, found.value.block))
 const key = computed(() => (owner.value && tree.value ? keyOfPath(owner.value.key, tree.value, path.value) : null))

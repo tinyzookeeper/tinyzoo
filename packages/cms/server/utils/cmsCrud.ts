@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull, ne, or, sql } from 'tinyzoo'
 import { propOf, snake, type CmsAccessUser, type CmsEntity, type CmsRegistry } from 'tinyzoo'
 import type { CmsUser } from './cmsSession'
+import { cardRefProblems } from './cmsBindings'
 
 export function getEntity(reg: CmsRegistry, name: string | undefined): CmsEntity {
   const e = name ? reg.byName.get(name) : undefined
@@ -111,6 +112,17 @@ export async function assertMediaAccepted(db: any, reg: CmsRegistry, e: CmsEntit
     if (bad) issues.push({ code: 'custom', path: [w.key], message: 'This field takes ' + w.accept + ', not ' + bad })
   }
   if (issues.length) throw createError({ statusCode: 422, statusMessage: 'Validation failed', data: issues })
+}
+
+/**
+ * A reference of a card's block (`customTypeFieldRef()`) names a field of the type the card shows:
+ * one the site's model does not have, or whose kind the reference does not take, is refused (422,
+ * with its path, like any invalid value) unless `stored` (what the row or translation holds now)
+ * already holds it. See `cardRefProblems`.
+ */
+export function assertCardRefs(e: CmsEntity, data: Record<string, any>, stored?: Record<string, any> | null): void {
+  const problems = cardRefProblems(e.fields as any, data, stored, cmsLoadedCustomPart()?.doc ?? null)
+  if (problems.length) throw createError({ statusCode: 422, statusMessage: 'Validation failed', data: problems })
 }
 
 /**

@@ -870,6 +870,16 @@ export default {
     backTo: 'Zpět: {list}',
     view: 'Zobrazit na webu',
   },
+  fieldRef: {
+    noCard: 'Tento blok není v sekci, která zobrazuje typ obsahu.',
+    noType: 'Nejdřív vyberte, co sekce zobrazuje.',
+    placeholder: 'Vyberte pole',
+    gone: 'Toto pole už v typu {type} není: {key}',
+    unfit: '{name} se do tohoto bloku nehodí.',
+    noneFit: '{type} nemá žádné pole, které by tento blok uměl zobrazit.',
+    clear: 'Vymazat',
+    page: 'Stránka záznamu',
+  },
   builderPanel: {
     allSections: 'Všechny sekce',
     where: 'Kde jste',

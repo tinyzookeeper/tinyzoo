@@ -1,5 +1,6 @@
 import { z, type ZodTypeAny } from 'zod'
 import type { CmsAdminField } from './admin'
+import type { CustomFieldKind } from './custom-kinds'
 import type { AnyFieldDescriptor, FieldDescriptor, FieldKind } from './descriptor'
 import type { LocalizedText } from './i18n'
 import { upgradeRichText } from './richtext'
@@ -78,7 +79,109 @@ export const blockVersion = (def: Pick<BlockDef, 'version'>): number => def.vers
 export function defineBlock<F extends Record<string, AnyFieldDescriptor>>(def: BlockDef<F>): BlockDef<F> {
   checkVersioning('Block', def)
   checkContainedFields('Block', def.fields, { reserved: true, binding: true })
+  const cards = (Object.entries(def.fields) as [string, FieldDescriptor][]).filter(([, fld]) => isCardBinding(fld)).map(([key]) => key)
+  if (cards.length > 1) throw new Error(`Block fields ${cards.map((k) => `"${k}"`).join(' and ')} are both a card's binding (customTypeCard()): a block shows one card, so it holds one.`)
   return def
+}
+
+// ── a card's references to the fields of the type it shows ──
+
+type FieldLike = { type?: string; meta?: Record<string, unknown> | null } | null | undefined
+
+/**
+ * The text format that marks a reference to a field of the type a card shows. A text with a
+ * format is never typed in the page, searched or summed up as words, and a reference is none of
+ * those.
+ *
+ * @internal
+ */
+export const FIELD_REF_FORMAT = 'field'
+
+/**
+ * Whether a field is a reference to a field of the type a card shows (`customTypeFieldRef()`).
+ *
+ * @internal
+ */
+export const isFieldRef = (fld: FieldLike): boolean =>
+  !!fld && fld.type === 'text' && fld.meta?.format === FIELD_REF_FORMAT && !!fld.meta?.ref && typeof fld.meta.ref === 'object'
+
+/**
+ * The kinds a reference takes, or an empty list for a field that is no reference.
+ *
+ * @internal
+ */
+export function fieldRefTakes(fld: FieldLike): CustomFieldKind[] {
+  if (!isFieldRef(fld)) return []
+  const takes = (fld!.meta!.ref as { takes?: unknown }).takes
+  return Array.isArray(takes) ? takes.filter((k): k is CustomFieldKind => typeof k === 'string') : []
+}
+
+/**
+ * Whether a field is a card's binding (`customTypeCard()`).
+ *
+ * @internal
+ */
+export const isCardBinding = (fld: FieldLike): boolean => !!fld && fld.type === 'binding' && fld.meta?.binding === 'card'
+
+/**
+ * The key of a block's card binding, or null when the block shows no card.
+ *
+ * @internal
+ */
+export function cardBindingKey(def: Pick<BlockDef, 'fields'> | undefined | null): string | null {
+  for (const [key, fld] of Object.entries(def?.fields ?? {}) as [string, FieldDescriptor][]) if (isCardBinding(fld)) return key
+  return null
+}
+
+const refRefusal = (trail: string[]) =>
+  `${trail.join(' › ')} is a reference to a field of a content type (customTypeFieldRef()). A reference is a field of a block inside a block that shows a card (customTypeCard()): of its blocks, or of the blocks of a list inside one of them. Not of a collection, a global, a group, or a block of the page itself.`
+
+/**
+ * Where a reference may stand, checked when the config loads (`defineEntity`): as a field of a
+ * block inside a page block that holds a card's binding, at the first or the second level. A
+ * block is defined on its own before anything says where it goes, so the place is known only
+ * here, from the entity down. `where` is the entity's name; a refusal names the path.
+ *
+ * @internal
+ */
+export function checkFieldRefPlaces(where: string, fields: Record<string, AnyFieldDescriptor>): void {
+  for (const [key, fld] of Object.entries(fields) as [string, FieldDescriptor][]) {
+    const trail = [where, key]
+    if (isFieldRef(fld)) throw new Error(refRefusal(trail))
+    if (fld.type === 'group') checkFieldRefPlaces(trail.join(' › '), (fld.fields ?? {}) as Record<string, AnyFieldDescriptor>)
+    else if (fld.type === 'blocks') {
+      for (const [type, def] of Object.entries(fld.blocks ?? {})) checkTopBlockRefs([...trail, type], def)
+    }
+  }
+}
+
+/** A block of an entity's list: no reference of its own; inside, references only when it holds a card. */
+function checkTopBlockRefs(trail: string[], def: BlockDef) {
+  const card = cardBindingKey(def) !== null
+  for (const [key, fld] of Object.entries(def.fields) as [string, FieldDescriptor][]) {
+    if (isFieldRef(fld)) throw new Error(refRefusal([...trail, key]))
+    if (fld.type === 'group') checkNoRefs([...trail, key], fld.fields ?? {})
+    else if (fld.type === 'blocks') checkInnerRefs([...trail, key], fld, card)
+  }
+}
+
+/** The blocks of a list inside a block: a reference is theirs only inside a card. */
+function checkInnerRefs(trail: string[], list: FieldDescriptor, card: boolean) {
+  for (const [type, def] of Object.entries(list.blocks ?? {})) {
+    for (const [key, fld] of Object.entries(def.fields) as [string, FieldDescriptor][]) {
+      if (isFieldRef(fld) && !card) throw new Error(refRefusal([...trail, type, key]))
+      if (fld.type === 'group') checkNoRefs([...trail, type, key], fld.fields ?? {})
+      else if (fld.type === 'blocks') checkInnerRefs([...trail, type, key], fld, card)
+    }
+  }
+}
+
+/** A group holds no reference, at any depth. */
+function checkNoRefs(trail: string[], fields: Record<string, FieldDescriptor>) {
+  for (const [key, fld] of Object.entries(fields)) {
+    if (isFieldRef(fld)) throw new Error(refRefusal([...trail, key]))
+    if (fld.type === 'group') checkNoRefs([...trail, key], fld.fields ?? {})
+  }
 }
 
 /** Does a set of fields hold a list (`f.list`, `f.blocks`), directly or inside a group? */

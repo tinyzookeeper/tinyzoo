@@ -1,5 +1,6 @@
 import { defineBlock, type BlockDef } from './blocks'
-import { bindingField, f } from './fields'
+import { CUSTOM_FIELD_KINDS, type CustomFieldKind } from './custom-kinds'
+import { bindingField, f, fieldRefField } from './fields'
 import { CUSTOM_PREFIX } from './model-doc'
 
 export {
@@ -74,4 +75,49 @@ export function customTypeBlocks(): CustomTypeBlocks {
       fields: blockFields('chosen'),
     }),
   }
+}
+
+/**
+ * Experimental: may change in a minor release.
+ *
+ * The field of a page block that shows the entries of one content type the site made for itself
+ * with a card a person designs: which type, the order and how many at most. The card is the
+ * block's own list of small blocks (`f.blocks()`), and each of them names the field it shows with
+ * `customTypeFieldRef()`. Stored as a `CmsBinding` with `type`, `order` and `limit`:
+ *
+ *   section_entries: defineBlock({ label, fields: {
+ *     source: customTypeCard().label({ en: 'What it shows', cs: 'Co zobrazuje' }),
+ *     items: f.blocks({ heading, text, picture, button, group }),
+ *   } })
+ *
+ * It is a field of a page block itself, never of a group, a list item or a block inside another
+ * block, and a block holds one. Without `NUXT_CMS_CUSTOM_TYPES=on` the admin leaves the block out.
+ */
+export function customTypeCard() {
+  return bindingField('card')
+}
+
+/**
+ * Experimental: may change in a minor release.
+ *
+ * The field of a small block of a card that names the field of the bound type it shows: the
+ * field's key (`'photo'`), `'slug'` for the entry's own page, empty for none. `takes` lists the
+ * kinds it shows (`CustomFieldKind`): the admin offers only the fields of those kinds, and the
+ * server refuses a new reference to a field the type does not have or whose kind it does not take.
+ * A reference stored before the type changed is kept, so the page stays saveable. Stored as a text:
+ *
+ *   const heading = defineBlock({ label, fields: {
+ *     field: customTypeFieldRef({ takes: ['text', 'number', 'date', 'choice'] }).label({ en: 'Shows' }),
+ *     text: f.text(),
+ *   } })
+ *
+ * It is a field of a block inside a block that holds `customTypeCard()`, or of a block of a list
+ * inside one of those; anywhere else the config does not load.
+ */
+export function customTypeFieldRef(o: { takes: readonly CustomFieldKind[] }) {
+  const takes = Array.isArray(o?.takes) ? o.takes : []
+  const unknown = takes.filter((k) => !(CUSTOM_FIELD_KINDS as readonly string[]).includes(k))
+  if (!takes.length) throw new Error('customTypeFieldRef() needs `takes`: the kinds of field it shows (one or more of ' + CUSTOM_FIELD_KINDS.join(', ') + ').')
+  if (unknown.length) throw new Error(`customTypeFieldRef() takes ${unknown.map((k) => `"${String(k)}"`).join(', ')}, which ${unknown.length === 1 ? 'is no kind' : 'are no kinds'} of field (the kinds: ${CUSTOM_FIELD_KINDS.join(', ')}).`)
+  return fieldRefField(takes)
 }

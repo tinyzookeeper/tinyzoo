@@ -1,8 +1,9 @@
 import type { LocalizedText } from './i18n'
 import { isSafeLink } from './richtext'
 import { looksLikeLinkRef } from './linkref'
-import { type BlockDef, type BlockValue, type BlocksValue, type GroupValue, blocksGraph, blocksSchema, checkContainedFields, checkNoBinding, defineBlock, groupGraph } from './blocks'
-import { bindingSchema, type CmsBinding } from './binding'
+import { type BlockDef, type BlockValue, type BlocksValue, type GroupValue, blocksGraph, blocksSchema, checkContainedFields, checkNoBinding, defineBlock, FIELD_REF_FORMAT, groupGraph } from './blocks'
+import { bindingSchema, cardBindingSchema, fieldRefSchema, type CmsBinding } from './binding'
+import type { CustomFieldKind } from './custom-kinds'
 import {
   boolean, integer, jsonb, numeric, text, timestamp, uuid,
   type PgColumnBuilder,
@@ -545,12 +546,28 @@ export const f = {
  *
  * @internal
  */
-export function bindingField(kind: 'entries' | 'chosen') {
+export function bindingField(kind: 'entries' | 'chosen' | 'card') {
   return as<ScalarKind<CmsBinding, CmsBinding, true>>(createField({
     type: 'binding', ui: { edit: 'CmsFieldBinding', cell: 'CmsCellText' },
     base: { kind: 'jsonb' }, tsType: 'CmsBinding',
     meta: { binding: kind },
-    zod: () => bindingSchema,
+    zod: () => (kind === 'card' ? cardBindingSchema : bindingSchema),
+  }))
+}
+
+/**
+ * The field of a block inside a card that names which field of the bound type it shows. Stored
+ * as a plain text (the field's key, `''` or null for none), so storage, the generated types,
+ * OpenAPI and the SDK treat it as a text. `meta.ref.takes` lists the kinds it takes.
+ *
+ * @internal
+ */
+export function fieldRefField(takes: readonly CustomFieldKind[]) {
+  return as<ScalarKind<string>>(createField({
+    type: 'text', ui: { edit: 'CmsFieldRef', cell: 'CmsCellText' },
+    base: { kind: 'text' },
+    meta: { format: FIELD_REF_FORMAT, ref: { takes: [...new Set(takes)] } },
+    zod: () => fieldRefSchema,
   }))
 }
 

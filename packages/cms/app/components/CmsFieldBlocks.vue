@@ -2,6 +2,8 @@
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { isLinkRef } from '../../src/linkref'
 import type { CmsBuilderPath, CmsBuilderPlace } from '../../shared/builder'
+import { cmsBindingRead, cmsBindingTypes } from '../utils/cmsBinding'
+import { cmsCardBindingOf, cmsRefFields } from '../utils/cmsFieldRef'
 import {
   blankBlock, blockListFull, blockListKinds, blockListMax, findBlock, isLockedBlock, listOfPlaceIn, treeDuplicate, treeInsert, treeMove, treeRemove, treeSet, typingGroup, withNewIds,
   type BlockList,
@@ -44,6 +46,26 @@ const open = reactive<Record<string, boolean>>({})
 const inside = props.field.key.includes('.')
 // Only a form's own list of page blocks registers with the editor in the preview: not a list (`f.list()`), not one inside a block.
 const takesPart = !list.value && !inside
+// A small block that names a field of the entries a card shows (`customTypeFieldRef`) finds the card's
+// binding in the top-level block around it: the page's own list says where its blocks are, a list inside
+// a block reads the binding of the block at the index its key names ("sections.3.items" is block 3).
+const cardRoot = inside ? inject<{ key: string; blocks: () => any[]; defs: () => Record<string, any> } | null>('cmsCardRoot', null) : null
+if (!inside) provide('cmsCardRoot', { key: props.field.key, blocks: () => blocks.value, defs: () => defs.value })
+const cardSource = inside && cardRoot && props.field.key.startsWith(`${cardRoot.key}.`)
+  ? computed(() => {
+    const at = Number(props.field.key.slice(cardRoot.key.length + 1).split('.')[0])
+    const top = Number.isInteger(at) ? cardRoot.blocks()[at] : undefined
+    return top ? cmsCardBindingOf(top, cardRoot.defs()[top.type]) : undefined
+  })
+  : null
+if (cardSource) provide('cmsCardSource', cardSource)
+// A reference in a row's summary is named by the field's name in the card's type, never by its key.
+const { data: cardGraph } = useNuxtData<any[]>('cms-graph')
+function refName(binding: unknown, key: string): string {
+  const type = cmsBindingTypes(cardGraph.value).find((x) => x.name === cmsBindingRead(binding)?.type)
+  const field = type ? cmsRefFields(type).find((f) => f.key === key) : undefined
+  return field ? (field.kind === 'page' ? t('fieldRef.page') : tl(field.label as any, key)) : key
+}
 /** The path (ids from the page's list down) of the block whose list this is: `[]` for the page's own list. */
 const above = computed<CmsBuilderPath | null>(() => (takesPart ? [] : inside ? builderRef.value?.pathOf(props.field.key) ?? null : null))
 const pathTo = (id: string): CmsBuilderPath | null => (above.value ? [...above.value, id] : null)
@@ -385,7 +407,7 @@ function summary(b: any): string {
 function summaryOf(b: any, kinds: Record<string, any>): string {
   const parts: string[] = []
   const fields = kinds[b?.type]?.fields ?? []
-  textsOf(b, fields, parts, 0)
+  textsOf(b, fields, parts, 0, cmsCardBindingOf(b, kinds[b?.type]) ?? cardSource?.value)
   if (!parts.length) namesOf(b, fields, parts)
   return parts.join(' · ')
 }
@@ -399,12 +421,13 @@ function namesOf(b: any, fields: any[], parts: string[]) {
     }
   }
 }
-function textsOf(b: any, fields: any[], parts: string[], depth: number) {
+function textsOf(b: any, fields: any[], parts: string[], depth: number, card?: unknown) {
   for (const f of fields) {
     if (parts.length >= 3) return
     if (f.meta?.setting) continue
     const v = b?.[f.key]
-    if (f.type === 'select' && typeof v === 'string' && v) parts.push(tl(f.meta?.labels?.[v], v))
+    if (f.meta?.format === 'field' && f.meta?.ref) { if (typeof v === 'string' && v.trim()) parts.push(refName(card, v.trim())) }
+    else if (f.type === 'select' && typeof v === 'string' && v) parts.push(tl(f.meta?.labels?.[v], v))
     else if (typeof v === 'string' && isLinkRef(v)) {
       // Never the raw reference: the page's title and address once they are known.
       const target = findTarget(v)
@@ -421,7 +444,7 @@ function textsOf(b: any, fields: any[], parts: string[], depth: number) {
     if (f.type !== 'blocks' || !Array.isArray(b?.[f.key])) continue
     for (const item of b[f.key]) {
       if (parts.length >= 3) return
-      textsOf(item, f.meta?.blocks?.[item?.type]?.fields ?? [], parts, depth + 1)
+      textsOf(item, f.meta?.blocks?.[item?.type]?.fields ?? [], parts, depth + 1, card)
     }
   }
 }

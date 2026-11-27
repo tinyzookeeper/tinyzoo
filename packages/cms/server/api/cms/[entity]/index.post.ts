@@ -9,6 +9,7 @@ export default defineEventHandler(async (event) => {
   assertFieldsEditable(e, user, bodyKeys(body))
   const data = parseOr422(writeSchema(e, 'create'), body)
   await assertMediaAccepted(db, reg, e, data)
+  assertCardRefs(e, data)
   const { values, m2m } = splitPayload(e, data)
   assertPublishAllowed(e, user, values)
   await assertNoRedirectLoop(e, values)

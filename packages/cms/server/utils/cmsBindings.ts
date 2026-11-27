@@ -1,9 +1,12 @@
-import type { BlockDef, CmsBinding, ModelDoc, ModelField, ModelLabel, ModelOrder } from 'tinyzoo'
+import { cardBindingKey, CUSTOM_PAGE_FIELD, customFieldKind, fieldRefTakes, isFieldRef } from 'tinyzoo'
+import type { BlockDef, CmsBinding, CustomFieldKind, ModelDoc, ModelField, ModelLabel, ModelOrder, ModelType } from 'tinyzoo'
 
-// The bindings the generic blocks of a page hold (docs/custom-types-plan.md, sections 7 and 8), as
-// pure functions: finding them in stored blocks, saying which fields they use and what a site
-// lacks, taking the blocks out of the admin graph, and describing a site's types for the website.
-// No database, no request, no Nitro helper: each is a function of its arguments.
+// The bindings the generic blocks of a page hold (docs/custom-types-plan.md, sections 7 and 8), and
+// the references of a card's blocks to the fields of the type it shows (docs/builder-plan.md, part 3),
+// as pure functions: finding them in stored blocks, saying which fields they use and what a site
+// lacks, checking a written reference, taking the blocks out of the admin graph, and describing a
+// site's types for the website. No database, no request, no Nitro helper: each is a function of its
+// arguments.
 
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const isKey = (v: unknown): v is string => typeof v === 'string' && v !== ''
@@ -27,14 +30,17 @@ export interface FoundBinding {
   /** The key of the binding field in the block (`source`). */
   key: string
   binding: CmsBinding
+  /** A card's binding: the fields its blocks show (each key once). Empty for any other binding. */
+  refs: string[]
 }
 
 /**
  * Every binding in a stored blocks array. `types` is `bindingBlockTypes` of the field's blocks.
  * A block whose binding is absent, null or has no type is skipped; anything that is not a list of
- * blocks is tolerated and gives nothing.
+ * blocks is tolerated and gives nothing. With `defs` (the field's blocks), a card's binding comes
+ * with the fields its blocks show, at both levels (`cardRefsIn`).
  */
-export function bindingsIn(value: unknown, types: Map<string, string[]>): FoundBinding[] {
+export function bindingsIn(value: unknown, types: Map<string, string[]>, defs?: Record<string, BlockDef>): FoundBinding[] {
   const out: FoundBinding[] = []
   if (!Array.isArray(value)) return out
   for (const item of value) {
@@ -42,27 +48,74 @@ export function bindingsIn(value: unknown, types: Map<string, string[]>): FoundB
     const keys = types.get(item.type)
     if (!keys) continue
     const heading = typeof item.heading === 'string' && item.heading.trim() !== '' ? item.heading : null
+    const def = defs && Object.hasOwn(defs, item.type) ? defs[item.type] : undefined
+    const card = cardBindingKey(def)
     for (const key of keys) {
       const binding = item[key]
       if (!isObject(binding) || !isKey(binding.type)) continue
-      out.push({ block: { id: typeof item.id === 'string' ? item.id : '', type: item.type, heading }, key, binding: binding as unknown as CmsBinding })
+      const refs = key === card && def ? [...new Set(cardRefsIn(item, def).map((r) => r.key))] : []
+      out.push({ block: { id: typeof item.id === 'string' ? item.id : '', type: item.type, heading }, key, binding: binding as unknown as CmsBinding, refs })
     }
   }
   return out
 }
 
-/** The field keys a binding uses: the places of a card and the order. Each once, strings only. */
-export function bindingFields(binding: CmsBinding): string[] {
+/** A reference found inside a card's block: the field it names, the kinds it takes, and where it is. */
+export interface FoundRef {
+  key: string
+  takes: CustomFieldKind[]
+  /** From the card's block down: `['items', 0, 'field']`, `['items', 1, 'items', 0, 'field']`. */
+  path: (string | number)[]
+  /** The ids of the blocks from the card's block down to the one that holds it (the card's block not included). */
+  ids: string[]
+}
+
+/**
+ * The references of the blocks inside a stored block (a card's blocks and the blocks of their lists),
+ * each with a field key. Empty references are left out; a block of a type the definition does not
+ * have is skipped; anything of an odd shape gives nothing.
+ */
+export function cardRefsIn(block: unknown, def: Pick<BlockDef, 'fields'>): FoundRef[] {
+  const out: FoundRef[] = []
+  if (!isObject(block)) return out
+  const walk = (list: unknown, defs: Record<string, BlockDef> | undefined, path: (string | number)[], ids: string[], depth: number) => {
+    if (!Array.isArray(list) || !defs || depth > 2) return
+    list.forEach((item, i) => {
+      if (!isObject(item) || typeof item.type !== 'string' || !Object.hasOwn(defs, item.type)) return
+      const id = typeof item.id === 'string' ? item.id : ''
+      for (const [key, fld] of Object.entries(defs[item.type]!.fields ?? {}) as [string, any][]) {
+        if (isFieldRef(fld)) {
+          const v = item[key]
+          if (typeof v === 'string' && v.trim() !== '') out.push({ key: v.trim(), takes: fieldRefTakes(fld), path: [...path, i, key], ids: [...ids, id] })
+        }
+        else if (fld?.type === 'blocks') walk(item[key], fld.blocks, [...path, i, key], [...ids, id], depth + 1)
+      }
+    })
+  }
+  for (const [key, fld] of Object.entries(def?.fields ?? {}) as [string, any][]) {
+    if (fld?.type === 'blocks') walk(block[key], fld.blocks, [key], [], 1)
+  }
+  return out
+}
+
+/**
+ * The field keys a binding uses: the places of a card and the order, and `refs`, the fields a
+ * card's blocks show. Each once, strings only.
+ */
+export function bindingFields(binding: CmsBinding, refs: readonly string[] = []): string[] {
   const show: Record<string, unknown> = isObject(binding?.show) ? binding.show : {}
   const order: Record<string, unknown> = isObject(binding?.order) ? binding.order : {}
-  const keys = [show.image, show.text, show.date, show.label, ...(Array.isArray(show.more) ? show.more : []), order.by]
+  const keys = [show.image, show.text, show.date, show.label, ...(Array.isArray(show.more) ? show.more : []), order.by, ...refs]
   return [...new Set(keys.filter(isKey))]
 }
 
-/** Whether a binding names the type and, when `field` is given, uses that field of it (shows it or orders by it). */
-export function bindingUses(binding: CmsBinding, type: string, field: string | null): boolean {
+/**
+ * Whether a binding names the type and, when `field` is given, uses that field of it (shows it or
+ * orders by it, or a card's block shows it: `refs`).
+ */
+export function bindingUses(binding: CmsBinding, type: string, field: string | null, refs: readonly string[] = []): boolean {
   if (binding?.type !== type) return false
-  return field === null || bindingFields(binding).includes(field)
+  return field === null || bindingFields(binding, refs).includes(field)
 }
 
 /** What a binding names that the site does not have: the type, or else the fields. */
@@ -75,7 +128,7 @@ export interface BindingMissing { type?: string; fields?: string[] }
  * `createdAt`, `updatedAt`, and the ones the mapper adds (`slug` with a page, `status` with
  * publishing, `position` in a manual order).
  */
-export function bindingMissing(binding: CmsBinding, doc: ModelDoc | null): BindingMissing | null {
+export function bindingMissing(binding: CmsBinding, doc: ModelDoc | null, refs: readonly string[] = []): BindingMissing | null {
   const type = doc?.types.find((t) => t.name === binding?.type && !t.removedAt)
   if (!type) return { type: String(binding?.type ?? '') }
   const have = new Set<string>(['createdAt', 'updatedAt', type.titleField])
@@ -83,8 +136,91 @@ export function bindingMissing(binding: CmsBinding, doc: ModelDoc | null): Bindi
   if (type.page) have.add('slug')
   if (type.publish) have.add('status')
   if (type.order === 'manual') have.add('position')
-  const fields = bindingFields(binding).filter((k) => !have.has(k))
+  const fields = bindingFields(binding, refs).filter((k) => !have.has(k))
   return fields.length ? { fields } : null
+}
+
+// ── a written reference ──
+
+/** A refusal of a written reference, as the other refusals of a write: `{ code, path, message }`. */
+export interface RefProblem { code: 'custom'; path: (string | number)[]; message: string }
+
+/** The kind of a type's field a reference may name, or null when the type has no such visible field. */
+export function refKind(type: ModelType, key: string): CustomFieldKind | null {
+  if (key === CUSTOM_PAGE_FIELD) return type.page ? 'page' : null
+  const field = type.fields.find((f) => f.key === key && !f.removedAt)
+  return field ? customFieldKind(field) : null
+}
+
+/** Why a reference to `key` cannot be written, or null when it can. */
+function refRefusal(key: string, takes: readonly CustomFieldKind[], typeName: string | null, doc: ModelDoc | null): string | null {
+  if (!typeName) return `Choose what the block shows first: "${key}" is a field of a content type, and none is chosen yet.`
+  const type = doc?.types.find((t) => t.name === typeName && !t.removedAt)
+  if (!type) return `The content type "${typeName}" is not among the site's own, so its field "${key}" cannot be shown.`
+  const kind = refKind(type, key)
+  if (!kind) return key === CUSTOM_PAGE_FIELD ? `The content type "${typeName}" has no pages, so there is no entry's own page to show.` : `The content type "${typeName}" has no field "${key}".`
+  if (!takes.includes(kind)) return `The field "${key}" is of the kind ${kind}, and this block shows ${takes.join(', ') || 'no field'}.`
+  return null
+}
+
+const parsed = (v: unknown): unknown => {
+  if (typeof v !== 'string') return v
+  try { return JSON.parse(v) } catch { return null }
+}
+const byId = (list: unknown): Map<string, Record<string, unknown>> => {
+  const out = new Map<string, Record<string, unknown>>()
+  if (Array.isArray(list)) for (const x of list) if (isObject(x) && typeof x.id === 'string' && !out.has(x.id)) out.set(x.id, x)
+  return out
+}
+
+/**
+ * The references of a write that the site's model refuses, at their paths from the entry's fields
+ * (`['sections', 2, 'items', 0, 'field']`). `fields` are the entity's fields, `data` the checked
+ * write, `stored` what the row (or the translation) holds now, `doc` the site's model.
+ *
+ * In each blocks field the write holds, every block that shows a card (`customTypeCard()`) has its
+ * references checked against the type its binding names: a reference to a field the type does not
+ * have, has hidden, or whose kind the reference does not take is refused; so is any reference while
+ * the block has no type. An empty reference is never refused. A reference that is stored already
+ * (the same block, found by its ids from the field down, holding the same key) is kept as it is, so
+ * a page stays saveable after its type changed.
+ */
+export function cardRefProblems(fields: Record<string, { type?: string; blocks?: Record<string, BlockDef> }>, data: Record<string, unknown>, stored: Record<string, unknown> | null | undefined, doc: ModelDoc | null): RefProblem[] {
+  const out: RefProblem[] = []
+  for (const [fieldKey, fld] of Object.entries(fields ?? {})) {
+    if (fld?.type !== 'blocks' || !fld.blocks || !Object.hasOwn(data ?? {}, fieldKey)) continue
+    const list = data[fieldKey]
+    if (!Array.isArray(list)) continue
+    const storedTop = byId(parsed(stored?.[fieldKey]))
+    list.forEach((block, i) => {
+      if (!isObject(block) || typeof block.type !== 'string' || !Object.hasOwn(fld.blocks!, block.type)) return
+      const def = fld.blocks![block.type]!
+      const card = cardBindingKey(def)
+      if (!card) return
+      const binding = block[card]
+      const typeName = isObject(binding) && isKey(binding.type) ? binding.type : null
+      const before = typeof block.id === 'string' ? storedTop.get(block.id) : undefined
+      for (const ref of cardRefsIn(block, def)) {
+        if (before && storedHas(before, ref)) continue
+        const message = refRefusal(ref.key, ref.takes, typeName, doc)
+        if (message) out.push({ code: 'custom', path: [fieldKey, i, ...ref.path], message })
+      }
+    })
+  }
+  return out
+}
+
+/** Whether the stored block holds the same reference: the same blocks by their ids down to it, the same field, the same key. */
+function storedHas(stored: Record<string, unknown>, ref: FoundRef): boolean {
+  let node: Record<string, unknown> | undefined = stored
+  // ref.path is [listKey, index, (listKey, index,) fieldKey]; ref.ids holds the id of the block at each index.
+  for (let step = 0; step < ref.ids.length; step++) {
+    if (!ref.ids[step]) return false
+    node = byId(node?.[ref.path[step * 2] as string]).get(ref.ids[step]!)
+    if (!node) return false
+  }
+  const value = node?.[ref.path[ref.path.length - 1] as string]
+  return typeof value === 'string' && value.trim() === ref.key
 }
 
 /** A field of the admin graph, or the inner field of a block or a group. */
@@ -140,6 +276,8 @@ export function withoutBindingBlocks<T extends { fields?: unknown[] }>(graph: T[
 export interface PublicTypeField {
   key: string
   type: ModelField['type']
+  /** What a block that shows it sees (`customFieldKind`); null for a kind this tinyzoo does not know. */
+  kind: CustomFieldKind | null
   label: ModelLabel
   help?: ModelLabel | null
   long?: boolean
@@ -195,7 +333,7 @@ export function publicCustomTypes(doc: ModelDoc | null, built: (type: string, fi
 
 /** A field with its kind's public options, each only when set. */
 function publicField(f: ModelField): PublicTypeField {
-  const out: PublicTypeField = { key: f.key, type: f.type, label: f.label }
+  const out: PublicTypeField = { key: f.key, type: f.type, kind: customFieldKind(f), label: f.label }
   if (f.help) out.help = f.help
   if (f.type === 'text') {
     if (f.long) out.long = true

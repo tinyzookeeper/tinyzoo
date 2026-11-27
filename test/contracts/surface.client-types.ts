@@ -33,6 +33,20 @@ export interface CmsGalleryItem extends CmsMedia {
   caption: string | null
 }
 
+/** Which custom type a block shows, and which field goes to which place. */
+export interface CmsBinding {
+  /** The name of the custom type. */
+  type: string
+  /** The fields that go to the places of a card. */
+  show?: { image?: string | null; text?: string | null; date?: string | null; label?: string | null; more?: string[] }
+  /** A list only: the field to order by. Null or left out is the type's own order. */
+  order?: { by: string; dir: 'asc' | 'desc' } | null
+  /** A list only: how many entries, 1 to 48. Left out is 6. */
+  limit?: number | null
+  /** Chosen entries only: their ids, in the picked order. */
+  entries?: string[]
+}
+
 // ── nested (populated) projections ─────────────────────────────────────────────
 export interface CategoryEmbedded {
   id: string
@@ -102,7 +116,7 @@ export interface Page {
   title: string
   slug: string
   status: 'draft' | 'published'
-  sections: Array<{ id: string; type: 'feature'; heading: string; level: number | null; featured: boolean | null; shownFrom: string | null; tone: 'plain' | 'accent' | null; text: RichTextDoc | null; picture: CmsMedia | null; bullets: Array<{ id: string; type: 'bullet'; line: string; strong: boolean | null }>; cta: { label: string; url: string | null } | null } | { id: string; type: 'quote'; text: string; by: string | null } | { id: string; type: 'layout'; items: Array<{ id: string; type: 'quote'; text: string; by: string | null } | { id: string; type: 'group'; items: Array<{ id: string; type: 'quote'; text: string; by: string | null }> }>; arrangement: 'row' | 'stack' | 'grid' | null; space: 'small' | 'medium' | 'large' | null }>
+  sections: Array<{ id: string; type: 'feature'; heading: string; level: number | null; featured: boolean | null; shownFrom: string | null; tone: 'plain' | 'accent' | null; text: RichTextDoc | null; picture: CmsMedia | null; bullets: Array<{ id: string; type: 'bullet'; line: string; strong: boolean | null }>; cta: { label: string; url: string | null } | null } | { id: string; type: 'quote'; text: string; by: string | null } | { id: string; type: 'layout'; items: Array<{ id: string; type: 'quote'; text: string; by: string | null } | { id: string; type: 'group'; items: Array<{ id: string; type: 'quote'; text: string; by: string | null }> }>; arrangement: 'row' | 'stack' | 'grid' | null; space: 'small' | 'medium' | 'large' | null } | { id: string; type: 'entries'; source: CmsBinding | null; items: Array<{ id: string; type: 'heading'; field: string | null; text: string | null } | { id: string; type: 'picture'; field: string | null } | { id: string; type: 'row'; items: Array<{ id: string; type: 'heading'; field: string | null; text: string | null } | { id: string; type: 'picture'; field: string | null }> }> }>
   parent: string | null
   position: number
   metaTitle: string | null

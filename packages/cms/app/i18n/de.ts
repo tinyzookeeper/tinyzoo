@@ -811,6 +811,16 @@ export default {
     settings: 'Layout',
     count: { one: '{count} Block', other: '{count} Blöcke' },
   },
+  fieldRef: {
+    noCard: 'Dieser Block steht in keinem Abschnitt, der einen Inhaltstyp zeigt.',
+    noType: 'Wählen Sie zuerst, was der Abschnitt zeigt.',
+    placeholder: 'Feld wählen',
+    gone: 'Dieses Feld gibt es in {type} nicht mehr: {key}',
+    unfit: '{name} passt nicht zu diesem Block.',
+    noneFit: '{type} hat kein Feld, das dieser Block zeigen kann.',
+    clear: 'Leeren',
+    page: 'Eigene Seite des Eintrags',
+  },
   builderPanel: {
     allSections: 'Alle Abschnitte',
     where: 'Wo Sie sind',

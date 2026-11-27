@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // The control of a block that shows entries of one of the site's own content types ("Entries", a list
 // of one type, and "Chosen entries", picked by hand): the type, which field goes to which place of a
-// card, and then the order and the number (a list) or the entries themselves (chosen ones).
+// card, and then the order and the number (a list) or the entries themselves (chosen ones). A card
+// (`customTypeCard`) asks for the type, the order and the number only: its small blocks name their fields.
 // What is stored may name a type or a field that is gone: that is said at its place, the stored value
 // stays until a person chooses again, and nothing here throws on a value of an odd shape.
 import { BINDING_ENTRIES_MAX, BINDING_LIMIT_DEFAULT, BINDING_LIMIT_MAX, BINDING_MORE_MAX } from '../../src/binding'
@@ -19,6 +20,8 @@ const { data: graph } = useNuxtData<any[]>('cms-graph')
 
 const base = computed(() => props.id ?? 'cms-binding')
 const chosen = computed(() => props.field.meta?.binding === 'chosen')
+// A card (`customTypeCard`): the small blocks inside choose the fields, so only the type, the order and the number are set here.
+const card = computed(() => props.field.meta?.binding === 'card')
 const isAdmin = computed(() => user.value?.role === 'admin')
 const types = computed(() => cmsBindingTypes(graph.value))
 const value = computed(() => cmsBindingRead(model.value))
@@ -183,7 +186,7 @@ const labelClass = 'block text-sm font-medium text-highlighted'
 
     <template v-if="type">
       <!-- 2. what to show -->
-      <div v-if="places.length || moreFields.length || moreMissing.length" class="space-y-3">
+      <div v-if="!card && (places.length || moreFields.length || moreMissing.length)" class="space-y-3">
         <p :class="labelClass">{{ t('model.binding.show') }}</p>
         <div v-if="places.length" class="grid gap-4 sm:grid-cols-2">
           <div v-for="p in places" :key="p.place" class="min-w-0 space-y-1.5">

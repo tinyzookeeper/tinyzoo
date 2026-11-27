@@ -2209,6 +2209,201 @@
                   }
                 }
               ]
+            },
+            "entries": {
+              "label": {
+                "en": "Entries",
+                "cs": "Záznamy"
+              },
+              "description": null,
+              "icon": "i-lucide-square",
+              "fields": [
+                {
+                  "key": "source",
+                  "type": "binding",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldBinding",
+                    "cell": "CmsCellText"
+                  },
+                  "meta": {
+                    "binding": "card"
+                  }
+                },
+                {
+                  "key": "items",
+                  "type": "blocks",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldBlocks",
+                    "cell": "CmsCellBlocks"
+                  },
+                  "meta": {
+                    "blocks": {
+                      "heading": {
+                        "label": "Heading",
+                        "description": null,
+                        "icon": "i-lucide-square",
+                        "fields": [
+                          {
+                            "key": "field",
+                            "type": "text",
+                            "optional": true,
+                            "required": false,
+                            "unique": false,
+                            "ui": {
+                              "edit": "CmsFieldRef",
+                              "cell": "CmsCellText"
+                            },
+                            "meta": {
+                              "format": "field",
+                              "ref": {
+                                "takes": [
+                                  "text",
+                                  "number",
+                                  "date",
+                                  "choice"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "key": "text",
+                            "type": "text",
+                            "optional": true,
+                            "required": false,
+                            "unique": false,
+                            "ui": {
+                              "edit": "CmsFieldText",
+                              "cell": "CmsCellText"
+                            },
+                            "meta": {}
+                          }
+                        ]
+                      },
+                      "picture": {
+                        "label": "Picture",
+                        "description": null,
+                        "icon": "i-lucide-square",
+                        "fields": [
+                          {
+                            "key": "field",
+                            "type": "text",
+                            "optional": true,
+                            "required": false,
+                            "unique": false,
+                            "ui": {
+                              "edit": "CmsFieldRef",
+                              "cell": "CmsCellText"
+                            },
+                            "meta": {
+                              "format": "field",
+                              "ref": {
+                                "takes": [
+                                  "picture"
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "row": {
+                        "label": "Row",
+                        "description": null,
+                        "icon": "i-lucide-square",
+                        "fields": [
+                          {
+                            "key": "items",
+                            "type": "blocks",
+                            "optional": true,
+                            "required": false,
+                            "unique": false,
+                            "ui": {
+                              "edit": "CmsFieldBlocks",
+                              "cell": "CmsCellBlocks"
+                            },
+                            "meta": {
+                              "blocks": {
+                                "heading": {
+                                  "label": "Heading",
+                                  "description": null,
+                                  "icon": "i-lucide-square",
+                                  "fields": [
+                                    {
+                                      "key": "field",
+                                      "type": "text",
+                                      "optional": true,
+                                      "required": false,
+                                      "unique": false,
+                                      "ui": {
+                                        "edit": "CmsFieldRef",
+                                        "cell": "CmsCellText"
+                                      },
+                                      "meta": {
+                                        "format": "field",
+                                        "ref": {
+                                          "takes": [
+                                            "text",
+                                            "number",
+                                            "date",
+                                            "choice"
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "key": "text",
+                                      "type": "text",
+                                      "optional": true,
+                                      "required": false,
+                                      "unique": false,
+                                      "ui": {
+                                        "edit": "CmsFieldText",
+                                        "cell": "CmsCellText"
+                                      },
+                                      "meta": {}
+                                    }
+                                  ]
+                                },
+                                "picture": {
+                                  "label": "Picture",
+                                  "description": null,
+                                  "icon": "i-lucide-square",
+                                  "fields": [
+                                    {
+                                      "key": "field",
+                                      "type": "text",
+                                      "optional": true,
+                                      "required": false,
+                                      "unique": false,
+                                      "ui": {
+                                        "edit": "CmsFieldRef",
+                                        "cell": "CmsCellText"
+                                      },
+                                      "meta": {
+                                        "format": "field",
+                                        "ref": {
+                                          "takes": [
+                                            "picture"
+                                          ]
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
             }
           },
           "label": {

@@ -813,6 +813,16 @@ export default {
     settings: 'Layout',
     count: { one: '{count} block', other: '{count} blocks' },
   },
+  fieldRef: {
+    noCard: 'This block is not inside a section that shows a content type.',
+    noType: 'Choose what the section shows first.',
+    placeholder: 'Choose a field',
+    gone: 'This field is no longer in {type}: {key}',
+    unfit: '{name} does not fit this block.',
+    noneFit: '{type} has no field this block can show.',
+    clear: 'Clear',
+    page: 'The entry\'s own page',
+  },
   builderPanel: {
     allSections: 'All sections',
     where: 'Where you are',
