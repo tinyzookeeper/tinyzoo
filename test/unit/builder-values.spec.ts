@@ -276,7 +276,7 @@ describe('finding values in a block: the opening hours of a week', () => {
     expect(partOf(monday.childNodes[0] as N)).toBeUndefined()
     expect(partOf(monday.childNodes[1]!.childNodes[0] as N)).toBeUndefined()
     // A day of one row: its name and its span are that row's.
-    expect(partOf(friday.childNodes[0] as N)).toEqual({ entity: 'openingHour', id: 'fri1', field: 'day', kind: 'value', values: [['day']] })
+    expect(partOf(friday.childNodes[0] as N)).toEqual({ entity: 'openingHour', id: 'fri1', field: 'day', kind: 'value', values: [['day']], choice: {} })
     expect(partOf(friday.childNodes[1]!.childNodes[0] as N)).toMatchObject({ id: 'fri1', values: [['from'], ['to']] })
     // The block's own heading stays the block's.
     expect(found.own).toEqual([block.childNodes[0]])
@@ -311,6 +311,80 @@ describe('finding values in a block: the opening hours of a week', () => {
     const got = cmsSourceFind([box], made.texts, { values: cmsValueIndex(made.values) })
     expect(got.parts.get(box.childNodes[0] as N)).toEqual({ entity: 'siteSettings', id: 's1', field: 'links', kind: 'text', at: ['links', 'l1', 'label'] })
     expect(got.parts.get(box.childNodes[3] as N)).toEqual({ entity: 'siteSettings', id: 's1', field: 'links', kind: 'value', values: [['links', 'l2', 'price']] })
+  })
+})
+
+describe('finding values in a block: what is a coincidence', () => {
+  const settings: CmsBuilderEntity = {
+    label: 'Nastavení', global: true,
+    fields: {
+      look: { kind: 'value', value: 'choice', options: { cekarna: ['Čekárna'] } },
+      edition: { kind: 'value', value: 'number' },
+      hours: { kind: 'list', items: { item: { day: { kind: 'value', value: 'choice', options: { mon: ['pondělí'], tue: ['úterý'], wed: ['středa'], fri: ['pátek'] } }, open: { kind: 'text', text: 'line' } } } },
+    },
+  }
+  const standing: CmsBuilderEntity = { label: 'Tabulka', fields: { team: { kind: 'text', text: 'line' }, played: { kind: 'value', value: 'number' }, draws: { kind: 'value', value: 'number' }, points: { kind: 'value', value: 'number' } } }
+  const entities = { siteSettings: settings, standing }
+  const site = record('siteSettings', true, { s1: { id: 's1', look: 'cekarna', edition: 14, hours: [
+    { id: 'h1', type: 'item', day: 'mon', open: '11–22' }, { id: 'h2', type: 'item', day: 'tue', open: '11–22' }, { id: 'h3', type: 'item', day: 'wed', open: '11–23' }, { id: 'h4', type: 'item', day: 'fri', open: '11–24' },
+  ] } })
+  const table = record('standing', false, { t1: { id: 't1', team: 'Sokol', played: 10, draws: 2, points: 23 } })
+  const made = cmsSourceFields([site, table], entities, null, ['cs'])
+  const find = (block: N, more: Parameters<typeof cmsSourceFind>[2] = {}) => cmsSourceFind([block], made.texts, { values: cmsValueIndex(made.values), global: (name) => name === 'siteSettings', ...more })
+
+  it('takes a day\'s name for a row of a list only when the block shows the week, or more of that row', () => {
+    // Today's weekday beside a menu: one day of four, nothing else of that row.
+    const lunch = e('section', [e('p', [t('dnes, '), e('b', [t('pátek')])]), e('p', [t('Polévka')])])
+    expect(find(lunch).parts.size).toBe(0)
+    // The week: each day once.
+    const week = e('section', [e('ul', ['pondělí', 'úterý', 'středa', 'pátek'].map((d) => e('li', [e('span', [t(d)]), e('span', [t('otevřeno')])])))])
+    expect([...find(week).parts.values()].map((p) => p.values![0]!.join('.'))).toEqual(['hours.h1.day', 'hours.h2.day', 'hours.h3.day', 'hours.h4.day'])
+    // One day with its hours beside it: the same row twice.
+    const today = e('section', [e('p', [e('b', [t('Pátek')]), e('span', [t('11–24')])])])
+    expect([...find(today).parts.values()].map((p) => (p.values?.[0] ?? p.at)!.join('.'))).toEqual(['hours.h4.day', 'hours.h4.open'])
+  })
+
+  it('keeps the values of one row of a list together: the same hours on four days', () => {
+    const rows: CmsBuilderEntity = { label: 'Nastavení', global: true, fields: { hours: { kind: 'list', items: { item: {
+      day: { kind: 'value', value: 'choice', options: { mon: ['pondělí'], tue: ['úterý'], wed: ['středa'] } }, from: { kind: 'text', text: 'line' }, to: { kind: 'text', text: 'line' },
+    } } } } }
+    const kept = record('siteSettings', true, { s1: { id: 's1', hours: [
+      { id: 'h1', type: 'item', day: 'mon', from: '11:00', to: '22:00' }, { id: 'h2', type: 'item', day: 'tue', from: '11:00', to: '22:00' }, { id: 'h3', type: 'item', day: 'wed', from: '10:00', to: '16:00' },
+    ] } })
+    const fields = cmsSourceFields([kept], { siteSettings: rows }, null, ['cs'])
+    const line = (day: string, span: string) => e('li', [e('span', [t(day)]), e('span', [t(span)])])
+    const block = e('section', [e('ul', [line('pondělí', '11:00–22:00'), line('úterý', '11:00–22:00'), line('středa', '10:00–16:00')])])
+    const got = cmsSourceFind([block], fields.texts, { values: cmsValueIndex(fields.values), global: () => true })
+    expect([...got.parts.values()].map((p) => p.values!.map((x) => x.join('.')).join('+')).sort()).toEqual([
+      'hours.h1.day', 'hours.h1.from+hours.h1.to', 'hours.h2.day', 'hours.h2.from+hours.h2.to', 'hours.h3.day', 'hours.h3.from+hours.h3.to',
+    ])
+    // One card: the global is one set of values.
+    expect(got.cards.map((c) => c.id)).toEqual(['s1'])
+  })
+
+  it('never takes a word for a global\'s own choice, and takes its number', () => {
+    const block = e('section', [e('h3', [t('Čekárna')]), e('p', [t('14. ročník')])])
+    const got = find(block)
+    expect([...got.parts.values()].map((p) => p.values![0]!.join('.'))).toEqual(['edition'])
+  })
+
+  it('does not take an element around several texts for one value with words around it', () => {
+    const block = e('section', [e('div', [e('p', [t('Sezona')]), e('p', [t('Sokol')])])])
+    const got = find(block)
+    expect([...got.parts.keys()].map((n) => (n as N).name)).toEqual(['p'])
+    expect([...got.parts.values()][0]).toMatchObject({ field: 'team', kind: 'text' })
+  })
+
+  it('drops a short number that stands twice as the same field: a rank beside a count', () => {
+    const row = e('tr', [e('td', [t('2.')]), e('td', [t('Sokol')]), e('td', [t('10')]), e('td', [t('2')]), e('td', [t('23')])])
+    const got = find(e('table', [row]))
+    expect([...got.parts.values()].map((p) => (p.values?.[0] ?? [p.field]).join('.'))).toEqual(['team', 'played', 'points'])
+  })
+
+  it('counts only what the caller allows in this block', () => {
+    const row = e('tr', [e('td', [t('Sokol')]), e('td', [t('23')])])
+    const got = find(e('table', [row]), { allow: (part) => part.kind !== 'value' })
+    expect([...got.parts.values()].map((p) => p.field)).toEqual(['team'])
   })
 })
 

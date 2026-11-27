@@ -18,7 +18,7 @@ import {
   cmsMatchElements, cmsMatchFieldsWith, cmsMatchPlacesInText, cmsMatchShown, cmsMatchSquash, cmsMatchValue, cmsRichPlain, isCmsRichDoc,
   type CmsMatchField, type CmsMatchNode,
 } from './builder-match'
-import { cmsFormKey, cmsValueForms, cmsValueMatch, type CmsValueField, type CmsValueIndex, type CmsValuePath } from './builder-values'
+import { cmsFormKey, cmsValueForms, cmsValueMatch, cmsValueUnit, type CmsValueField, type CmsValueIndex, type CmsValuePath } from './builder-values'
 
 // ── what the admin says about a collection or a global ──
 
@@ -320,6 +320,8 @@ export interface CmsSourcePart {
   at?: CmsValuePath
   /** Since 2g, for `value`: every value the element shows, in the text's order. */
   values?: CmsValuePath[]
+  /** Since 2g: the one value is a choice found by an option's name (`siblings`: of an item of a list with so many items). */
+  choice?: { siblings?: number }
 }
 
 /** An entry's picture field and the addresses of what it holds. */
@@ -382,7 +384,7 @@ export function cmsSourceFields(
     if (!info) continue
     for (const [id, row] of record.entries) {
       if (self && self.entity === record.entity && self.id === id) continue
-      const walk = (holder: Record<string, unknown>, fields: Record<string, CmsBuilderEntityField>, at: string[], depth: number) => {
+      const walk = (holder: Record<string, unknown>, fields: Record<string, CmsBuilderEntityField>, at: string[], depth: number, siblings?: number) => {
         for (const [key, f] of Object.entries(fields)) {
           const value = holder[key]
           const path = [...at, key]
@@ -405,12 +407,12 @@ export function cmsSourceFields(
           }
           else if (f.kind === 'value') {
             const keys = cmsValueForms(value, f, langs)
-            if (keys.length) values.push({ entity: record.entity, id, at: path, kind: 'value', keys })
+            if (keys.length) values.push({ entity: record.entity, id, at: path, kind: 'value', keys, ...(f.value === 'choice' ? { choice: true } : {}), ...(siblings ? { siblings } : {}) })
           }
           else if (f.kind === 'list' && Array.isArray(value) && depth < 3) {
             for (const item of value) {
               const inner = isObject(item) && typeof item.id === 'string' && item.id && typeof item.type === 'string' && f.items && Object.hasOwn(f.items, item.type) ? f.items[item.type] : undefined
-              if (inner) walk(item as Record<string, unknown>, inner, [...path, (item as { id: string }).id], depth + 1)
+              if (inner) walk(item as Record<string, unknown>, inner, [...path, (item as { id: string }).id], depth + 1, value.length)
             }
           }
           else if (f.kind === 'group' && isObject(value) && f.items?.[''] && depth < 3) walk(value, f.items[''], path, depth + 1)
@@ -462,7 +464,8 @@ const isElement = (n: CmsMatchNode) => n.nodeType === 1
 const attr = (n: CmsMatchNode, name: string) => n.getAttribute?.(name) ?? null
 const elementChildren = (n: CmsMatchNode): CmsMatchNode[] => Array.from(n.childNodes).filter(isElement)
 const partKey = (p: { entity: string; id: string }) => `${p.entity}\n${p.id}`
-const fieldKey = (f: CmsMatchField) => `${f.list}\n${f.item}`
+/** What a found part belongs to when texts around it are asked: its entry, or inside a list its item (since 2g). */
+const unitKey = (p: CmsSourcePart) => cmsValueUnit(p.entity, p.id, p.values?.[0] ?? p.at ?? [p.field])
 
 /** Whether a node is inside an element a site marks for a field of the block (`cmsField()`): the block's own. */
 function marked<N extends CmsMatchNode>(n: N, roots: N[]): boolean {
@@ -514,6 +517,8 @@ export function cmsSourceFind<N extends CmsMatchNode>(
     values?: CmsValueIndex
     /** Since 2g: whether something found may count in this block (a text inside a list of a global: only where the block loads that global). */
     allow?: (part: CmsSourcePart) => boolean
+    /** Since 2g: whether a name is a global's (one set of values, not entries). */
+    global?: (entity: string) => boolean
   } = {},
 ): CmsSourceFound<N> {
   const text = options.text ?? cmsMatchShown
@@ -543,17 +548,21 @@ export function cmsSourceFind<N extends CmsMatchNode>(
     const of = new Map<string, CmsSourcePart>()
     const allowed = (part: CmsSourcePart) => !options.allow || options.allow(part)
     for (const h of cmsMatchFieldsWith(texts, t)) {
-      if ((el.nodeType === 3 && h.kind !== 'text') || of.has(fieldKey(h))) continue
+      if (el.nodeType === 3 && h.kind !== 'text') continue
       const part: CmsSourcePart = { entity: h.list!, id: h.item!, field: h.field, kind: h.kind, ...(h.at ? { at: h.at } : {}) }
-      if (allowed(part)) of.set(fieldKey(h), part)
+      if (!of.has(unitKey(part)) && allowed(part)) of.set(unitKey(part), part)
     }
     // No value as it is stored: a value in another form (a number, a date, a choice's name), or several values
     // in a row. Only for a text of its own (nothing inside it has a text of its own): an element around
     // several texts is not one value with words around it.
     if (!of.size && options.values && (el.nodeType === 3 || !elementChildren(el).some((c) => !!text(c as N)))) {
       for (const hit of cmsValueMatch(t, options.values)) {
-        const part: CmsSourcePart = { entity: hit.entity, id: hit.id, field: hit.values[0]!.at[0]!, kind: 'value', values: hit.values.map((v) => v.at) }
-        if (allowed(part)) of.set(`${hit.entity}\n${hit.id}`, part)
+        const one = hit.values.length === 1 ? hit.values[0]! : null
+        const part: CmsSourcePart = {
+          entity: hit.entity, id: hit.id, field: hit.values[0]!.at[0]!, kind: 'value', values: hit.values.map((v) => v.at),
+          ...(one?.choice ? { choice: one.siblings ? { siblings: one.siblings } : {} } : {}),
+        }
+        if (allowed(part)) of.set(unitKey(part), part)
       }
     }
     if (!of.size) continue
@@ -607,7 +616,7 @@ export function cmsSourceFind<N extends CmsMatchNode>(
     if (parts.has(el) || disputed.has(el)) continue
     for (let at = el.parentNode as N | null; at; at = at.parentNode as N | null) {
       const inside = new Set<string>()
-      for (const [p, part] of sure) if (of.has(partKey(part)) && contains(at, p)) inside.add(partKey(part))
+      for (const [p, part] of sure) if (of.has(unitKey(part)) && contains(at, p)) inside.add(unitKey(part))
       if (inside.size === 1) {
         parts.set(el, of.get([...inside][0]!)!)
         break
@@ -620,9 +629,42 @@ export function cmsSourceFind<N extends CmsMatchNode>(
     for (const [el, of] of deferred) {
       if (parts.has(el)) continue
       const mine = [...of.values()].filter((p) => options.prefer!.has(p.entity))
-      if (mine.length === 1) parts.set(el, mine[0]!)
+      if (new Set(mine.map(partKey)).size === 1 && mine.length === 1) parts.set(el, mine[0]!)
     }
   }
+  // A choice found alone by an option's name (a day, a kind) is a word a look may well write itself: today's
+  // weekday beside a menu is not the Friday row of the opening hours. It counts only with support: another
+  // part of the same entry (of the same item of a list) in the block, or, for a list's items, when the block
+  // shows that field of at least half of the list's items (a week of days). A global's own choice has none.
+  const unitOf = (part: CmsSourcePart, at: readonly string[]) => `${partKey(part)}\n${at.slice(0, -1).join('\u0000')}`
+  const perUnit = new Map<string, number>()
+  const perList = new Map<string, number>()
+  for (const part of parts.values()) {
+    for (const at of new Set((part.values ?? [part.at ?? [part.field]]).map((x) => unitOf(part, x)))) perUnit.set(at, (perUnit.get(at) ?? 0) + 1)
+    const at = part.choice ? part.values?.[0] : undefined
+    if (at && at.length > 2) {
+      const list = `${partKey(part)}\n${at.slice(0, -2).join('\u0000')}\n${at[at.length - 1]}`
+      perList.set(list, (perList.get(list) ?? 0) + 1)
+    }
+  }
+  for (const [el, part] of [...parts]) {
+    const at = part.choice ? part.values?.[0] : undefined
+    if (!at) continue
+    const inList = at.length > 2
+    const alone = (perUnit.get(unitOf(part, at)) ?? 0) < 2
+    const week = inList && (perList.get(`${partKey(part)}\n${at.slice(0, -2).join('\u0000')}\n${at[at.length - 1]}`) ?? 0) >= Math.max(2, Math.ceil((part.choice!.siblings ?? 2) / 2))
+    const global = options.global?.(part.entity) ?? false
+    if ((global && !inList) || (alone && !week)) parts.delete(el)
+  }
+  // A short number that stands twice in a block as one field of one entry (a rank beside a count of the same
+  // figure) does not tell which of the two shows the field: neither does.
+  const short = new Map<string, N[]>()
+  for (const [el, part] of parts) {
+    if (part.kind !== 'value' || part.values?.length !== 1 || text(el).replace(/[^\p{L}\p{N}]/gu, '').length > 2) continue
+    const key = `${partKey(part)}\n${part.values[0]!.join('\u0000')}`
+    short.set(key, [...(short.get(key) ?? []), el])
+  }
+  for (const twice of short.values()) if (twice.length > 1) for (const el of twice) parts.delete(el)
   // The cards, in the page's order of their first part.
   const sorted = [...parts.entries()].sort((a, b) => (order.get(a[0]) ?? 0) - (order.get(b[0]) ?? 0))
   const byKey = new Map<string, { entity: string; id: string; els: N[] }>()
@@ -755,7 +797,7 @@ export function cmsTextRest(text: string, values: string[], inForm = false): Cms
 export function cmsTextsReport<N extends CmsMatchNode>(
   roots: N[], ownFields: CmsMatchField[], found: CmsSourceFound<N>, entities: Record<string, CmsBuilderEntity>,
   options: { text?: (n: N) => string; visible?: (n: N) => boolean; values?: string[] } = {},
-): { text: string; res: CmsTextResolution; rest?: CmsTextRest; by?: CmsTextBy; of?: string }[] {
+): { text: string; res: CmsTextResolution; rest?: CmsTextRest; by?: CmsTextBy; of?: string; at?: string }[] {
   const text = options.text ?? cmsMatchShown
   const visible = options.visible ?? (() => true)
   const values = options.values ?? []
@@ -784,7 +826,7 @@ export function cmsTextsReport<N extends CmsMatchNode>(
     // What the text, or the nearest element around it in the block, is found as.
     for (let at: CmsMatchNode | null = el; at; at = at.parentNode) {
       const part = found.parts.get(at as N)
-      if (part) return { text: t, res: Object.hasOwn(entities, part.entity) && entities[part.entity]!.global ? 'global' as const : 'entry' as const, of: part.entity, ...(part.kind === 'value' ? { by: 'value' as const } : {}) }
+      if (part) return { text: t, res: Object.hasOwn(entities, part.entity) && entities[part.entity]!.global ? 'global' as const : 'entry' as const, of: part.entity, at: (part.values ?? [part.at ?? [part.field]]).map((x) => x.join('.')).join('+'), ...(part.kind === 'value' ? { by: 'value' as const } : {}) }
       if (own.has(at as N)) return { text: t, res: 'own' as const }
       if (roots.includes(at as N)) break
     }

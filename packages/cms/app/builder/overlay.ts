@@ -1246,10 +1246,16 @@ function foundIn(node: BNode): CmsSourceFound<Part> {
   }
   const loads = new Set(cmsSourcesLoadedBy(cmsBuilderInstances.get(`${node.list}\n${node.id}`)))
   // What is inside a list or a group of a global (a menu's items) counts only where the block loads that
-  // global: the same words elsewhere on the page are a look's own.
-  const allow = (part: CmsSourcePart) => !entityOf(part.entity)?.global || loads.has(part.entity) || !((part.at?.length ?? 1) > 1 || part.values?.some((at) => at.length > 1))
+  // global: the same words elsewhere on the page are a look's own. And a value found by a form (a number, a
+  // date) counts only for what the block loads, or what comes inside that through a relation: the same
+  // figure in another block's entry is a coincidence.
+  const mine = (entity: string) => loads.has(entity) || [...loads].some((l) => related(l, entity))
+  const allow = (part: CmsSourcePart) => {
+    if (part.kind === 'value') return mine(part.entity)
+    return !entityOf(part.entity)?.global || loads.has(part.entity) || (part.at?.length ?? 1) <= 1
+  }
   const found = texts.length || pictures.length
-    ? cmsSourceFind(node.els as Part[], texts, { own, text: shown as (n: Part) => string, visible: (n) => visible(n as Element), picture, related, values, allow, prefer: loads })
+    ? cmsSourceFind(node.els as Part[], texts, { own, text: shown as (n: Part) => string, visible: (n) => visible(n as Element), picture, related, values, allow, global: (name) => !!entityOf(name)?.global, prefer: loads })
     : { parts: new Map(), cards: [], own: [] }
   if (foundCache.size > 60) foundCache.clear()
   foundCache.set(node.key, { at, found })
@@ -1409,7 +1415,7 @@ function textsCoverage() {
     const found = foundIn(node)
     const pieces = cmsTextsReport(node.els as Part[], texts, found, entities, { text: shown as (n: Part) => string, visible: (n) => visible(n as Element), values: [...texts.map((f) => f.norm), ...all] })
     const known = cmsSourcesLoadedBy(cmsBuilderInstances.get(`${node.list}\n${node.id}`)).filter((e) => e !== self?.entity)
-    return { path: node.path, type: node.type, pieces: pieces.map((p) => ({ res: p.res, ...(p.rest ? { rest: p.rest } : {}), ...(p.by ? { by: p.by } : {}), ...(p.of ? { of: p.of } : {}), text: p.text.slice(0, 60) })), sources: cmsSourcesOf(found, known, allRecords(), entities, words?.untitled ?? '', Date.now(), drawsNothing(node)) }
+    return { path: node.path, type: node.type, pieces: pieces.map((p) => ({ res: p.res, ...(p.rest ? { rest: p.rest } : {}), ...(p.by ? { by: p.by } : {}), ...(p.of ? { of: p.of, at: p.at } : {}), text: p.text.slice(0, 60) })), sources: cmsSourcesOf(found, known, allRecords(), entities, words?.untitled ?? '', Date.now(), drawsNothing(node)) }
   })
 }
 

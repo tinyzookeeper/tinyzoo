@@ -166,6 +166,10 @@ export interface CmsValueField {
   kind: 'text' | 'value'
   /** Its forms, each as `cmsFormKey` gives it. */
   keys: string[]
+  /** A choice, found by an option's name: a word a look may write itself, so alone it needs support (shared/builder-sources.ts). */
+  choice?: boolean
+  /** For a field of an item of a list: how many items the list has. */
+  siblings?: number
 }
 
 export interface CmsValueIndex {
@@ -183,6 +187,12 @@ export function cmsValueIndex(fields: readonly CmsValueField[]): CmsValueIndex {
   }
   return { byKey }
 }
+
+/**
+ * What a value belongs to with the values beside it: its entry, or, inside a list, its item (the path
+ * without its last step). Values of one text are of one such unit.
+ */
+export const cmsValueUnit = (entity: string, id: string, at: readonly string[]): string => `${entity}\n${id}\n${at.slice(0, -1).join('\u0000')}`
 
 /** The values of one entry a text is made of, in the text's order. */
 export interface CmsValueHit {
@@ -202,11 +212,12 @@ const AROUND_MOST = 12
 const TEXT_LEAST = 6
 
 /**
- * Which entries could have made a text, and from which of their values. For each entry on its own: the
- * text is its values' forms in a row, with nothing but spaces and punctuation between them (at most four;
- * each value once), or one value with a few letters and no digit around it. When an entry can make the
- * text from different sets of its fields, it is left out: the text does not tell which. More than one
- * entry in the answer: the caller decides by what stands around the text.
+ * Which entries could have made a text, and from which of their values. For each entry on its own (for each
+ * item of a list on its own: the values of one row belong together): the text is its values' forms in a
+ * row, with nothing but spaces and punctuation between them (at most four; each value once), or one value
+ * with a few letters and no digit around it. When one of them can make the text from different sets of its
+ * fields, it is left out: the text does not tell which. More than one in the answer: the caller decides by
+ * what stands around the text.
  */
 export function cmsValueMatch(text: string, index: CmsValueIndex): CmsValueHit[] {
   const folded = cmsMatchSquash(text).toLocaleLowerCase('cs')
@@ -220,7 +231,7 @@ export function cmsValueMatch(text: string, index: CmsValueIndex): CmsValueHit[]
       const hits = index.byKey.get(folded.slice(tokens[i]!.start, tokens[j]!.end))
       if (!hits) continue
       for (const field of hits) {
-        const key = `${field.entity}\n${field.id}`
+        const key = cmsValueUnit(field.entity, field.id, field.at)
         const list = byEntry.get(key)
         if (list) list.push({ i, j, field })
         else byEntry.set(key, [{ i, j, field }])

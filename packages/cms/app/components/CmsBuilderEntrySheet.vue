@@ -164,9 +164,23 @@ function onMessage(e: MessageEvent) {
     void checkShown(m.entity, m.id)
   }
 }
-onMounted(() => window.addEventListener('message', onMessage))
+/**
+ * The sheet closes by its own button and by Escape. A press or the keyboard going elsewhere in the admin
+ * (the box over a value in the preview, the bar above the page) is no wish to close it: since 2g the page
+ * beside it is worked in while it is open.
+ */
+let escapeAt = 0
+const onEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') escapeAt = performance.now() }
+function closeAsked() {
+  if (performance.now() - escapeAt < 150) void close()
+}
+onMounted(() => {
+  window.addEventListener('message', onMessage)
+  window.addEventListener('keydown', onEscape, true)
+})
 onBeforeUnmount(() => {
   window.removeEventListener('message', onMessage)
+  window.removeEventListener('keydown', onEscape, true)
   attach(null)
   if (current.value) void dropDraft(current.value)
 })
@@ -176,7 +190,7 @@ onBeforeUnmount(() => {
   <USlideover
     v-model:open="open" side="left" :overlay="false" :modal="false" :dismissible="false" :title="heading" :description="t('builderSources.sheetHint')"
     :ui="{ content: 'max-w-none w-screen sm:w-[34rem] sm:max-w-[calc(100vw-2rem)] divide-y-0' }" :content="{ onOpenAutoFocus: (e: Event) => e.preventDefault() }"
-    @close:prevent="close"
+    @close:prevent="closeAsked"
   >
     <template #content>
       <div class="cms-sheet" data-cms-entry-sheet>
