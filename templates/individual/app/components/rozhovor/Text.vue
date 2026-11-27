@@ -7,5 +7,6 @@ defineProps<{ block: BlockOf<'text'>; first?: boolean }>()
   <section class="wrap py-16 lg:py-24">
     <component :is="first ? 'h1' : 'h2'" v-if="block.heading" class="bubble bubble-q mb-8 lg:mb-10"><KitMarked :text="block.heading" plain /></component>
     <CmsContent v-if="block.body" :doc="block.body" class="prose-look" />
+    <slot />
   </section>
 </template>

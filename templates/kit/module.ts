@@ -36,8 +36,12 @@ const kitDir = dirname(fileURLToPath(import.meta.url))
 const LOOK_CSS_ID = 'virtual:tz-look-css:'
 const HELPER_DIRS = ['app/composables', 'app/utils']
 const HELPER_FILES = ['*.{ts,js,mjs,mts}', '*/index.{ts,js,mjs,mts}']
-/** The two blocks of a site's own types (tinyzoo's customTypeBlocks()), drawn by the kit for every design. */
-const CUSTOM_BLOCKS = ['BlockCustomEntries', 'BlockCustomChosen']
+/** The blocks the kit draws for every design: the two of a site's own types (tinyzoo's customTypeBlocks()) and the sections (kitSections()). */
+const KIT_BLOCKS = ['BlockCustomEntries', 'BlockCustomChosen', 'BlockSectionTextPicture', 'BlockSectionCards', 'BlockSectionQuestions', 'BlockSectionLayout', 'BlockSectionList']
+/** The small blocks of the Layout section, the same in every design: drawn by <CmsBlocks prefix="KitLayout"> inside it, so registered globally under these names in both ways of building. */
+const KIT_LAYOUT_BLOCKS = ['KitLayoutHeading', 'KitLayoutText', 'KitLayoutPicture', 'KitLayoutButton', 'KitLayoutGroup']
+/** The small blocks of a list with a card of its own (BlockSectionList), the same in every design: drawn by <CmsBlocks prefix="KitCard"> inside each card, registered like the Layout section's. */
+const KIT_CARD_BLOCKS = ['KitCardHeading', 'KitCardText', 'KitCardPicture', 'KitCardButton', 'KitCardGroup']
 
 /**
  * The designs whose content model names a type with the prefix of a site's own types. Each
@@ -113,14 +117,15 @@ export default defineNuxtModule<TemplateKitOptions>({
     const prefixErrors = await customPrefixErrors(designs)
     if (prefixErrors.length) throw new Error(`[tinyzoo] ${prefixErrors.join('\n[tinyzoo] ')}`)
 
-    // The blocks of a site's own types are the kit's, the same for every design: found by name
+    // The blocks of a site's own types and the sections are the kit's, the same for every design: found by name
     // (<CmsBlocks :prefix>), so registered globally under each design's block prefix in the one
-    // app, and as BlockCustomEntries, BlockCustomChosen in a template's own build.
-    for (const name of CUSTOM_BLOCKS) {
+    // app, and as BlockCustomEntries and so on in a template's own build.
+    for (const name of KIT_BLOCKS) {
       const filePath = join(kitDir, 'app/components', `${name}.vue`)
       if (!oneApp) addComponent({ name, filePath, global: true, priority: 10 })
       else for (const d of designs) addComponent({ name: `${pascalId(d.id)}${name}`, filePath, global: true })
     }
+    for (const name of [...KIT_LAYOUT_BLOCKS, ...KIT_CARD_BLOCKS]) addComponent({ name, filePath: join(kitDir, 'app/components', `${name}.vue`), global: true, priority: 10 })
 
     // The designs this build carries, each a chunk of its own, loaded when a site of it is drawn.
     for (const d of designs) addTemplate({ filename: `tz/design-${d.id}.mjs`, getContents: () => designModule(d, oneApp) })

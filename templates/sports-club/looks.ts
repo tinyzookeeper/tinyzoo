@@ -13,6 +13,8 @@ export const looks = defineLooks([
   {
     // The club bulletin: warm white paper, hairlines, a Clarendon headline face, framed photographs with captions.
     id: 'zpravodaj',
+    button: 'btn btn-fill',
+    heading: 'h2 mb-8',
     name: { cs: 'Zpravodaj', en: 'Bulletin' },
     own: { against: ['--brand-ink', '--line', '--paper', '--tint'], fixed: ['#1c1a18', '#ffffff'] },
     presets: [
@@ -24,6 +26,8 @@ export const looks = defineLooks([
   {
     // The page wears the kit: blocks of the club colour with shirt stripes, very wide capitals, huge numbers.
     id: 'dres',
+    button: 'btn btn-ink',
+    heading: 'wide mb-8 text-[clamp(30px,6vw,84px)]',
     name: { cs: 'Dres', en: 'Jersey' },
     own: { calm: true, against: ['--brand-ink', '--ink'] },
     presets: [
@@ -35,6 +39,7 @@ export const looks = defineLooks([
   {
     // A Saturday afternoon: a white page, big colour photographs with soft corners, headings that lean forward, match data like a scoreboard.
     id: 'hriste',
+    heading: 'disp h2 mb-8',
     name: { cs: 'Hřiště', en: 'Pitch' },
     own: { against: ['--brand-ink', '--line', '--tint'], fixed: ['#ffffff'] },
     presets: [

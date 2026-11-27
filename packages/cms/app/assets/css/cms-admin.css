@@ -453,6 +453,27 @@ html[data-cms-admin] .cms-editor__preview { display: none; }
 @media (min-width: 1536px) {
   html[data-cms-admin] .cms-editor--split { grid-template-columns: minmax(24rem, 34rem) minmax(0, 1fr); }
 }
+/* A larger preview (the editor in the preview): the page takes the form's room. A selected block's panel
+   (the form column, which shows it alone) slides over the preview's left edge as a sheet. */
+@media (min-width: 1024px) {
+  html[data-cms-admin] .cms-editor--split.cms-editor--large { position: relative; grid-template-columns: minmax(0, 1fr); }
+  html[data-cms-admin] .cms-editor--large .cms-editor__main,
+  html[data-cms-admin] .cms-editor--large .cms-editor__aside { display: none; }
+  html[data-cms-admin] .cms-editor--large .cms-editor__preview { grid-column: 1; padding-left: 1.5rem; }
+  html[data-cms-admin] .cms-editor--large.cms-editor--sheet .cms-editor__main {
+    display: block; position: absolute; z-index: 30; inset: 3.25rem auto 0 0; width: min(28rem, 46%); overflow-y: auto;
+    padding: 1.5rem 1.5rem 2rem; background: var(--ui-bg); border: 1px solid var(--ui-border); border-left: 0; border-radius: 0 0.75rem 0 0;
+    box-shadow: 12px 0 32px -18px rgb(0 0 0 / 0.28);
+    animation: cms-sheet-in 200ms cubic-bezier(.2,.7,.2,1);
+  }
+  html[data-cms-admin] .cms-editor__sheet-close { position: absolute; top: 0.75rem; right: 0.75rem; z-index: 1; }
+}
+html[data-cms-admin] .cms-editor__sheet-close { display: none; }
+html[data-cms-admin] .cms-editor--sheet .cms-editor__sheet-close { display: inline-flex; }
+@keyframes cms-sheet-in { from { transform: translateX(-16px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  html[data-cms-admin] .cms-editor--large.cms-editor--sheet .cms-editor__main { animation: none; }
+}
 
 /* Write: the text gets the room, in a slightly wider centred column. */
 html[data-cms-admin] .cms-editor--write .cms-editor__column { max-width: 42rem; }
@@ -543,7 +564,7 @@ html[data-cms-admin] .cms-form__menu { display: none; }
 /* The menu needs room beside the column: it shows when the editor's main area is wide enough. */
 html[data-cms-admin] .cms-editor__main:has(.cms-form--menu) { container-type: inline-size; }
 @container (min-width: 58rem) {
-  html[data-cms-admin] .cms-editor__column:has(> .cms-form--menu) { max-width: 53.5rem; }
+  html[data-cms-admin] .cms-editor__column:has(.cms-form--menu) { max-width: 53.5rem; }
   html[data-cms-admin] .cms-form--menu {
     display: grid;
     grid-template-columns: 11rem minmax(0, 40rem);
@@ -685,6 +706,8 @@ html[data-cms-admin] .cms-preview {
   flex-direction: column;
 }
 html[data-cms-admin] .cms-preview--sheet { position: static; height: 100%; }
+/* The editor in the preview: the box over a value is placed in the panel, also in the full-screen sheet. */
+html[data-cms-admin] .cms-preview--sheet.cms-preview--tools { position: relative; }
 html[data-cms-admin] .cms-preview__stage {
   flex: 1;
   min-height: 20rem;
@@ -697,6 +720,21 @@ html[data-cms-admin] .cms-preview__stage {
 }
 html[data-cms-admin] .cms-preview__frame { width: 100%; height: 100%; border: 0; background: white; }
 html[data-cms-admin] .cms-preview__frame--phone { width: 390px; max-width: 100%; border-left: 1px solid var(--ui-border); border-right: 1px solid var(--ui-border); }
+/* The editor in the preview (NUXT_CMS_BUILDER=on): the page laid out at a desktop width (or a phone's)
+   and drawn scaled to fit the stage (CmsPreviewPanel); the box is the page's size on the screen. */
+html[data-cms-admin] .cms-preview__stage--fit { position: relative; align-items: stretch; }
+html[data-cms-admin] .cms-preview__box { position: relative; flex: none; height: 100%; overflow: hidden; max-width: 100%; }
+html[data-cms-admin] .cms-preview__box--phone { box-shadow: -1px 0 0 var(--ui-border), 1px 0 0 var(--ui-border); }
+html[data-cms-admin] .cms-preview__frame--fit { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+/* The phone-sized admin's sheet at the bottom of the preview (CmsBuilderSheet, since 3e) is on screen: the toasts
+   stand above it, at its handle or its open height (the sheet sets the variable). */
+html[data-cms-admin][data-cms-sheet] ol[data-slot="viewport"] { bottom: calc(var(--cms-sheet-covers, 0px) + 0.75rem); }
+html[data-cms-admin] .cms-preview__box--morph,
+html[data-cms-admin] .cms-preview__box--morph .cms-preview__frame--fit { transition: width 260ms cubic-bezier(.2,.7,.2,1), height 260ms cubic-bezier(.2,.7,.2,1), transform 260ms cubic-bezier(.2,.7,.2,1); }
+@media (prefers-reduced-motion: reduce) {
+  html[data-cms-admin] .cms-preview__box--morph,
+  html[data-cms-admin] .cms-preview__box--morph .cms-preview__frame--fit { transition: none; }
+}
 
 /* A date as a small calendar leaf (dated lists, "coming soon"). */
 html[data-cms-admin] .cms-date {

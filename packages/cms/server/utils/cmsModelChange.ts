@@ -147,6 +147,8 @@ interface BindingHit {
   locale: string | null
   block: { id: string; type: string; heading: string | null; label: unknown }
   binding: CmsBinding
+  /** A card's binding: the fields its blocks show. */
+  refs: string[]
 }
 
 const adminPath = (e: CmsEntity, id: string) => (e.singleton ? `/admin/${e.name}` : `/admin/${e.name}/${id}`)
@@ -173,13 +175,14 @@ function placesOf(hits: BindingHit[], perEntity: number, total: number): CmsMode
 }
 
 /**
- * Every binding of a block in the stored pages that `match` accepts: in each blocks field of each
- * collection (top level of the entity), on the entry's own row and on its translations. Only the
+ * Every binding of a block in the stored pages that `match` accepts (with `refs`, the fields a card's
+ * blocks show, at both levels): in each blocks field of each collection (top level of the entity),
+ * on the entry's own row and on its translations. Only the
  * rows that hold a block with a binding are read (`@>` on the stored blocks), and their blocks are
  * walked here. Table and column names come from the registry's table objects; the block types
  * are passed as parameters.
  */
-async function findBindings(db: any, reg: CmsRegistry, match: (binding: CmsBinding) => boolean): Promise<BindingHit[]> {
+async function findBindings(db: any, reg: CmsRegistry, match: (binding: CmsBinding, refs: string[]) => boolean): Promise<BindingHit[]> {
   const out: BindingHit[] = []
   for (const e of reg.entities) {
     const own = e.table as any
@@ -193,10 +196,10 @@ async function findBindings(db: any, reg: CmsRegistry, match: (binding: CmsBindi
       const collect = (id: string, title: unknown, locale: string | null, value: unknown) => {
         let stored = value
         if (typeof stored === 'string') { try { stored = JSON.parse(stored) } catch { stored = null } }
-        for (const found of bindingsIn(stored, types)) {
-          if (!match(found.binding)) continue
+        for (const found of bindingsIn(stored, types, fld.blocks)) {
+          if (!match(found.binding, found.refs)) continue
           const label = fld.blocks![found.block.type]?.label ?? null
-          out.push({ entity: e, id, title: e.singleton || title == null ? '' : String(title), field: key, locale, block: { ...found.block, label }, binding: found.binding })
+          out.push({ entity: e, id, title: e.singleton || title == null ? '' : String(title), field: key, locale, block: { ...found.block, label }, binding: found.binding, refs: found.refs })
         }
       }
       if (column(own)) {
@@ -221,11 +224,11 @@ async function findBindings(db: any, reg: CmsRegistry, match: (binding: CmsBindi
 
 /**
  * Where a block shows a field or a type, or orders by it: the blocks of the pages whose binding
- * names `type` (and, with `field`, shows it or orders by it). `field` null: the type itself. At
+ * names `type` (and, with `field`, shows it or orders by it, or a card's block shows it). `field` null: the type itself. At
  * most `perEntity` places per collection, and `total` in all.
  */
 export async function blocksShowing(db: any, reg: CmsRegistry, type: string, field: string | null, perEntity = PLACES_PER_ENTITY, total = Infinity): Promise<CmsModelPlace[]> {
-  return placesOf(await findBindings(db, reg, (b) => bindingUses(b, type, field)), perEntity, total)
+  return placesOf(await findBindings(db, reg, (b, refs) => bindingUses(b, type, field, refs)), perEntity, total)
 }
 
 /** The blocks whose binding names a type or a field the site does not have, each with what is missing. At most `limit`. */
@@ -233,9 +236,9 @@ export async function cmsModelAttention(limit = 50): Promise<CmsModelAttention[]
   const doc = cmsLoadedCustomPart()?.doc ?? null
   const { db, reg } = useCms()
   const out: CmsModelAttention[] = []
-  for (const h of await findBindings(db, reg, (b) => bindingMissing(b, doc) !== null)) {
+  for (const h of await findBindings(db, reg, (b, refs) => bindingMissing(b, doc, refs) !== null)) {
     if (out.length >= limit) break
-    out.push({ ...placeOf(h), missing: bindingMissing(h.binding, doc)! })
+    out.push({ ...placeOf(h), missing: bindingMissing(h.binding, doc, h.refs)! })
   }
   return out
 }
@@ -544,7 +547,7 @@ export async function cmsModelUsage(type: string, field: string | null): Promise
   const hits = await findBindings(db, reg, (b) => b.type === type)
   const entries = new Map<string, Set<string>>()
   for (const h of hits) {
-    for (const key of bindingFields(h.binding)) {
+    for (const key of bindingFields(h.binding, h.refs)) {
       if (!entries.has(key)) entries.set(key, new Set())
       entries.get(key)!.add(`${h.entity.name}:${h.id}`)
     }

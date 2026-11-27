@@ -148,7 +148,8 @@ function clear() {
     <p v-if="errorMsg" class="mt-1 text-sm text-error">{{ errorMsg }}</p>
   </div>
 
-  <div v-else class="w-full">
+  <!-- the editor in the preview asks for the chooser by a double click on the picture in the page (CmsBuilderPanel) -->
+  <div v-else class="w-full" data-cms-media-field @cms-builder-choose="() => { if (!readOnly) libraryOpen = true }">
     <input ref="input" type="file" class="hidden" :accept="field.meta?.accept" @change="onChange">
     <CmsMediaLibrary v-model:open="libraryOpen" :accept="field.meta?.accept" @select="onLibrarySelect" />
 

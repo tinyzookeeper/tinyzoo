@@ -47,8 +47,8 @@ export function searchTerms(query: string): string[] {
   return unique.slice(0, MAX_TERMS)
 }
 
-/** Text fields that hold an address or a code, not words a visitor reads. */
-const NOT_PROSE = new Set(['email', 'url', 'path', 'link', 'color'])
+/** Text fields that hold an address or a code (or the key of a field a card shows), not words a visitor reads. */
+const NOT_PROSE = new Set(['email', 'url', 'path', 'link', 'color', 'field'])
 
 /**
  * Is this field something people read (and so something to search)?

@@ -41,8 +41,8 @@ describe('bindingsIn', () => {
   it('finds the binding of each block with the block\'s id, type and heading', () => {
     const found = bindingsIn([{ id: 't', type: 'text', body: 'x' }, entries, { id: 'b2', type: 'custom_chosen', heading: '  ', source: { type: 'custom_course', entries: [] } }], types)
     expect(found).toEqual([
-      { block: { id: 'b1', type: 'custom_entries', heading: 'Courses' }, key: 'source', binding: { type: 'custom_course', limit: 3 } },
-      { block: { id: 'b2', type: 'custom_chosen', heading: null }, key: 'source', binding: { type: 'custom_course', entries: [] } },
+      { block: { id: 'b1', type: 'custom_entries', heading: 'Courses' }, key: 'source', binding: { type: 'custom_course', limit: 3 }, refs: [] },
+      { block: { id: 'b2', type: 'custom_chosen', heading: null }, key: 'source', binding: { type: 'custom_course', entries: [] }, refs: [] },
     ])
   })
 
@@ -196,14 +196,14 @@ describe('publicCustomTypes', () => {
 
   it('gives each kind\'s options only when set, and every choice, a removed one marked', () => {
     const by = Object.fromEntries(publicCustomTypes(doc)[0]!.fields.map((x) => [x.key, x]))
-    expect(by.title).toEqual({ key: 'title', type: 'text', label: label('Title') })
-    expect(by.perex).toEqual({ key: 'perex', type: 'text', label: label('Perex'), long: true })
-    expect(by.startsAt).toEqual({ key: 'startsAt', type: 'datetime', label: label('Starts'), allDay: true })
-    expect(by.price).toEqual({ key: 'price', type: 'number', label: label('Price'), decimal: true })
-    expect(by.teacher).toEqual({ key: 'teacher', type: 'text', label: label('Teacher'), format: 'email' })
-    expect(by.author).toEqual({ key: 'author', type: 'relation', label: label('Author'), to: 'author' })
+    expect(by.title).toEqual({ key: 'title', type: 'text', kind: 'text', label: label('Title') })
+    expect(by.perex).toEqual({ key: 'perex', type: 'text', kind: 'longText', label: label('Perex'), long: true })
+    expect(by.startsAt).toEqual({ key: 'startsAt', type: 'datetime', kind: 'date', label: label('Starts'), allDay: true })
+    expect(by.price).toEqual({ key: 'price', type: 'number', kind: 'number', label: label('Price'), decimal: true })
+    expect(by.teacher).toEqual({ key: 'teacher', type: 'text', kind: 'email', label: label('Teacher'), format: 'email' })
+    expect(by.author).toEqual({ key: 'author', type: 'relation', kind: 'relation', label: label('Author'), to: 'author' })
     expect(by.level).toEqual({
-      key: 'level', type: 'select', label: label('Level'), help: label('How hard'),
+      key: 'level', type: 'select', kind: 'choice', label: label('Level'), help: label('How hard'),
       options: [{ value: 'a', label: label('Easy') }, { value: 'b', label: label('Old'), removed: true }],
     })
   })

@@ -1,7 +1,8 @@
-import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from 'tinyzoo'
+import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
 import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
+import { kitEntryBlocks, kitSections } from 'tinyzoo-template-kit/sections'
 
 // The content model of the Freelancer and consultant template: what a one-person business can
 // write and change. One model for all three looks (looks.ts): a look decides how a block is
@@ -358,7 +359,7 @@ const richText = defineBlock({
 
 // Pages built from blocks: title, address, status, blocks, SEO, preview.
 export const Page = definePages({
-  blocks: { opening, services, projects, steps, testimonials, about, articles, contact, text: richText, ...customTypeBlocks() },
+  blocks: { opening, services, projects, steps, testimonials, about, articles, contact, text: richText, ...kitEntryBlocks(), ...kitSections() },
 })
 
 // ── menus ──

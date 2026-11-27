@@ -18,6 +18,9 @@ const { t, tl, locale, locales, setLocale } = useCmsI18n()
 // person's role does not open, and nothing at all for a role the site no longer defines.
 const menu = useCmsMenu(graph)
 await menu.ready
+// Since 2f: an editor shown in the sheet beside a page's preview (the editor in the preview) has none of the admin
+// around it, and leaves the sidebar's cookies alone (the admin around the sheet reads them too).
+const embedded = useCmsEmbedded()
 
 // The admin's own look (cms-admin.css) applies while this layout is mounted.
 const { unbranded, signature } = useCmsAdminHead()
@@ -50,7 +53,7 @@ const collapsed = ref(startFolded.value)
 // and draws the fold it holds. Left alone it can disagree with the choice above (a tab closed
 // in an editor's focus mode), and the page jumps once the browser takes over: start it from ours.
 const sidebarLayout = useCookie<{ size?: number; collapsed?: boolean } | null>(CMS_SIDEBAR_LAYOUT_COOKIE)
-if (sidebarLayout.value && typeof sidebarLayout.value === 'object' && !!sidebarLayout.value.collapsed !== startFolded.value) {
+if (!embedded.value && sidebarLayout.value && typeof sidebarLayout.value === 'object' && !!sidebarLayout.value.collapsed !== startFolded.value) {
   sidebarLayout.value = { ...sidebarLayout.value, collapsed: startFolded.value }
 }
 // A select menu's or the search's option reached with the arrow keys shows the focus ring (cms-admin.css);
@@ -64,7 +67,7 @@ onMounted(() => { if (me.value?.account?.enabled) void useCmsAccountSites().load
 onMounted(() => {
   watch(focus, (on) => { collapsed.value = on || cmsSidebarFolded(pref.value) }, { immediate: true })
   watch(collapsed, (v) => {
-    if (focus.value) return
+    if (focus.value || embedded.value) return
     pref.value = v ? '1' : '0'
   })
 })
@@ -193,12 +196,14 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
 
 <template>
   <!-- the sidebar's width and fold are kept in a cookie, not localStorage: the server reads it too, so both draw the same first frame -->
-  <UDashboardGroup unit="rem" storage="cookie" storage-key="cms-admin">
+  <!-- in the sheet beside a page (since 2f) the sizes are kept apart, so the admin around it never reads them -->
+  <UDashboardGroup unit="rem" :storage="embedded ? 'local' : 'cookie'" storage-key="cms-admin">
     <!-- the first stop for the keyboard: past the sidebar's links, to the page -->
     <a
-      href="#cms-main" class="cms-skip-link" @click.prevent="focusMain"
+      v-if="!embedded" href="#cms-main" class="cms-skip-link" @click.prevent="focusMain"
     >{{ t('app.skipToContent') }}</a>
     <UDashboardSidebar
+      v-if="!embedded"
       id="main" v-model:collapsed="collapsed"
       collapsible resizable :default-size="16" :min-size="14" :max-size="20" :collapsed-size="4.25"
       class="cms-sidebar"
@@ -252,8 +257,8 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
 
     <CmsRoleRemoved v-if="roleRemoved && !route.path.startsWith('/admin/account')" :role="String(user?.role ?? '')" />
     <slot v-else />
-    <CmsSearch :graph="graph ?? []" :places="places" />
-    <CmsMenuEditor v-if="user?.role === 'admin'" v-model:open="arranging" :graph="graph ?? []" />
+    <CmsSearch v-if="!embedded" :graph="graph ?? []" :places="places" />
+    <CmsMenuEditor v-if="user?.role === 'admin' && !embedded" v-model:open="arranging" :graph="graph ?? []" />
     <CmsConfirmDialog />
   </UDashboardGroup>
 </template>

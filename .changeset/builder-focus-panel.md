@@ -1,0 +1,10 @@
+---
+"tinyzoo": minor
+---
+
+The editor in the preview shows the selected block alone in the form, draws a desktop page at a desktop width, and has undo and redo. Experimental, behind `NUXT_CMS_BUILDER=on`; without it the admin is as before.
+
+- **For an owner.** While the preview is beside the form, a block selected in the page or in the list fills the form on its own: a way back to all sections, the path as a breadcrumb (each part selects that level), the block's fields, its settings under *Layout*, its own blocks as rows that each go a level deeper, and *Duplicate* and *Delete*. The rest of the page's fields are behind *All sections*, which keeps the place the form was scrolled to. An error the form does not show is counted on the way back and on the breadcrumb. A desktop page is laid out 1280 px wide and drawn scaled to fit, with its scale shown (*72 %*); the tools in the page keep their size. *Undo* and *Redo* sit above the preview, with Ctrl/⌘ Z and Ctrl/⌘ ⇧ Z outside a text field: every change to the page's blocks while the editor is open, typing in a field as one step per pause, at most 50 steps. The *Undo* of a toast is the same undo.
+- **In the page.** A small block's toolbar stands where it hides the least. In a grid the other blocks close the gap of a dragged one and open one where it lands. A group takes a dragged block only in its middle, or after a moment over it, and its outline lights when it will. An empty heading shows its name in the admin's language, and a block that draws nothing has a quiet placeholder with its name, so it can be selected.
+- **For a developer.** `useCmsEditingLabel(type)`, new in the frontend kit: a block type's name in the admin's language while an editor works on the page, `''` on the live site. The admin tells the page its scale (`cms:builder:view`, and `scale` on `cms:builder:on`); the page passes Ctrl/⌘ Z on (`cms:builder:history`). In the preview with the setting on, `<CmsBlocks>` draws a placeholder, marked like a block, for a block whose component draws no element.
+- **New text:** *All sections*, *Delete section*, *Delete block*, *Undo*, *Redo* and a few more, in English, Czech and German.

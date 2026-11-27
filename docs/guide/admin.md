@@ -337,6 +337,67 @@ The preview beside the form follows the typing. The editor's unsaved values go t
 
 A site that loads its content through the content API with `?preview` (as the starter does) needs no code for this. A site rendering from somewhere else can listen for `{ type: 'cms:preview', entity, id, locale, data }` messages.
 
+**Experimental: the editor in the preview.** With `NUXT_CMS_BUILDER=on` in the server's environment, an editor can select, move, duplicate, delete and add the blocks of a page in the preview itself, and the form follows. The admin and the page talk through `cms:builder:*` messages (`cms:builder:on` and `cms:builder:select` to the page; `cms:builder:select`, `move`, `duplicate`, `remove`, `add`, `sources` and `entry` back). A page in the preview says `cms:builder:ready` to the admin once it listens, with the variable or without it. In the preview, `<CmsBlocks>` marks each block's root element (each of them, for a component with several) with `data-cms-block`, `data-cms-block-type` and `data-cms-block-list`, never on the live site. Without the variable none of this runs, and the admin is as before. It may change in a minor release.
+
+Blocks inside a block's list (`f.blocks()` inside a block, drawn with `<CmsBlocks>` too) are edited the same way, one level per click: the first click selects the section, the next a block inside it, the next a block inside a group. Escape goes up a level. A block inside another one is named in the messages by its `path`, the ids from the page's list down; a place can be `{ before, in }`, `{ after, in }` or `{ end: true, in }`, where `in` is the path of the block whose list it is. A block can be dragged into another list that has the same type of block and room for it. A list is full at its `max` (`f.blocks(blocks, { max })`).
+
+While an editor works on the page, `useCmsEditing()` is `true` (never on the live site). Use it to draw an empty block, which a visitor never sees, as a quiet placeholder, so that it can be selected and filled in:
+
+```vue
+<script setup lang="ts">
+defineProps<{ block: { text?: string | null } }>()
+const editing = useCmsEditing()
+</script>
+
+<template>
+  <h2 v-if="block.text">{{ block.text }}</h2>
+  <div v-else-if="editing" class="placeholder-heading" aria-hidden="true" />
+</template>
+```
+
+`useCmsEditingLabel(type)` gives a block type's name in the admin's language at that time (`''` on the live site), for a placeholder's words: with `const label = useCmsEditingLabel('heading')`, `<h2 v-else-if="editing" class="ghost">{{ label }}</h2>` reads *Nadpis* to a Czech editor. A block whose component draws no element at all gets a quiet placeholder with its name from `<CmsBlocks>` while the editor works, so it can still be selected, moved and deleted.
+
+`useCmsEditingWords()` gives the words of a card's placeholders in the admin's language (`chooseField`, `emptyCard`, `sampleCard`, and `fieldMissing(name)` and `fieldUnfit(name)`, which put a field's name in), all empty on the live site: `words.fieldMissing('Cena')` reads *Pole Cena chybí* to a Czech editor. Experimental, like the rest.
+
+Beside the preview, the form shows the selected block alone: a way back to all sections, the path as a breadcrumb, its fields, its settings, and a block's own list as rows that each go a level deeper. A desktop page is laid out 1280 px wide and drawn scaled to fit the panel; the page is told its scale (`cms:builder:view`), so the tools keep their size. Undo and redo keep the changes to the page's blocks while the editor is open (at most 50 steps; typing in a field is one step per pause), with Ctrl/⌘ Z and Ctrl/⌘ ⇧ Z outside a text field; the page passes those keys on with `cms:builder:history`.
+
+**Typing in the page.** A block's component needs nothing for it. With a block selected, one more click on one of its texts puts the cursor there: the page compares the clicked element's text with the block's own values and takes the smallest element, from the click up to the block, whose text is exactly one field's value. Texts are compared with white space collapsed, non-breaking and narrow spaces read as spaces, a line break or a paragraph's edge as a space, and a look's `*marked*` words without their asterisks; upper case set by CSS changes nothing. A field of an item of the block's own list (`f.list()`), which the component draws itself, is found the same way, with its item. A double click on a text types into it at any depth, selecting the way down to its block in the same gesture.
+
+The editor types in the page and the form follows at once (`cms:builder:text`). Enter ends a text of one line and starts a new line in a text of several; Escape or a click elsewhere ends it and keeps the text. A paste comes in as plain text, a field's `max` holds, and the page is not drawn anew while a text is typed. Typing in the page is one step of undo per field per pause, as typing in the form is. While a text is typed it shows its raw value, a look's asterisks included.
+
+Rich text is not typed in the page. A click on a rich text (found the same way, by its plain text) or on a picture (found by its address) brings that field into view in the panel (`cms:builder:field`); a rich text gets the cursor in its editor there, and a double click on a picture opens its chooser.
+
+What is not found: an empty field (it has no text), a value the component changes before it draws it (shortens it, puts words around it in the same element, splits it across elements), and one text that is the value of two fields. For one field of the items of one list the page's order decides, when the block shows that text as many times as there are items with it; otherwise nothing is offered there. For these cases a component marks the element with `cmsField()`, bound in the template. It gives the element `data-cms-field` (and `data-cms-item`) while an editor works on the page, and nothing on the live site, so a visitor's page is as it was. A mark always wins over what the page would find:
+
+```vue
+<template>
+  <section>
+    <h2 v-bind="cmsField('heading')">{{ block.heading }}</h2>
+    <p v-bind="cmsField('intro')">{{ block.intro }}</p>
+    <CmsContent :doc="block.body" v-bind="cmsField('body')" />
+    <article v-for="card in block.cards" :key="card.id">
+      <h3 v-bind="cmsField('title', card.id)">{{ card.title }}</h3>
+    </article>
+  </section>
+</template>
+```
+
+The block is the nearest block around the element; an item is named by its id. An empty text can be typed in where the component draws a placeholder for it (`useCmsEditingLabel()`) and marks it. An element drawn by something the template does not own (a look's own heading) can be marked after it is drawn, with the same attributes.
+
+To keep an element out, bind `cmsField('off')` on it (`data-cms-field="off"`): nothing in it is found or typed in; on a block's root element it keeps the whole block out. A field named `off` cannot be marked.
+
+**Content from elsewhere.** A block may draw entries of a collection (the notices valid today, the team, a menu) or a global's values (the opening hours, the site's settings) next to its own fields. Its component needs nothing for this either. While the editor works on the page, the page keeps every answer of the content API it gets in the browser (through `useFetch`, `$fetch` or a plain `fetch` of `/api/content/…`), asks those with `?preview`, and loads once more what the server drew before. A text or a picture of the selected block that is no field of its own is then looked for in those entries, by the same rules as a block's own texts; a text of the block itself always stays the block's, and a text two entries share goes to the entry whose other texts stand around it.
+
+Hovering such an entry inside the selected block shows its card (the largest element around its texts that holds nothing else that is found) with the collection's name and the entry's title. A click selects it, a level below the block, with *Edit* and *Open in its section*; a double click on one of its texts edits it with that field in view. *Edit* opens the entry's own editor in a sheet beside the page (the same page as at its address, with `?embed=builder`): its form, checks, languages, Save and publishing. What is typed there shows in the preview at once, through the entry's own draft beside the page's; a save shows the page anew, and closing with unsaved changes asks first. The page's editor stays as it was underneath; its undo and redo never hold the entry. The page tells the admin with `cms:builder:sources` which collections and globals the selected block shows, with the entries it shows now, and the panel lists them under *Content from elsewhere*, with *Add entry* and *All entries* for whoever may do that. A collection the block's component loads but shows nothing of now (no notice is valid today) is listed too: the page knows it from what the component's drawing reads. A global is listed only when the block shows it, since every block reads the site's settings for its look.
+
+**Values of an entry, changed where they stand.** A plain text of an entry or a global is typed in the page as a block's own: a double click at any depth, or a click in the text of the selected card (`cms:builder:entry-text`, with where the text is inside the entry: a field, or a field of an item of a list by the item's id). While it is typed the page says whose it is and that the change shows everywhere it appears. A value that is no plain text gets a box over the preview, at the element, with the field's own control: a number, a date, a choice, a rich text, a text with a form, and several values one element shows together (the "from" and the "to" of one row). The page asks for it with `cms:builder:value` and keeps saying where the element is (`cms:builder:anchor`); the admin draws the box, knowing where the frame is and how much smaller it draws the page. Escape, Enter in a field of one line, a press elsewhere or the element leaving the screen close it; *Whole entry* opens the entry's form beside the page.
+
+The page finds which values an element shows from their forms: a number plain, grouped, with a decimal comma, with a unit or a short word around it and no other digit; a date and a time as the page's language writes them; a choice by an option's name; several values of one entry (inside a list: of one item) in a row with only spaces and punctuation between them. A value found by a form counts only for a collection or a global the block's component loads. A text that several entries could have made is decided by the texts around it that only some of them could have made (the day's name beside the hours of that day); when those disagree, nothing is found. A choice found alone needs another part of the same entry (the same row) in the block, or, for a list's rows, that field of at least half of the rows; a short number that stands twice as the same field counts for neither. What is not found selects the card.
+
+These changes wait in the page's editor with the page's own. Each goes to the preview's draft of its entry, so the page shows it at once; it is a step of undo and redo beside the page's steps; and the editor's save stores the page (when it has changes of its own) and every changed entry and global through its own update route: `PATCH /api/cms/:entity/:id` with the changed fields for an entry, `PUT /api/cms/_singleton/:name` with the whole form for a global, each with the version it was loaded at, and `?locale=` when the preview shows a translation (then only per-language fields can be changed in the page). The same checks, rights and conflict rule apply as in the entry's own editor, and its status is not touched. Beside the save button the admin says what is saved when it is more than the page, with a list. A save that is refused keeps its change waiting with the reason; the others are saved. When the entry's own form opens beside the page, what was changed of it in the page goes into that form (`cms:entry:set`) and leaves the page's list and its undo; while the form is open, changes made to it in the page go there too.
+
+What is not found: content a site loads some other way (on the server only, from another address, from a file), a text the component makes from a value (a date written out, a value shortened or put in a sentence, a text split into paragraphs: then the entry is still found by its other texts), and a text that is not in any entry (a look's own words). There is no mark for an entry's text: what the page does not find stays the block's, and a click there selects the block. A site that wants its entries found loads them through the content API in the browser's page and draws a value as it is, one value to an element.
+
 ### Form sections
 
 Forms read as a few titled sections. Name them as plain questions, and give fields the icons and options that make them quick to fill in. Empty optional fields wait behind "+ Add …". Long forms get a section menu beside them.

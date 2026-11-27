@@ -23,5 +23,7 @@ watch(look, async (id) => { component.value = await design.loadPart(id, props.pa
 </script>
 
 <template>
-  <component :is="component" v-if="component" v-bind="$attrs" />
+  <component :is="component" v-if="component" v-bind="$attrs">
+    <template v-if="$slots.default" #default><slot /></template>
+  </component>
 </template>

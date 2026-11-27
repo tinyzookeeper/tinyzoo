@@ -107,6 +107,7 @@ With `NUXT_MAIL_TRANSPORT=log` (the default) e-mails are printed to the server l
 | `NUXT_DEV_MAIL_LINKS` | `false` hides the development notes that show an e-mail's link on the page (the walkthrough sets it) |
 | `CLOUD_DEV_HOSTS` | more names the dev server answers to (`.pushbase.app`), for a proxy in front of it |
 | `CLOUD_CUSTOM_TYPES` | `on` lets the sites of the twenty hosted templates make content types of their own (experimental; *A site's own content types*, below). Anything else, or unset, is off, and then nothing the cloud starts or writes changes. Read from the environment, not from `NUXT_*` settings. An app's process gets it the next time the driver starts it |
+| `CLOUD_BUILDER` | `on` gives the one app's process `NUXT_CMS_BUILDER=on`: an editor of a hosted site can select, move, duplicate, delete and add a page's blocks in the preview beside the form (experimental). Anything else, or unset, is off, and then nothing the cloud starts or writes changes. Read from the environment, not from `NUXT_*` settings. An app's process gets it the next time the driver starts it |
 
 The sign-in cookie is called `tinyzoo-cloud`, not nuxt-auth-utils' default: on `localhost` cookies are shared across ports, and the sites use the default name.
 

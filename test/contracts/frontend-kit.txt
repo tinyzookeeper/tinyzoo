@@ -116,6 +116,26 @@ returns: { choice, decided, ready, granted, onChange, bannerVisible, settingsOpe
 export function useCmsUiLocale()
 returns: a value (see the signature)
 
+// useCmsEditing (app/composables/useCmsEditing.ts): Whether an editor works on the page in the admin's preview with the editor in the preview on (experimental); false on the live site.
+export function useCmsEditing(): ComputedRef<boolean>
+returns: a value (see the signature)
+
+// useCmsEditingLabel (app/composables/useCmsEditingLabel.ts): A block type's name in the admin's language while an editor works on the page in the preview (experimental); empty on the live site.
+export function useCmsEditingLabel(type: MaybeRefOrGetter<string>): ComputedRef<string>
+returns: a value (see the signature)
+
+// useCmsEditingWords (app/composables/useCmsEditingWords.ts): The words of a card's placeholders in the admin's language while an editor works on the page in the preview (experimental); empty on the live site.
+export function useCmsEditingWords(): ComputedRef<CmsEditingWords>
+returns: a value (see the signature)
+
+// useCmsEditingTry (app/composables/useCmsEditingTry.ts): The field an editor tries on a block of a card in the admin's panel, to draw it in every card at once (experimental); null on the live site.
+export function useCmsEditingTry(): ComputedRef<CmsEditingTry | null>
+returns: a value (see the signature)
+
+// cmsField (app/composables/cmsField.ts): Marks an element as showing one field of its block, for typing in the page in the preview (experimental): `v-bind="cmsField('heading')"`, or with an item's id; nothing on the live site.
+export function cmsField(field: string, item?: string | null): Record<string, string>
+returns: a value (see the signature)
+
 // ── the data types of the kit ───────────────────────────────────
 
 export interface CmsSearchItem {

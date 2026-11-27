@@ -27,6 +27,7 @@ export default defineEventHandler(async (event) => {
   // save has nothing to keep: there the defaults apply, and a required field with none is refused.)
   const data = parseOr422(writeSchema(e, 'create', prior, prior ? uneditableFields(e, user) : undefined), body)
   await assertMediaAccepted(db, reg, e, data)
+  assertCardRefs(e, data, prior)
   const { values, m2m } = splitPayload(e, data)
   const base = baseVersion(event)
   const seenBefore = prior ? await changeSnapshot(e, prior.id) : null

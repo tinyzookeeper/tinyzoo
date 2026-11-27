@@ -160,6 +160,14 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   /** Put the field in a named, collapsible group in the editor (e.g. 'Search & sharing'). */
   group(label: LocalizedText): FieldDescriptor<K>
   /**
+   * The field is a setting of its block, not its content: how the block is laid out (an
+   * arrangement, a size, the space between). The admin's form of a block shows the content
+   * fields first and the settings after them, under one heading ("Layout"), in the order
+   * they are defined. Stored and delivered like any other field. For a field of a block or
+   * a list item; on a field of a collection, a global or a group it changes nothing.
+   */
+  setting(): FieldDescriptor<K>
+  /**
    * Who may read and who may edit the field in the admin, by role:
    * `.access({ read: ['editor', roles.translator], edit: ['editor'] })`. A role not listed does not
    * see the field (`read`) or sees it read-only (`edit`); a rule left out means everyone who may

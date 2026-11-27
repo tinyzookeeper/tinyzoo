@@ -5,8 +5,9 @@
 const props = defineProps<{ block: Record<string, any>; index?: number }>()
 const custom = await useCustomTypes()
 const { plan, cards } = await useCustomBlock(() => props.block, 'chosen', custom)
+const table = computed(() => (plan.value.ok && plan.value.layout === 'table' ? customTable(cards.value, plan.value, { lang: custom.lang }) : undefined))
 </script>
 
 <template>
-  <KitEntries v-if="plan.ok && cards.length" :id="String(block.id ?? index ?? '')" :heading="plan.heading" :text="plan.text" :layout="plan.layout" :cards="cards" />
+  <KitEntries v-if="plan.ok && cards.length" :id="String(block.id ?? index ?? '')" :heading="plan.heading" :text="plan.text" :layout="plan.layout" :columns="plan.columns" :picture="plan.picture" :cards="cards" :table="table" />
 </template>

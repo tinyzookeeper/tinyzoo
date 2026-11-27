@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (133) ─────────────────────────────────────────────────
+// ── public (145) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -33,6 +33,10 @@ export const CMS_WEBHOOK_HEADERS: {
     readonly delivery: "x-cms-delivery";
     readonly signature: "x-cms-signature";
 };
+
+export const CUSTOM_FIELD_KINDS: readonly CustomFieldKind[];
+
+export const CUSTOM_PAGE_FIELD: "slug";
 
 export type CmsAccent = CmsAccentPreset | `#${string}`;
 
@@ -682,6 +686,42 @@ export interface ContentConfig<F extends Record<string, AnyFieldDescriptor>> {
     };
 }
 
+export interface CustomCardGroup {
+    block: string;
+    label: LocalizedText;
+    icon?: string;
+    set?: Readonly<Record<string, CustomCardValue>>;
+    next?: Readonly<Record<string, CustomCardValue>>;
+}
+
+export interface CustomCardOptions {
+    starter?: readonly CustomCardStep[];
+    groups?: readonly CustomCardGroup[];
+    heading?: string;
+}
+
+export interface CustomCardStep {
+    block: string;
+    from: 'title' | readonly CustomFieldKind[];
+    set?: Readonly<Record<string, CustomCardValue>>;
+}
+
+export type CustomCardValue = string | number | boolean | null | Readonly<Record<string, string>>;
+
+export type CustomFieldKind = 'text' | 'longText' | 'richText' | 'number' | 'date' | 'choice' | 'yesNo' | 'picture' | 'gallery' | 'file' | 'link' | 'email' | 'color' | 'relation' | 'page';
+
+export interface CustomFieldRefOptions {
+    takes: readonly CustomFieldKind[];
+    own?: string;
+    only?: Readonly<Partial<Record<CustomFieldKind, readonly string[]>>>;
+}
+
+export interface CustomFieldShape {
+    type: string;
+    long?: boolean | null;
+    format?: string | null;
+}
+
 export type Defaulted<K extends FieldKind> = {
     out: K['out'];
     in: K['in'];
@@ -766,6 +806,7 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
     position(where: 'main' | 'sidebar'): FieldDescriptor<K>;
     icon(name: string): FieldDescriptor<K>;
     group(label: LocalizedText): FieldDescriptor<K>;
+    setting(): FieldDescriptor<K>;
     access(rules: CmsFieldAccess): FieldDescriptor<K>;
 }
 
@@ -967,7 +1008,13 @@ export interface UpgradeStep {
     run: (ctx: UpgradeContext) => void | Promise<void>;
 }
 
+export function customFieldKind(field: CustomFieldShape): CustomFieldKind | null;
+
 export function customTypeBlocks(): CustomTypeBlocks;
+
+export function customTypeCard(o?: CustomCardOptions): FieldDescriptor<ScalarKind<CmsBinding, CmsBinding, true>>;
+
+export function customTypeFieldRef(o: CustomFieldRefOptions): FieldDescriptor<ScalarKind<string, string, false>>;
 
 export function defineAdminMenu(input: CmsAdminMenuInput): CmsAdminMenuDef;
 
@@ -1074,9 +1121,12 @@ export const f: {
             options: Record<string, readonly T[number][]>;
         };
         swatches?: Partial<Record<T[number], readonly string[]>>;
+        segments?: boolean;
     }) => FieldDescriptor<ScalarKind<T[number], T[number], undefined extends D ? false : true>>;
     richtext: () => FieldDescriptor<ScalarKind<RichTextDoc, RichTextDoc, false>>;
-    blocks: <const B extends Record<string, BlockDef<any>>>(blocks: B) => FieldDescriptor<ScalarKind<BlocksValue<B>, BlocksValue<B>, true>>;
+    blocks: <const B extends Record<string, BlockDef<any>>>(blocks: B, o?: {
+        max?: number;
+    }) => FieldDescriptor<ScalarKind<BlocksValue<B>, BlocksValue<B>, true>>;
     list: <const F extends Record<string, AnyFieldDescriptor>, const K extends string = "item">(o: {
         fields: F;
         max?: number;
@@ -1131,7 +1181,7 @@ export function seo(opts?: {
 // ── re-exported from other packages (18) ───────────────────────────
 alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql
 
-// ── internal (280): exported, not part of the frozen API, may change in any minor ──
+// ── internal (286): exported, not part of the frozen API, may change in any minor ──
 const BINDING_ENTRIES_MAX
 const BINDING_LIMIT_DEFAULT
 const BINDING_LIMIT_MAX
@@ -1186,6 +1236,7 @@ interface DbIndex
 interface DbShape
 interface DbTable
 interface EmbeddedShape
+const FIELD_REF_FORMAT
 const FORM_FIELD_TYPES
 interface FilterParam
 type JournalEntry
@@ -1275,6 +1326,7 @@ function buildContentModel
 function buildOpenApiDocument
 function buildRegistry
 const camel
+function cardBindingKey
 function chainOf
 function checkTree
 function checkTreeChange
@@ -1313,6 +1365,7 @@ function excerptOf
 function existsIn
 function fieldEditable
 function fieldReadable
+function fieldRefTakes
 function fillPathTemplate
 function foldSearchText
 function generateSetupCode
@@ -1321,9 +1374,12 @@ function highlightRanges
 function holdsLinks
 function indexTree
 function inspectMigrations
+const isCardBinding
 function isCmsModels
 const isCmsPlugin
 function isConnectionError
+const isCustomFieldKind
+const isFieldRef
 const isLinkRef
 function isSafeLink
 function isSearchableField

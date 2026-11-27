@@ -12,6 +12,8 @@ export const looks = defineLooks([
   {
     // An office kept like a measuring instrument: a ruler of deadlines under the opening, tabular figures, ticks and hairlines.
     id: 'lhuty',
+    button: 'btn btn-brand',
+    heading: 'mb-8 font-display text-[32px] leading-[1.15] sm:text-[42px] lg:mb-10',
     name: { cs: 'Lhůty', en: 'Deadlines' },
     own: { also: ['--brand-soft', '--signal'], against: ['--brand-ink', '--ink', '--paper', '--tint'], fixed: ['#ffffff'] },
     presets: [
@@ -23,6 +25,8 @@ export const looks = defineLooks([
   {
     // Lever arch binders: the services stand as spines on a shelf and lie as a pile of price tags; heavy type, flat colour.
     id: 'sanony',
+    button: 'btn btn-brand',
+    heading: 'display mb-8 text-[42px] sm:text-[64px] lg:mb-12 xl:text-[76px]',
     name: { cs: 'Šanony', en: 'Binders' },
     own: { also: ['--ink'], against: ['--brand-ink', '--paper', '--soft'], fixed: ['#ffffff'] },
     presets: [

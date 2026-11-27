@@ -1,8 +1,9 @@
 import type { LocalizedText } from './i18n'
 import { isSafeLink } from './richtext'
 import { looksLikeLinkRef } from './linkref'
-import { type BlockDef, type BlockValue, type BlocksValue, type GroupValue, blocksGraph, blocksSchema, checkContainedFields, checkNoBinding, defineBlock, groupGraph } from './blocks'
-import { bindingSchema, type CmsBinding } from './binding'
+import { type BlockDef, type BlockValue, type BlocksValue, type GroupValue, blocksGraph, blocksSchema, checkContainedFields, checkNoBinding, defineBlock, FIELD_REF_FORMAT, groupGraph } from './blocks'
+import { bindingSchema, cardBindingSchema, fieldRefSchema, type CmsBinding } from './binding'
+import type { CustomFieldKind } from './custom-kinds'
 import {
   boolean, integer, jsonb, numeric, text, timestamp, uuid,
   type PgColumnBuilder,
@@ -135,6 +136,7 @@ interface Mods {
   group?: LocalizedText
   icon?: string
   access?: CmsFieldRule
+  setting?: boolean
 }
 
 function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
@@ -178,6 +180,7 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
   if (mods.group !== undefined) meta.group = mods.group
   if (mods.icon !== undefined) meta.icon = mods.icon
   if (mods.access !== undefined) meta.access = mods.access
+  if (mods.setting) meta.setting = true
 
   const descriptor = {
     type: cfg.type,
@@ -200,6 +203,7 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
     group: (label: LocalizedText) => createField(cfg, { ...mods, group: label }),
     icon: (name: string) => createField(cfg, { ...mods, icon: name }),
     access: (rules: CmsFieldAccess) => createField(cfg, { ...mods, access: normalizeFieldAccess(rules) }),
+    setting: () => createField(cfg, { ...mods, setting: true }),
   }
   return descriptor as unknown as FieldDescriptor
 }
@@ -335,6 +339,12 @@ export const f = {
       optionsBy?: { field: string; options: Record<string, readonly T[number][]> }
       /** A few colours per option (hex, e.g. `['#7a5a3a', '#faf8f4']`), shown as dots beside its name: a palette. */
       swatches?: Partial<Record<T[number], readonly string[]>>
+      /**
+       * Draw the choice as one row of segments (an arrangement: row, stack, grid), each with
+       * its label and its icon from `icons`, instead of a dropdown or buttons. For two to four
+       * options; with more it is drawn as any choice is. An empty value has no segment chosen.
+       */
+      segments?: boolean
     },
   ) => {
     for (const [value, list] of Object.entries(o.optionsBy?.options ?? {})) {
@@ -353,6 +363,7 @@ export const f = {
       meta: {
         options: o.options, ...(o.labels ? { labels: o.labels } : {}), ...(o.icons ? { icons: o.icons } : {}),
         ...(o.optionsBy ? { optionsBy: o.optionsBy } : {}), ...(o.swatches ? { swatches: o.swatches } : {}),
+        ...(o.segments ? { segments: true } : {}),
       },
       zod: () => z.enum([...o.options] as [string, ...string[]]),
     }, { default: o.default }))
@@ -369,13 +380,17 @@ export const f = {
    * into a page. Define each type with `defineBlock()`. Stored as jsonb; defaults to [].
    *
    *   sections: f.blocks({ hero: defineBlock({ label: 'Hero', fields: { heading: f.text() } }) })
+   *   items: f.blocks({ heading, picture }, { max: 12 })   // at most 12 blocks
+   *
+   * `max` caps how many blocks the list holds: the server refuses more, and the admin offers
+   * no "add" once the list is full.
    */
-  blocks: <const B extends Record<string, BlockDef<any>>>(blocks: B) =>
+  blocks: <const B extends Record<string, BlockDef<any>>>(blocks: B, o: { max?: number } = {}) =>
     as<ScalarKind<BlocksValue<B>, BlocksValue<B>, true>>(createField({
       type: 'blocks', ui: { edit: 'CmsFieldBlocks', cell: 'CmsCellBlocks' },
       base: { kind: 'jsonb' }, tsType: 'CmsBlock[]',
-      meta: { blocks: blocksGraph(blocks as Record<string, BlockDef>) },
-      zod: (ctx) => blocksSchema(blocks as Record<string, BlockDef>, 500, ctx?.stored),
+      meta: { blocks: blocksGraph(blocks as Record<string, BlockDef>), ...(o.max ? { max: o.max } : {}) },
+      zod: (ctx) => blocksSchema(blocks as Record<string, BlockDef>, o.max ?? 500, ctx?.stored),
       createDefault: [],
       blocks: blocks as Record<string, BlockDef>,
     }, { default: [] })),
@@ -388,8 +403,10 @@ export const f = {
    *   team: f.list({ fields: { name: f.text({ required: true }), role: f.text() }, max: 30 })
    *   // → [{ id: 'k3j…', type: 'item', name: 'Jana', role: 'Trenérka' }, …]
    *
-   * Item fields: text, slug, number, boolean, datetime, select, rich text, media.
-   * Can be `.localized()`. Items carry a `v` once `version` is above 1 (see `defineBlock`).
+   * Item fields: text, slug, number, boolean, datetime, select, rich text, media, groups
+   * and lists (as in a block: two levels of lists at most, counted from the item, and one
+   * less for a list that sits in a block). Can be `.localized()`. Items carry a `v` once `version` is above 1 (see
+   * `defineBlock`).
    */
   list: <const F extends Record<string, AnyFieldDescriptor>, const K extends string = 'item'>(o: {
     fields: F; max?: number; itemLabel?: LocalizedText
@@ -529,12 +546,28 @@ export const f = {
  *
  * @internal
  */
-export function bindingField(kind: 'entries' | 'chosen') {
+export function bindingField(kind: 'entries' | 'chosen' | 'card', extra?: Record<string, unknown>) {
   return as<ScalarKind<CmsBinding, CmsBinding, true>>(createField({
     type: 'binding', ui: { edit: 'CmsFieldBinding', cell: 'CmsCellText' },
     base: { kind: 'jsonb' }, tsType: 'CmsBinding',
-    meta: { binding: kind },
-    zod: () => bindingSchema,
+    meta: { binding: kind, ...extra },
+    zod: () => (kind === 'card' ? cardBindingSchema : bindingSchema),
+  }))
+}
+
+/**
+ * The field of a block inside a card that names which field of the bound type it shows. Stored
+ * as a plain text (the field's key, `''` or null for none), so storage, the generated types,
+ * OpenAPI and the SDK treat it as a text. `meta.ref.takes` lists the kinds it takes.
+ *
+ * @internal
+ */
+export function fieldRefField(takes: readonly CustomFieldKind[], extra?: Record<string, unknown>) {
+  return as<ScalarKind<string>>(createField({
+    type: 'text', ui: { edit: 'CmsFieldRef', cell: 'CmsCellText' },
+    base: { kind: 'text' },
+    meta: { format: FIELD_REF_FORMAT, ref: { takes: [...new Set(takes)], ...extra } },
+    zod: () => fieldRefSchema,
   }))
 }
 

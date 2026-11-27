@@ -825,6 +825,8 @@ describe('values the server stores in its own spelling', () => {
       name: f.text(),
       geo: f.group({ fields: { latitude: f.number({ int: false }), longitude: f.number({ int: false }) } }),
       about: f.group({ fields: { heading: f.text(), tagline: f.list({ fields: { text: f.text() } }) } }),
+      // a list inside the items of a list: two levels, as inside a block
+      rows: f.list({ fields: { label: f.text(), cells: f.list({ fields: { text: f.text() } }) } }),
     },
   })
   const own = buildRegistry({ Course, Sister })
@@ -879,6 +881,21 @@ describe('values the server stores in its own spelling', () => {
     expect(items.map((i: Row) => typeof i.id)).toEqual(['string', 'string'])
     expect(items.map((i: Row) => i.type)).toEqual(['item', 'item'])
     expect(new Set(items.map((i: Row) => i.id)).size).toBe(2)
+    site.writes.length = 0
+    await runOwn(site, seed)
+    expect(site.writes).toEqual([])
+  })
+
+  it('gives the items of a list inside a list item ids, the same ones on every run', async () => {
+    const site = fakeSite()
+    const seed = async (s: any) => {
+      await s.global(Sister, { name: 'Six', rows: [{ label: 'A', cells: [{ text: 'a1' }, { text: 'a2' }] }, { label: 'B', cells: [{ text: 'b1' }] }] })
+    }
+    await runOwn(site, seed)
+    const rows = site.globals.get('sister')!.rows
+    const cells = rows.flatMap((r: Row) => r.cells)
+    expect(cells.map((c: Row) => [typeof c.id, c.type])).toEqual([['string', 'item'], ['string', 'item'], ['string', 'item']])
+    expect(new Set(cells.map((c: Row) => c.id)).size).toBe(3)
     site.writes.length = 0
     await runOwn(site, seed)
     expect(site.writes).toEqual([])

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 // The control of a block that shows entries of one of the site's own content types ("Entries", a list
 // of one type, and "Chosen entries", picked by hand): the type, which field goes to which place of a
-// card, and then the order and the number (a list) or the entries themselves (chosen ones).
+// card, and then the order and the number (a list) or the entries themselves (chosen ones). A card
+// (`customTypeCard`) asks for the type, the order and the number only: its small blocks name their fields.
 // What is stored may name a type or a field that is gone: that is said at its place, the stored value
 // stays until a person chooses again, and nothing here throws on a value of an odd shape.
+import type { DropdownMenuItem } from '@nuxt/ui'
 import { BINDING_ENTRIES_MAX, BINDING_LIMIT_DEFAULT, BINDING_LIMIT_MAX, BINDING_MORE_MAX } from '../../src/binding'
 import {
   CMS_BINDING_PLACES, cmsBindingDirKind, cmsBindingFieldsFor, cmsBindingMissing, cmsBindingMoreFields, cmsBindingMoveEntry, cmsBindingOrderMode,
@@ -19,6 +21,8 @@ const { data: graph } = useNuxtData<any[]>('cms-graph')
 
 const base = computed(() => props.id ?? 'cms-binding')
 const chosen = computed(() => props.field.meta?.binding === 'chosen')
+// A card (`customTypeCard`): the small blocks inside choose the fields, so only the type, the order and the number are set here.
+const card = computed(() => props.field.meta?.binding === 'card')
 const isAdmin = computed(() => user.value?.role === 'admin')
 const types = computed(() => cmsBindingTypes(graph.value))
 const value = computed(() => cmsBindingRead(model.value))
@@ -27,6 +31,20 @@ const missing = computed(() => cmsBindingMissing(model.value, types.value))
 const missingAt = (place: string) => missing.value.fields.filter((m) => m.place === place)
 const fieldName = (f: CmsBindingField) => tl(f.label as any, f.key)
 const NONE = '\u0000none'
+// With the editor in the preview on (NUXT_CMS_BUILDER=on) a card asks for its type as one calm row with a
+// *Change* menu (part 3c); the order and the number come under it in one compact grid.
+const builderOn = useCmsBuilderOn()
+const calm = computed(() => card.value && builderOn.value)
+const { totals } = useCmsCardTotals(() => (calm.value ? types.value.map((x) => x.name) : []))
+const iconOf = (name: string) => {
+  const icon = (graph.value ?? []).find((e) => e?.name === name)?.icon
+  return typeof icon === 'string' && icon ? icon : 'i-lucide-database'
+}
+const countOf = (name: string) => (typeof totals.value[name] === 'number' ? t('card.entries', { count: totals.value[name] as number }) : '')
+const typeMenu = computed<DropdownMenuItem[][]>(() => [types.value.map((x) => ({
+  label: tl(x.label, x.name), icon: iconOf(x.name), slot: 'type' as const, count: countOf(x.name), current: x.name === type.value?.name,
+  onSelect: () => { typeChoice.value = x.name },
+}))])
 
 // ── the type ──
 const typeItems = computed(() => [
@@ -162,8 +180,35 @@ const labelClass = 'block text-sm font-medium text-highlighted'
 
 <template>
   <div class="w-full space-y-5">
-    <!-- 1. the type -->
-    <div class="space-y-1.5">
+    <!-- 1. the type: a calm row with a menu (a card, editor in the preview), else a select -->
+    <div v-if="calm && types.length" class="space-y-1.5">
+      <!-- (the field's own label, *What it shows*, stands above: CmsField draws it) -->
+      <div class="cms-source">
+        <span class="cms-source__icon"><UIcon :name="type ? iconOf(type.name) : 'i-lucide-database'" class="size-4" aria-hidden="true" /></span>
+        <div class="min-w-0 flex-1">
+          <template v-if="type">
+            <p class="cms-source__name">{{ tl(type.label, type.name) }}</p>
+            <p class="cms-source__line">{{ [countOf(type.name), t('card.ownType')].filter(Boolean).join(' · ') }}</p>
+          </template>
+          <p v-else class="cms-source__name">{{ t('card.pickType') }}</p>
+        </div>
+        <UDropdownMenu :items="typeMenu" :content="{ align: 'end' }" :disabled="readOnly">
+          <UButton
+            color="neutral" variant="outline" size="xs" :disabled="readOnly" class="shrink-0 pointer-coarse:min-h-11"
+            :aria-label="`${type ? t('card.change') : t('card.choose')}: ${t('card.changeType')}`"
+          >{{ type ? t('card.change') : t('card.choose') }}</UButton>
+          <template #type-trailing="{ item }">
+            <span v-if="(item as any).count" class="text-xs text-muted tabular-nums">{{ (item as any).count }}</span>
+            <UIcon v-if="(item as any).current" name="i-lucide-check" class="size-4 shrink-0 text-primary" aria-hidden="true" />
+          </template>
+        </UDropdownMenu>
+      </div>
+      <p v-if="missing.type" role="status" class="flex items-start gap-2 rounded-md bg-warning/10 px-2.5 py-1.5 text-sm text-default">
+        <UIcon name="i-lucide-triangle-alert" class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+        <span class="min-w-0 break-words">{{ t('model.binding.missingType', { name: value?.type ?? '' }) }}</span>
+      </p>
+    </div>
+    <div v-else class="space-y-1.5">
       <label :for="`${base}-type`" :class="labelClass">{{ t('model.binding.type') }}</label>
       <template v-if="types.length">
         <USelect
@@ -183,7 +228,7 @@ const labelClass = 'block text-sm font-medium text-highlighted'
 
     <template v-if="type">
       <!-- 2. what to show -->
-      <div v-if="places.length || moreFields.length || moreMissing.length" class="space-y-3">
+      <div v-if="!card && (places.length || moreFields.length || moreMissing.length)" class="space-y-3">
         <p :class="labelClass">{{ t('model.binding.show') }}</p>
         <div v-if="places.length" class="grid gap-4 sm:grid-cols-2">
           <div v-for="p in places" :key="p.place" class="min-w-0 space-y-1.5">
@@ -222,19 +267,19 @@ const labelClass = 'block text-sm font-medium text-highlighted'
       </div>
 
       <!-- 3. a list: its order and how many -->
-      <div v-if="!chosen" class="grid gap-4 sm:grid-cols-2">
+      <div v-if="!chosen" class="grid" :class="calm ? 'grid-cols-2 gap-3' : 'gap-4 sm:grid-cols-2'">
         <div class="min-w-0 space-y-1.5">
           <label :for="`${base}-order`" :class="labelClass">{{ t('model.binding.order') }}</label>
           <USelect :id="`${base}-order`" :model-value="mode" :items="modeItems" :disabled="readOnly" class="w-full" @update:model-value="setMode" />
         </div>
         <!-- on a phone the number comes after the order's field and direction, which belong to the order -->
-        <div class="min-w-0 space-y-1.5 max-sm:order-last">
-          <label :for="`${base}-limit`" :class="labelClass">{{ t('model.binding.limit') }}</label>
+        <div class="min-w-0 space-y-1.5" :class="calm ? 'order-first' : 'max-sm:order-last'">
+          <label :for="`${base}-limit`" :class="labelClass">{{ calm ? t('card.limit') : t('model.binding.limit') }}</label>
           <UInput
             :id="`${base}-limit`" type="number" inputmode="numeric" :min="1" :max="BINDING_LIMIT_MAX" :model-value="limitShown" :placeholder="String(BINDING_LIMIT_DEFAULT)"
             :disabled="readOnly" class="w-full" @update:model-value="setLimit"
           />
-          <p class="text-xs text-muted">{{ t('model.binding.limitHint', { max: BINDING_LIMIT_MAX }) }}</p>
+          <p v-if="!calm" class="text-xs text-muted">{{ t('model.binding.limitHint', { max: BINDING_LIMIT_MAX }) }}</p>
         </div>
         <template v-if="mode === 'field'">
           <div class="min-w-0 space-y-1.5">
@@ -299,3 +344,10 @@ const labelClass = 'block text-sm font-medium text-highlighted'
     </template>
   </div>
 </template>
+
+<style scoped>
+.cms-source { display: flex; align-items: center; gap: 0.625rem; padding: 0.5rem 0.5rem 0.5rem 0.75rem; border: 1px solid var(--ui-border); border-radius: 0.625rem; background: var(--ui-bg-elevated); }
+.cms-source__icon { display: grid; place-items: center; flex: none; width: 1.625rem; height: 1.625rem; border-radius: 0.4375rem; background: var(--cms-moment-bg); color: var(--cms-moment-text); }
+.cms-source__name { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; font-weight: 600; line-height: 1.35; color: var(--ui-text-highlighted); }
+.cms-source__line { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; color: var(--ui-text-muted); }
+</style>

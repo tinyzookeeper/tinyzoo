@@ -43,6 +43,7 @@ A few things let one set of content serve looks that differ a lot:
 A site can make content types of its own in the admin (courses, events…: `docs/custom-types-plan.md`). Two blocks show them on a page, and every template has both: `...customTypeBlocks()` from tinyzoo at the end of the blocks of its `definePages`.
 
 - **Entries** (`custom_entries`): a list of one type's entries, as cards or as rows. **Chosen entries** (`custom_chosen`): entries picked by hand, in the picked order.
+- **Sections** (`section_text_picture`, `section_cards`, `section_questions`): blocks no template has, `...kitSections()` next to `...kitEntryBlocks()` in the page blocks. The kit draws them in the look's own Text part (`BlockSection*.vue`, `KitSection.vue`; what they decide is in `app/utils/sections.ts`). A look's `button` (`looks.ts`) names the classes of its main button for them.
 - **The page of one entry**, at the type's address (`/kurzy/python`): the title, the picture, the short facts as one list, then the texts, the gallery and the files.
 
 The kit draws them, the same markup for every look (`KitEntries.vue`, `KitCustomEntry.vue`; what they decide is in `app/utils/customTypes.ts`). A template brings nothing for them. A block that has nothing to show (no type chosen, a type the site does not have, no entries, a request that failed) draws nothing, and the page stands.
@@ -55,6 +56,8 @@ They take the look from what every look shares:
 4. A look may refine them with `--custom-radius` (the pictures' corners), `--custom-line` (the lines) and `--custom-gap` (the space between cards), or a few lines of its own on the kit's `x-…` classes. Each property has a fallback, so no look has to set any.
 
 **In the cloud** this is off unless the cloud runs with `CLOUD_CUSTOM_TYPES=on` (`cloud/README.md`). With it on, the one app's process gets `NUXT_CMS_CUSTOM_TYPES=on` and each site's row the limits of its plan (12 types, 30 fields each on Basic). The site's administrators then find *Content types* under *Settings* in the admin, make a type such as "Courses", fill it in (removing a type hides it, and an administrator deletes it for good by hand), and put one of the two blocks on any page; a type with pages gives each entry its own address, listed in the sitemap. Without the setting a hosted site has none of it, and the two blocks are not offered.
+
+**The editor in the preview** (experimental) is off in the cloud unless it runs with `CLOUD_BUILDER=on` (`cloud/README.md`). With it on, the one app's process gets `NUXT_CMS_BUILDER=on`, and an editor of a hosted site can select, move, duplicate, delete and add the blocks of a page in the preview beside the form. The kit's sections carry the marks it needs (`CmsBlocks` adds them in the preview only). Without the setting a hosted site is exactly as before.
 
 `templates/app/scripts/custom-shots.mjs` makes a site of every look with such a type and takes pictures of both blocks and of an entry's page, with contact sheets of each template's looks side by side.
 

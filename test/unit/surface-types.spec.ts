@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   buildRegistry, defineBlock, defineCmsPlugin, defineEntity, defineLocales, defineRoles, defineSeed, defineSingleton, eq, f,
-  type BlocksValue, type CmsAccessUser, type CmsAdminField, type CmsBlock, type CmsFieldCellProps, type CmsFieldEditProps, type CmsGalleryValue, type CmsListValue, type Entity,
+  type BlocksValue, type CmsAccessUser, type CmsAdminField, type CmsBinding, type CmsBlock, type CmsFieldCellProps, type CmsFieldEditProps, type CmsGalleryValue, type CmsListValue, type Entity,
   type EntityDef, type FieldDescriptor, type Insert, type RichTextDoc, type Row, type SeedContext, type Update,
 } from 'tinyzoo'
 import { formsPlugin, defineForm, defineFormSettings } from 'tinyzoo/forms'
@@ -96,6 +96,20 @@ describe('Row: what a select returns, at the database keys', () => {
     expectTypeOf<NonNullable<Extract<EventRow['blocks'][number], { type: 'feature' }>['bullets']>[number]['type']>().toEqualTypeOf<'bullet'>()
     expectTypeOf<Feature>().toEqualTypeOf<EventRow['blocks']>()
     expectTypeOf<CmsBlock>().toMatchTypeOf<{ id: string; type: string }>()
+    // two levels of lists inside a block: a group of blocks among a layout's blocks
+    type Layout = Extract<Row<typeof Page>['sections'][number], { type: 'layout' }>
+    type Group = Extract<NonNullable<Layout['items']>[number], { type: 'group' }>
+    expectTypeOf<NonNullable<Layout['items']>[number]['type']>().toEqualTypeOf<'quote' | 'group'>()
+    expectTypeOf<NonNullable<Group['items']>[number]>().toEqualTypeOf<{ id: string; type: 'quote'; text: string; by?: string | null | undefined }>()
+    expectTypeOf<Layout['arrangement']>().toEqualTypeOf<'row' | 'stack' | 'grid'>()
+    // a card bound to a content type: the binding, and references stored as texts at both levels
+    type Entries = Extract<Row<typeof Page>['sections'][number], { type: 'entries' }>
+    type CardRow = Extract<NonNullable<Entries['items']>[number], { type: 'row' }>
+    expectTypeOf<Entries['source']>().toEqualTypeOf<CmsBinding | null | undefined>()
+    type CardHeading = Extract<NonNullable<Entries['items']>[number], { type: 'heading' }>
+    // a reference is typed as the text beside it (`f.text()`)
+    expectTypeOf<CardHeading['field']>().toEqualTypeOf<CardHeading['text']>()
+    expectTypeOf<Extract<NonNullable<CardRow['items']>[number], { type: 'picture' }>['field']>().toEqualTypeOf<string>()
   })
 
   it('is exact for the other entities, a singleton and the presets', () => {
@@ -454,6 +468,13 @@ describe('the typed content client (generated from the config)', () => {
     expectTypeOf<EventItem>().not.toHaveProperty('categoryId')
     expectTypeOf<CategoryItem>().not.toHaveProperty('order')
     // a page tree has an address and breadcrumbs
+    type LayoutItem = Extract<PageItem['sections'][number], { type: 'layout' }>
+    type GroupItem = Extract<LayoutItem['items'][number], { type: 'group' }>
+    expectTypeOf<GroupItem['items']>().toEqualTypeOf<Array<{ id: string; type: 'quote'; text: string; by: string | null }>>()
+    expectTypeOf<LayoutItem['arrangement']>().toEqualTypeOf<'row' | 'stack' | 'grid' | null>()
+    type EntriesItem = Extract<PageItem['sections'][number], { type: 'entries' }>
+    type CardRowItem = Extract<EntriesItem['items'][number], { type: 'row' }>
+    expectTypeOf<Extract<CardRowItem['items'][number], { type: 'heading' }>['field']>().toEqualTypeOf<string | null>()
     expectTypeOf<PageItem['path']>().toEqualTypeOf<string | null>()
     expectTypeOf<PageItem['breadcrumbs']>().toEqualTypeOf<Array<{ title: string; path: string }>>()
   })

@@ -4,13 +4,138 @@
 // typing: the unsaved values go to the server (POST /api/cms/_preview, for this editor's
 // ?preview requests only), then the page is told — `{ type: 'cms:preview', entity, id,
 // locale, data }` — and refetches its content (plugins/cmsLivePreview.client.ts).
+// With the editor in the preview on (NUXT_CMS_BUILDER=on, useCmsBuilder()), the panel also tells the
+// page what it needs to draw its tools and passes the page's `cms:builder:*` messages on. Then a
+// desktop page is laid out at a desktop width (1280 px, or wider when the panel is) and drawn scaled
+// down to fit, so a row is seen as a row; a phone at 390 px. The page is told its scale, so its tools
+// keep their size. Undo and redo (the bridge's history) sit in the panel's bar, with Ctrl/⌘ Z.
 // Reloaded after every save; the unsaved values are dropped when the editor closes.
+// Since 2g the panel also draws the box with an entry's own controls over the page, at the element the
+// page names (CmsBuilderValueBox): it knows where the frame is and how much smaller it draws the page.
+// Since 3e, in the full-screen modal of a phone-sized admin with the builder on (`sheet`), the panel draws the
+// selected block's sheet at the bottom (CmsBuilderSheet), starts at the phone's width, keeps the closed handle's
+// room free under the page, and tells the page how many pixels of it the open sheet covers (`bottom`).
+import { cmsSheetCovers, cmsSheetStagePad } from '../../shared/builder-sheet'
+import { cmsBuilderFit, isCmsBuilderToAdmin, type CmsBuilderKey, type CmsBuilderToPage } from '../../shared/builder'
+import { cmsBuilderEntities } from '../../shared/builder-sources'
+import { kindsAlong } from '../../shared/block-tree'
+import { cardPageCards, cardRefOf, type CardWords } from '../../shared/builder-card'
+import { cmsCardTypeOf } from '../utils/cmsCardType'
+import type { Ref } from 'vue'
+
 const props = defineProps<{ url: string; entity: string; id: string; locale: string | null; data: Record<string, any>; version: string | null; sheet?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
-const { t } = useCmsI18n()
+const { t, tl, locale: adminLanguage, entityLabel, fieldLabel } = useCmsI18n()
+const builder = useCmsBuilder()
+// A page this person may only read has no save: nothing of an entry is changed from its preview either.
+const pageReadOnly = inject<Ref<boolean> | null>('cmsReadOnly', null)
+// The collections and globals, for content a block draws from them (since 2f): the admin's graph, as the layout loaded it.
+const { data: graph } = useNuxtData<any[]>('cms-graph')
+// The preview may take the form's room (a narrow admin): the editor's page hides the form column then.
+const { large, toggle: toggleLarge } = useCmsLargePreview()
 
 const frame = ref<HTMLIFrameElement | null>(null)
+const stage = ref<HTMLElement | null>(null)
+const root = ref<HTMLElement | null>(null)
 const width = ref<'desktop' | 'phone'>('desktop')
+// In the modal with the builder on, the page starts at the phone's width (a desktop page at a third of its size cannot be touched).
+let widthChosen = false
+function chooseWidth(mode: 'desktop' | 'phone') {
+  widthChosen = true
+  width.value = mode
+}
+watch(() => !!builder.value, (on) => { if (on && props.sheet && !widthChosen) width.value = 'phone' }, { immediate: true })
+
+// ── the sheet at the bottom (since 3e) ──
+/** Bumped when the page's box moves (2g's value box, and the sheet's room, follow it). Declared first: the watchers below read it at once. */
+const boxTick = ref(0)
+const sheetShape = ref<{ open: boolean; handle: number; height: number } | null>(null)
+const stagePad = computed(() => {
+  void room.value
+  void boxTick.value
+  const shape = sheetShape.value
+  const el = stage.value
+  return shape && el ? cmsSheetStagePad(shape.handle, window.innerHeight, el.getBoundingClientRect().bottom) : 0
+})
+/** How many screen pixels of the frame the open sheet covers. */
+const covers = computed(() => {
+  void room.value
+  void boxTick.value
+  const shape = sheetShape.value
+  const el = frame.value
+  return shape && el ? cmsSheetCovers(shape.open, shape.height, window.innerHeight, el.getBoundingClientRect().bottom) : 0
+})
+
+// ── the scaled page (the editor in the preview only; without it the frame fills the stage as before) ──
+const room = ref<{ width: number; height: number } | null>(null)
+const fit = computed(() => (builder.value && room.value ? cmsBuilderFit(width.value, room.value.width, room.value.height) : null))
+// Between desktop and phone the width animates; a stage that resizes follows at once.
+const morphing = ref(false)
+let morphTimer: ReturnType<typeof setTimeout> | undefined
+watch(width, () => {
+  morphing.value = true
+  clearTimeout(morphTimer)
+  morphTimer = setTimeout(() => { morphing.value = false }, 320)
+})
+const frameStyle = computed(() => {
+  const f = fit.value
+  if (!f) return undefined
+  return { width: `${f.width}px`, height: `${f.height}px`, transform: f.scale === 1 ? 'none' : `scale(${f.scale})`, maxWidth: 'none' }
+})
+const boxStyle = computed(() => {
+  const f = fit.value
+  return f ? { width: `${Math.round(f.width * f.scale)}px` } : undefined
+})
+const zoom = computed(() => {
+  const s = fit.value?.scale
+  if (!s) return null
+  try {
+    return new Intl.NumberFormat(adminLanguage.value, { style: 'percent', maximumFractionDigits: 0 }).format(Math.floor(s * 100 + 1e-6) / 100)
+  }
+  catch {
+    return `${Math.round(s * 100)} %`
+  }
+})
+let sizes: ResizeObserver | null = null
+watch(stage, (el) => {
+  sizes?.disconnect()
+  sizes = null
+  if (!el || typeof ResizeObserver === 'undefined') return
+  sizes = new ResizeObserver(([entry]) => {
+    const box = entry?.contentRect
+    if (box) room.value = { width: box.width, height: box.height }
+  })
+  sizes.observe(el)
+}, { flush: 'post' })
+watch(() => fit.value?.scale, (scale) => { if (scale && loaded) sendToPage({ type: 'cms:builder:view', scale, ...(sheetShape.value ? { bottom: covers.value } : {}) }) })
+// The sheet opened or closed (its final height, not every frame of its movement): the page keeps its tools above it.
+watch(covers, (bottom) => { if (loaded && sheetShape.value) sendToPage({ type: 'cms:builder:view', scale: fit.value?.scale ?? 1, bottom }) })
+// ── the box over a value of an entry (since 2g) ──
+// The page gives the element's box in its own pixels; here it is in the panel's, with the visible page around it.
+const boxPlace = computed(() => {
+  void boxTick.value
+  void room.value
+  const request = builder.value?.box.value
+  const el = frame.value
+  const panel = root.value
+  if (!request || !el || !panel) return null
+  const scale = fit.value?.scale ?? 1
+  const f = el.getBoundingClientRect()
+  const p = panel.getBoundingClientRect()
+  const shown = (stage.value ?? el).getBoundingClientRect()
+  const left = Math.max(f.left, shown.left)
+  const top = Math.max(f.top, shown.top)
+  return {
+    anchor: { left: f.left - p.left + request.rect.left * scale, top: f.top - p.top + request.rect.top * scale, width: request.rect.width * scale, height: request.rect.height * scale },
+    bounds: { left: left - p.left, top: top - p.top, width: Math.min(f.right, shown.right) - left, height: Math.min(f.bottom, shown.bottom) - top },
+    room: { width: p.width, height: p.height },
+  }
+})
+function closeBox() {
+  builder.value?.closeBox()
+  // The keys go on to the page (Escape, undo).
+  frame.value?.contentWindow?.focus()
+}
 const reloads = ref(0)
 // A save made a new version: show what is stored now.
 watch(() => props.version, () => { reloads.value++ })
@@ -47,6 +172,69 @@ const path = computed(() => {
   }
 })
 
+// ── the card sections (since 3c): what each block of a card shows, for the page's chips ──
+// The lists read the form's values; their blocks are replaced, never changed inside, but a deep watch on the
+// data bumps `formTick` too, so nothing is missed.
+const formTick = ref(0)
+watch(() => props.data, () => { formTick.value++ }, { deep: true })
+const cardWords = computed((): CardWords => ({
+  unbound: t('card.rowUnbound'),
+  noPages: t('card.rowNoPages'),
+  missing: (name) => t('card.rowMissing', { name }),
+  unfit: (name) => t('card.rowUnfit', { name }),
+  own: t('card.own'),
+  groupBlocks: (count) => t('card.groupBlocks', { count }),
+  groupEmpty: t('card.groupEmpty'),
+}))
+const pageCards = computed(() => {
+  void formTick.value
+  const bridge = builder.value
+  if (!bridge) return {}
+  const found = new Map<string, ReturnType<typeof cmsCardTypeOf>>()
+  const typeOf = (name: string) => {
+    if (!found.has(name)) found.set(name, cmsCardTypeOf(graph.value, name, tl, t('fieldRef.page')))
+    return found.get(name)!
+  }
+  const out: Record<string, any> = {}
+  for (const list of bridge.lists.value) {
+    const { items, defs } = list.root()
+    Object.assign(out, cardPageCards(items, defs, {
+      type: (name) => typeOf(name)?.type ?? null,
+      typeLabel: (name) => typeOf(name)?.meta.label ?? name,
+      blockLabel: (def, type) => tl(def.label as any, type),
+      words: cardWords.value,
+      lang: adminLanguage.value,
+    }))
+  }
+  return out
+})
+let lastCards = ''
+function sendCards(force = false) {
+  const json = JSON.stringify(pageCards.value)
+  if (!force && json === lastCards) return
+  lastCards = json
+  sendToPage({ type: 'cms:builder:cards', cards: JSON.parse(json) })
+}
+
+// ── a field tried on a card's block (since 3c) ──
+// A try that ends is sent a moment later, and not at all when another came in meanwhile: moving between two rows never shows the real value in between.
+let tryEnd: ReturnType<typeof setTimeout> | null = null
+function sendTry(pointed: { path: string[]; field: string; chosen?: boolean } | null) {
+  if (tryEnd) clearTimeout(tryEnd)
+  tryEnd = null
+  if (!loaded) return
+  if (!pointed) {
+    tryEnd = setTimeout(() => { tryEnd = null; sendToPage({ type: 'cms:builder:try', try: null }) }, 120)
+    return
+  }
+  const bridge = builder.value
+  const list = bridge?.lists.value.find((l) => l.ids().includes(pointed.path[0]!))
+  const def = list ? kindsAlong(list.root(), [...pointed.path]).at(-1)?.def : undefined
+  const ref = cardRefOf(def)
+  if (!ref) return
+  sendToPage({ type: 'cms:builder:try', try: { path: [...pointed.path], key: ref.key, value: pointed.field, ...(pointed.chosen ? { chosen: true } : {}) } })
+}
+
 let timer: ReturnType<typeof setTimeout> | null = null
 let last = ''
 let sending: Promise<unknown> = Promise.resolve()
@@ -67,6 +255,144 @@ watch(() => props.data, () => {
   if (timer) clearTimeout(timer)
   timer = setTimeout(() => post(), 250)
 }, { deep: true })
+
+// ── the editor in the preview ──
+// `builder` is null until the switch is known to be on (then it stays the bridge).
+function sendToPage(message: CmsBuilderToPage) {
+  frame.value?.contentWindow?.postMessage(message, target.value)
+}
+function sendOn() {
+  const bridge = builder.value
+  if (!bridge) return
+  // While the preview shows a translation, only the fields that are per-language are changed in it.
+  const entities = cmsBuilderEntities(graph.value, { entity: (meta) => entityLabel(meta), field: (f) => fieldLabel(f) }, { translating: !!props.locale })
+  if (pageReadOnly?.value) for (const e of Object.values(entities)) { e.edit = false; e.create = false }
+  bridge.entities.value = entities
+  sendToPage({
+    type: 'cms:builder:on',
+    labels: bridge.labels.value,
+    texts: {
+      drag: t('blocks.drag'), moveUp: t('blocks.moveUp'), moveDown: t('blocks.moveDown'),
+      duplicate: t('blocks.duplicate'), remove: t('blocks.remove'), insertHere: t('blocks.insertHere'),
+      moveLeft: t('blocks.moveLeft'), moveRight: t('blocks.moveRight'), addBlock: t('blocks.pickerTitle'), blank: t('builderPanel.blank'),
+      edit: t('builderSources.edit'), more: t('builderSources.more'), openIn: t('builderSources.openIn', { name: '{name}' }), untitled: t('common.untitled'),
+      shared: t('builderPending.shared'),
+      chooseField: t('builderCard.chooseField'), fieldMissing: t('builderCard.fieldMissing', { name: '{name}' }),
+      fieldUnfit: t('builderCard.fieldUnfit', { name: '{name}' }), emptyCard: t('builderCard.emptyCard'), sampleCard: t('builderCard.sampleCard'),
+      editEntry: t('builderCard.editEntry'),
+    },
+    selected: bridge.selected.value,
+    selectedPath: bridge.selectedPath.value,
+    lists: JSON.parse(JSON.stringify(bridge.kinds.value)),
+    ...(fit.value ? { scale: fit.value.scale } : {}),
+    ...(sheetShape.value ? { bottom: covers.value } : {}),
+    entities: JSON.parse(JSON.stringify(entities)),
+    self: { entity: props.entity, id: props.id },
+  })
+  // The card sections' blocks, and no field tried on (a page that loaded anew has none).
+  sendCards(true)
+  sendToPage({ type: 'cms:builder:try', try: null })
+  // The entries and globals changed in the page that still wait: the page hears of them again after it loaded anew.
+  if (bridge.pending.count.value) bridge.pending.tell()
+}
+/** Ctrl/⌘ Z and Ctrl/⌘ ⇧ Z (or Ctrl Y), outside a text field (which keeps the browser's own undo). */
+function historyKey(e: KeyboardEvent): 'undo' | 'redo' | null {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.defaultPrevented) return null
+  const key = e.key.toLowerCase()
+  const action = key === 'z' ? (e.shiftKey ? 'redo' : 'undo') : key === 'y' && e.ctrlKey && !e.metaKey ? 'redo' : null
+  if (!action) return null
+  const target = e.target instanceof Element ? e.target : null
+  if (target?.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="dialog"]')) return null
+  return action
+}
+function onHistoryKey(e: KeyboardEvent) {
+  const action = historyKey(e)
+  const bridge = builder.value
+  if (!action || !bridge) return
+  e.preventDefault()
+  bridge.history[action]()
+}
+/**
+ * Escape and Alt with an arrow, pressed in the admin while a block is selected, go to the page as if
+ * pressed there (the page has no focus after a block was selected from the form). Never from a field
+ * someone types in, a menu or a dialog: those keep their keys.
+ */
+function forwardKey(e: KeyboardEvent) {
+  const bridge = builder.value
+  if (!bridge?.selectedPath.value || e.defaultPrevented || e.ctrlKey || e.metaKey || e.shiftKey) return
+  const arrow = e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight'
+  if (!(e.key === 'Escape' && !e.altKey) && !(arrow && e.altKey)) return
+  const target = e.target instanceof Element ? e.target : null
+  if (target?.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="dialog"], [role="menu"], [role="listbox"], [role="radiogroup"], [data-cms-no-builder-keys]')) return
+  e.preventDefault()
+  sendToPage({ type: 'cms:builder:key', key: e.key as CmsBuilderKey })
+}
+/** The frame has loaded: the draft first, then the tool (the page may load its overlay after the draft). */
+let loaded = false
+async function onLoad() {
+  await post()
+  loaded = true
+  sendOn()
+}
+watch(reloads, () => {
+  loaded = false
+  // The page loads anew: the element a box stood at is gone.
+  builder.value?.closeBox()
+})
+// The admin's first render comes from the server, so the frame can finish loading before the
+// `load` listener exists: a frame on the same site that is complete counts as loaded.
+function frameComplete() {
+  try {
+    return frame.value?.contentDocument?.readyState === 'complete'
+  }
+  catch {
+    return false
+  }
+}
+watch(builder, (bridge, _old, onCleanup) => {
+  if (!bridge || !import.meta.client) return
+  const onMessage = (e: MessageEvent) => {
+    if (e.source !== frame.value?.contentWindow || e.origin !== target.value || !isCmsBuilderToAdmin(e.data)) return
+    if (e.data.type === 'cms:builder:ready') {
+      bridge.fromPage(e.data)
+      sendOn()
+    }
+    else if (e.data.type === 'cms:builder:history') bridge.history[e.data.action]()
+    else bridge.fromPage(e.data)
+  }
+  const detach = bridge.attach({
+    send: sendToPage,
+    postNow: () => {
+      if (timer) clearTimeout(timer)
+      void post()
+    },
+  })
+  const moved = () => { boxTick.value++ }
+  window.addEventListener('resize', moved)
+  window.addEventListener('scroll', moved, true)
+  window.addEventListener('message', onMessage)
+  window.addEventListener('keydown', forwardKey)
+  window.addEventListener('keydown', onHistoryKey)
+  // The bridge came after the frame loaded: tell the page now.
+  if (loaded || frameComplete()) sendOn()
+  const stop = watch([bridge.kinds, adminLanguage, graph], () => sendOn(), { deep: true })
+  const stopCards = watch(pageCards, () => { if (loaded) sendCards() })
+  const stopTry = watch(() => bridge.cardTry.value, (pointed) => sendTry(pointed ? { path: [...pointed.path], field: pointed.field, ...(pointed.chosen ? { chosen: true } : {}) } : null))
+  onCleanup(() => {
+    stop()
+    stopCards()
+    stopTry()
+    if (tryEnd) clearTimeout(tryEnd)
+    tryEnd = null
+    detach()
+    window.removeEventListener('resize', moved)
+    window.removeEventListener('scroll', moved, true)
+    window.removeEventListener('message', onMessage)
+    window.removeEventListener('keydown', forwardKey)
+    window.removeEventListener('keydown', onHistoryKey)
+  })
+}, { immediate: true })
+onMounted(() => { if (frameComplete()) sendOn() })
 // Closed or left: forget the unsaved values, so a later preview shows what is saved.
 function clearDraft() {
   try {
@@ -85,6 +411,8 @@ onMounted(() => {
   window.addEventListener('pagehide', clearDraft)
 })
 onBeforeUnmount(() => {
+  sizes?.disconnect()
+  clearTimeout(morphTimer)
   if (timer) clearTimeout(timer)
   window.removeEventListener('pagehide', clearDraft)
   clearDraft()
@@ -92,20 +420,36 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="cms-preview" :class="sheet ? 'cms-preview--sheet flex-1 min-h-0' : ''" :aria-label="t('editor.previewPanel')">
+  <section ref="root" class="cms-preview" :class="[sheet ? 'cms-preview--sheet flex-1 min-h-0' : '', builder ? 'cms-preview--tools' : '']" :aria-label="t('editor.previewPanel')">
     <div class="flex items-center justify-between gap-2 pb-2">
       <div class="flex items-center gap-1">
         <span class="text-xs text-muted mr-2 max-sm:hidden">{{ t('editor.previewHint') }}</span>
         <UButton
           size="xs" variant="ghost" :color="width === 'desktop' ? 'primary' : 'neutral'" icon="i-lucide-monitor"
-          :aria-label="t('editor.previewDesktop')" :aria-pressed="width === 'desktop'" @click="() => { width = 'desktop' }"
+          :aria-label="t('editor.previewDesktop')" :aria-pressed="width === 'desktop'" @click="chooseWidth('desktop')"
         />
         <UButton
           size="xs" variant="ghost" :color="width === 'phone' ? 'primary' : 'neutral'" icon="i-lucide-smartphone"
-          :aria-label="t('editor.previewPhone')" :aria-pressed="width === 'phone'" @click="() => { width = 'phone' }"
+          :aria-label="t('editor.previewPhone')" :aria-pressed="width === 'phone'" @click="chooseWidth('phone')"
         />
+        <template v-if="builder">
+          <span class="mx-1 h-4 w-px bg-(--ui-border)" aria-hidden="true" />
+          <UTooltip :text="`${t('editor.previewUndo')} (Ctrl/⌘ Z)`">
+            <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-undo-2" :aria-label="t('editor.previewUndo')" :disabled="!builder.history.canUndo.value" @click="builder.history.undo()" />
+          </UTooltip>
+          <UTooltip :text="`${t('editor.previewRedo')} (Ctrl/⌘ ⇧ Z)`">
+            <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-redo-2" :aria-label="t('editor.previewRedo')" :disabled="!builder.history.canRedo.value" @click="builder.history.redo()" />
+          </UTooltip>
+        </template>
       </div>
       <div class="flex items-center gap-1">
+        <span v-if="zoom" class="mr-1 text-xs text-muted tabular-nums" :title="t('editor.previewScale', { percent: zoom })">{{ zoom }}</span>
+        <UTooltip v-if="builder && !sheet" :text="large ? t('editor.previewSmaller') : t('editor.previewLarger')">
+          <UButton
+            size="xs" variant="ghost" :color="large ? 'primary' : 'neutral'" :icon="large ? 'i-lucide-minimize-2' : 'i-lucide-maximize-2'"
+            :aria-label="t('editor.previewLarger')" :aria-pressed="large" @click="toggleLarge"
+          />
+        </UTooltip>
         <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-rotate-cw" :aria-label="t('editor.previewReload')" @click="() => { reloads++ }" />
         <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-external-link" :to="url" target="_blank" :aria-label="t('editor.preview')" />
         <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" :aria-label="t('common.close')" @click="emit('close')" />
@@ -121,11 +465,24 @@ onBeforeUnmount(() => {
         <UButton class="mt-4" size="sm" color="neutral" variant="outline" icon="i-lucide-rotate-cw" @click="() => { reloads++ }">{{ t('editor.previewReload') }}</UButton>
       </div>
     </div>
+    <div v-else-if="builder" ref="stage" class="cms-preview__stage cms-preview__stage--fit" :style="sheetShape ? { paddingBottom: `${stagePad}px` } : undefined">
+      <div class="cms-preview__box" :class="[width === 'phone' ? 'cms-preview__box--phone' : '', morphing ? 'cms-preview__box--morph' : '']" :style="boxStyle">
+        <iframe
+          :key="reloads" ref="frame" :src="url" :title="t('editor.previewPanel')"
+          class="cms-preview__frame cms-preview__frame--fit" :style="frameStyle" @load="onLoad()"
+        />
+      </div>
+    </div>
     <div v-else class="cms-preview__stage">
       <iframe
         :key="reloads" ref="frame" :src="url" :title="t('editor.previewPanel')"
-        class="cms-preview__frame" :class="width === 'phone' ? 'cms-preview__frame--phone' : ''" @load="post()"
+        class="cms-preview__frame" :class="width === 'phone' ? 'cms-preview__frame--phone' : ''" @load="onLoad()"
       />
     </div>
+    <CmsBuilderSheet v-if="sheet && builder" :entity="entity" @shape="(shape) => { sheetShape = shape }" />
+    <CmsBuilderValueBox
+      v-if="builder?.box.value && boxPlace" :key="builder.box.value.at" :request="builder.box.value"
+      :anchor="boxPlace.anchor" :bounds="boxPlace.bounds" :room="boxPlace.room" @close="closeBox"
+    />
   </section>
 </template>

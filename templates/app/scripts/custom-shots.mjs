@@ -9,16 +9,44 @@
 // Every look gets a site of its own (the one app, content types switched on), seeded with its
 // template's demo content and set to the look. Each site then makes the type `custom_course` (courses
 // with a picture, a short text, a date, a level, a price and a programme) through the admin
-// routes, five entries of it, and puts five blocks at the end of its home page: a list of cards,
+// routes, five entries of it, and puts nine blocks at the end of its home page: a list of cards,
 // three that must draw nothing (no source, a missing type, a chosen entry that does not exist),
-// a list of rows and a block of two chosen entries.
+// a list of rows, a block of two chosen entries, two with the kit's choices: a list in four
+// columns at most with square pictures, and two chosen entries in two columns with upright pictures,
+// and a list as a table (date and level as the quiet line, price and short description as facts).
 //
 // Pictures (under <out>/shots): the home page at 1440 × 900 and 390 × 844 (it must hold exactly
-// three blocks), a picture of each block (`cards`, `rows`, `chosen`), the page of the entry with
+// six blocks), a picture of each block (`cards`, `rows`, `chosen`, `four`, `two`, `table`), the page of the entry with
 // the longest title (`entry`, at most 3 000 px high), and `/kurzy/neexistuje`, which must be a 404.
 // Sheets (under <out>/sheets): per template and width, `<template>-<width>-blocks.png` (one column
 // per look, one row per block) and `<template>-<width>-entry.png`. 1440 pictures are halved.
 // report.json lists every shot, every failure, browser errors and the seconds each phase took.
+//
+// `--sections` makes pictures of the kit's four page blocks instead (`section_text_picture`, `section_cards`,
+// `section_questions`, `section_layout`): no type, no entries; nineteen blocks at the end of the home page
+// (fourteen that draw something, five empty ones that must draw nothing; the home page must hold exactly
+// fourteen of `.kit-section, section.custom-block` and not scroll sideways, and no element of a layout may
+// stick out of the page). Shots: `tp`, `tpleft`, `cards`, `cardsplain`, `faq` (first question opened),
+// `faqopen`, `narrow`, `close` (the `narrow` and `close` sections together), and six layouts: `layrow` (a
+// picture and a group of heading, text and button, in a row), `laygrid` (three groups in a grid), `laystack`
+// (a centred stack), `layend` (a text that fills and a long button as wide as its content, bottom-aligned),
+// `laypics` (four square pictures in a grid with small space), `laylong` (a row with large space, a long
+// word in a large heading and a wide button). Sheets: `<template>-<width>-sections.png` (all) and
+// `<template>-<width>-layouts.png` (the six layouts). Same arguments otherwise.
+//
+// `--cards` makes pictures of the kit's list with a card of the owner's own (`section_list`) instead: each site
+// makes the type `custom_course` as above plus the fields `quote`, `author`, `signup` (a link) and `contact`
+// (an e-mail), a second type `custom_note` with one text field and no entries, six entries of the first (the
+// sixth with a title only), and puts nine lists at the end of its home page: five that draw something (`usual`
+// cards with a picture, a row of date and price, a heading, a text and a button; `rows`; `quote`, which draws
+// a card only for the entries that have a quote; `empty`, four columns, where the title-only entry must give a
+// card with its heading alone; `long`, a long word in a large heading and a wide button that fills) and four that
+// must draw nothing (no source, a missing type, no card, a type with no entries). The home page must hold
+// exactly five `.kit-card-section`, must not scroll sideways, and no element of `.kit-cards, .kit-card,
+// .kit-card *` may stick out of the page; a price of `usual` must read `od 2 490 Kč` with non-breaking spaces.
+// Shots: `cards-usual`, `cards-rows`, `cards-quote`, `cards-empty`, `cards-long`. Sheets:
+// `<template>-<width>-cards.png`. No entry page. `--cards` and `--sections` together is an error.
+// Same arguments otherwise.
 //
 // `--prefix` must start with `tzx_`: the databases it names are dropped at the end, unless
 // `--keep` (which keeps them and the data folder). `--templates` defaults to every template of
@@ -30,7 +58,21 @@ import { pathToFileURL } from 'node:url'
 import { arg, chooseLook, clean, dropSites, freePortFrom, log, makeSites, repoRoot, seedSiteAsync, signIn, sitesFor, sleep, startServer, writeDirectory } from './sites.mjs'
 
 const SEEDS_AT_ONCE = 4
-const SHOTS = ['cards', 'rows', 'chosen']
+const SECTIONS_MODE = process.argv.includes('--sections')
+const CARDS_MODE = process.argv.includes('--cards')
+if (SECTIONS_MODE && CARDS_MODE) {
+  console.error('--cards and --sections cannot be used together')
+  process.exit(2)
+}
+const CARD_SECTION_SELECTOR = '.kit-card-section'
+const CARD_SELECTOR = '.kit-cards, .kit-card, .kit-card *'
+// Cards are drawn by KitEntries, which has `.kit-section` only when it is narrow or close; its root is always `.custom-block`.
+const SECTION_SELECTOR = '.kit-section, section.custom-block'
+const SHOTS = CARDS_MODE
+  ? ['cards-usual', 'cards-rows', 'cards-quote', 'cards-empty', 'cards-long']
+  : SECTIONS_MODE
+  ? ['tp', 'tpleft', 'cards', 'cardsplain', 'faq', 'faqopen', 'narrow', 'close', 'layrow', 'laygrid', 'laystack', 'layend', 'laypics', 'laylong']
+  : ['cards', 'rows', 'chosen', 'four', 'two', 'table']
 const WIDTHS = [{ width: 1440, height: 900, scale: 0.5 }, { width: 390, height: 844, scale: 1 }]
 const ENTRY_MAX_HEIGHT = 3000
 
@@ -171,6 +213,81 @@ const TYPE_FIELDS = [
   { key: 'program', type: 'richtext', label: { cs: 'Program', en: 'Programme' } },
 ]
 
+/** The fields `--cards` adds to `custom_course`: a long text, a text, a link and an e-mail. */
+const CARD_FIELDS = [
+  { key: 'quote', type: 'text', long: true, label: { cs: 'Citát', en: 'Quote' } },
+  { key: 'author', type: 'text', label: { cs: 'Autor', en: 'Author' } },
+  { key: 'signup', type: 'text', format: 'link', label: { cs: 'Přihláška', en: 'Sign-up' } },
+  { key: 'contact', type: 'text', format: 'email', label: { cs: 'Kontakt', en: 'Contact' } },
+]
+
+/** What `--cards` adds to the five courses, by their place in `courses()`; the sixth entry has a title only. */
+const CARD_EXTRAS = [
+  { signup: 'https://example.com/prihlaska' },
+  { quote: 'Za jeden večer jsem se naučila víc než za měsíc doma.', author: 'Jana z Brna', signup: 'https://example.com/prihlaska' },
+  { quote: 'Konečně kurz, kde se nikdo nezlobí na otázky.', author: 'Petr', contact: 'kurzy@example.com' },
+  { signup: 'https://example.com/prihlaska' },
+  { quote: 'Odcházel jsem unavený a nadšený. Příště vezmu kamaráda.', author: 'Tomáš, účastník víkendu', signup: 'https://example.com/prihlaska', contact: 'kurzy@example.com' },
+]
+const TITLE_ONLY = { title: 'Kurz bez podrobností', slug: 'kurz-bez-podrobnosti' }
+
+/** The nine lists of `--cards`: five that draw something, then four that must draw nothing. */
+function cardLists() {
+  const b = (fields) => ({ id: crypto.randomUUID(), type: 'section_list', heading: null, text: null, ...fields })
+  const item = (type, fields = {}) => ({ id: crypto.randomUUID(), type, ...fields })
+  const course = { type: 'custom_course' }
+  return [
+    b({
+      heading: 'Kurzy na jaře', text: 'Malé skupiny a hodně praxe.',
+      source: { ...course, order: { by: 'startsAt', dir: 'asc' }, limit: 6 },
+      items: [
+        item('picture', { field: 'cover' }),
+        item('group', { arrangement: 'row', items: [item('text', { field: 'startsAt', date: 'weekday', scale: 'small' }), item('text', { field: 'price', before: 'od', after: 'Kč', size: 'content', scale: 'small' })] }),
+        item('heading', { field: 'title' }),
+        item('text', { field: 'perex' }),
+        item('button', { field: 'slug', label: 'Zjistit víc' }),
+      ],
+    }),
+    b({
+      heading: 'Termíny', arrangement: 'rows', surface: 'none', source: course,
+      items: [
+        item('picture', { field: 'cover', shape: 'square' }),
+        item('heading', { field: 'title', level: 'small' }),
+        item('text', { field: 'startsAt', date: 'long' }),
+        item('text', { field: 'perex' }),
+        item('button', { field: 'signup', label: 'Přihlásit se' }),
+      ],
+    }),
+    b({
+      heading: 'Co říkají účastníci', columns: '2', surface: 'none', source: course,
+      items: [item('text', { field: 'quote', scale: 'larger' }), item('text', { field: 'author', scale: 'small' })],
+    }),
+    b({
+      columns: '4', source: { ...course, order: { by: 'title', dir: 'asc' }, limit: 6 },
+      items: [
+        item('heading', { field: 'title' }),
+        item('text', { field: 'level' }),
+        item('text', { field: 'price', after: 'Kč' }),
+        item('button', { field: 'contact', label: 'Napsat' }),
+      ],
+    }),
+    b({
+      heading: 'Nejnezdevětadevadesáteronásobitelnějšího', space: 'large', columns: '4', source: course,
+      items: [
+        item('heading', { field: '', text: 'Nejnezdevětadevadesáteronásobitelnějšího', level: 'large' }),
+        item('text', { field: 'perex' }),
+        item('button', { field: 'slug', label: 'Zobrazit všechny kurzy a ceník', size: 'fill' }),
+      ],
+    }),
+    // Four that must draw nothing: no source, a missing type, no card, a type with no entries. (The server
+    // refuses a reference to a field of no type or of a missing one, so those two hold a heading of their own text.)
+    b({ source: null, items: [item('heading', { field: '', text: 'Bez zdroje' })] }),
+    b({ source: { type: 'custom_missing' }, items: [item('heading', { field: '', text: 'Chybějící typ' })] }),
+    b({ source: course, items: [] }),
+    b({ source: { type: 'custom_note' }, items: [item('heading', { field: 'note' })] }),
+  ]
+}
+
 // ---------------------------------------------------------------------------------------------
 // One site's setup, through the admin routes
 
@@ -196,19 +313,152 @@ async function changeModel(base, cookie, ops) {
   }
 }
 
-/** Make the type and its entries, and put the five blocks at the end of the home page. Returns the long entry's slug. */
+const rich = (...texts) => ({ type: 'doc', content: texts.map(para) })
+const card = (pictures, i, title, text, link) => ({ id: crypto.randomUUID(), type: 'item', ...(pictures ? { image: pictures[i % pictures.length] } : {}), title, text, ...(link ? { link } : {}) })
+const question = (q, a) => ({ id: crypto.randomUUID(), type: 'item', question: q, answer: a })
+
+/** The eleven blocks of the kit's sections: eight that draw something, then one empty block of each type. */
+function kitSectionBlocks(pictures) {
+  const b = (type, fields) => ({ id: crypto.randomUUID(), type, ...fields })
+  return [
+    b('section_text_picture', {
+      heading: 'Pečujeme o vaše zdraví s nejrůznějšími vyšetřeními', image: pictures[0], side: 'right', size: 'half',
+      body: rich('Naše ordinace funguje už patnáct let a přijímáme pacienty všech věkových skupin. U nás se nemusíte ničeho bát.', 'Objednat se můžete telefonicky, e-mailem nebo přes formulář na webu. Na termín obvykle nečekáte déle než týden.'),
+      buttonLabel: 'Objednat se', buttonLink: '/kontakt',
+    }),
+    b('section_text_picture', {
+      heading: 'Bezbariérovost je u nás samozřejmost', image: pictures[1], side: 'left', size: 'third',
+      body: rich('K nám se dostanete bez schodů, výtahem i po rampě, a na místě je k dispozici i parkování pro vozíčkáře.'),
+    }),
+    b('section_cards', {
+      heading: 'Co u nás najdete', text: 'Tři věci, na které se u nás můžete spolehnout.',
+      items: [
+        card(pictures, 0, 'Osobní přístup', 'Každému se věnujeme tak dlouho, jak je potřeba. Nikam nespěcháme, nikoho neodbýváme a rádi si vše vysvětlíme znovu.', '/kontakt'),
+        card(pictures, 1, 'Moderní vybavení', 'Pracujeme s přístroji, které nám dovolují zjistit víc a rychleji. Vyšetření je pro vás příjemnější a výsledky máte hned. Všechny přístroje pravidelně servisujeme a každé ráno je ověřujeme, aby se na výsledky dalo spolehnout. Nově jsme pořídili také zařízení, které šetří čas a zkracuje čekání na výsledek na několik minut.', '/o-nas'),
+        card(pictures, 2, 'Rychlé termíny', 'Na většinu vyšetření se objednáte do týdne. Při akutních potížích vás vezmeme i ten samý den.'),
+      ],
+    }),
+    b('section_cards', {
+      items: ['Pondělí až čtvrtek', 'V pátek dopoledne', 'Večerní ordinace', 'Telefonická konzultace'].map((t, i) => card(null, 0, t, ['Od sedmi do šestnácti hodin.', 'Od osmi do dvanácti hodin.', 'Jednou za čtrnáct dní do osmi večer.', 'Kdykoli v ordinačních hodinách.'][i])),
+      columns: '4',
+    }),
+    b('section_questions', {
+      heading: 'Časté otázky', text: 'Odpovědi na to, na co se nás pacienti ptají nejčastěji.',
+      items: [
+        question('Jak se mohu objednat?', 'Zavolejte nám, napište e-mail, nebo použijte formulář na webu.'),
+        question('Musím mít doporučení?', 'Na většinu vyšetření ne. Vezměte si s sebou kartičku pojišťovny.'),
+        question('Kolik stojí první návštěva?', 'Hradí ji pojišťovna.\nPlatíte jen případné nadstandardní služby.'),
+        question('Můžu přijít s dítětem?', 'Samozřejmě, pro děti máme v čekárně hrací kout.'),
+        question('Kde zaparkuji?', 'Přímo před budovou je parkoviště zdarma pro naše pacienty.'),
+      ],
+    }),
+    b('section_questions', {
+      answers: 'open', heading: 'Před návštěvou',
+      items: [
+        question('Co si vzít s sebou?', 'Kartičku pojišťovny, občanský průkaz a seznam léků.'),
+        question('Mám přijít nalačno?', 'Jen když vám to řekneme při objednání.'),
+        question('Jak dlouho to potrvá?', 'První návštěva zabere zhruba hodinu.'),
+      ],
+    }),
+    b('section_cards', {
+      heading: 'Dva pohledy', width: 'narrow', columns: '2', picture: 'square',
+      items: [card(pictures, 3, 'Ráno', 'Klidná atmosféra a čas na vše.'), card(pictures, 4, 'Odpoledne', 'Kratší čekání na akutní případy.')],
+    }),
+    b('section_text_picture', {
+      heading: 'Ozvěte se nám', close: true, buttonLabel: 'Napsat zprávu', buttonLink: '/kontakt',
+      body: rich('Rádi odpovíme na každou otázku.'),
+    }),
+    ...layoutBlocks(pictures),
+    b('section_text_picture', {}),
+    b('section_cards', {}),
+    b('section_questions', {}),
+    b('section_layout', {}),
+    b('section_layout', { items: [small('heading', { text: '  ' }), small('group', { items: [small('button', { label: 'Bez odkazu' })] })] }),
+  ]
+}
+
+const small = (type, fields = {}) => ({ id: crypto.randomUUID(), type, ...fields })
+
+/** The six Layout sections an owner would make (section_layout). Choices left out are the defaults. */
+function layoutBlocks(pictures) {
+  const b = (fields) => ({ id: crypto.randomUUID(), type: 'section_layout', ...fields })
+  const pic = (i, fields = {}) => small('picture', { image: pictures[i % pictures.length], ...fields })
+  return [
+    // (a) a picture beside a group of a heading, a text and a button; the arrangement left empty (a row).
+    b({
+      align: 'center',
+      items: [
+        pic(0),
+        small('group', {
+          space: 'small',
+          items: [
+            small('heading', { text: 'Ordinace v centru města', level: 'large' }),
+            small('text', { body: rich('Najdete nás pět minut pěšky od náměstí, v přízemí domu s parkovištěm ve dvoře.', 'Ordinujeme každý všední den, v úterý a ve čtvrtek až do večera.') }),
+            small('button', { label: 'Objednat se', link: '/kontakt', size: 'content' }),
+          ],
+        }),
+      ],
+    }),
+    // (b) three groups in a grid, each a picture, a heading and a text.
+    b({
+      arrangement: 'grid', columns: '3',
+      items: [['Prevence', 'Pravidelné prohlídky a očkování pro celou rodinu.'], ['Vyšetření', 'Odběry, EKG a ultrazvuk přímo na místě, bez dalšího objednávání.'], ['Poradna', 'Čas na otázky, které se do běžné návštěvy nevejdou.']].map(([h, t], i) => small('group', {
+        space: 'small',
+        items: [pic(i + 1, { shape: 'landscape' }), small('heading', { text: h }), small('text', { body: rich(t) })],
+      })),
+    }),
+    // (c) a centred stack of a heading, a text and a button.
+    b({
+      arrangement: 'stack', align: 'center',
+      items: [
+        small('heading', { text: 'Máte otázku k vyšetření?', level: 'large' }),
+        small('text', { body: rich('Napište nám nebo zavolejte. Odpovíme ještě týž den a poradíme, co si vzít s sebou a jak se připravit.') }),
+        small('button', { label: 'Napsat zprávu', link: '/kontakt', size: 'content' }),
+      ],
+    }),
+    // (d) a text that fills and a long button as wide as its content, at the bottom.
+    b({
+      align: 'end',
+      items: [
+        small('text', { body: rich('Nově u nás najdete také nutriční poradnu. První konzultace je zdarma a trvá zhruba čtyřicet minut; domluvíte se na ní telefonicky i přes formulář.') }),
+        small('button', { label: 'Objednat se na první konzultaci zdarma', link: '/kontakt', size: 'content' }),
+      ],
+    }),
+    // (e) four square pictures in a grid with small space.
+    b({ arrangement: 'grid', columns: '4', space: 'small', items: [0, 1, 2, 3].map((i) => pic(i + 2, { shape: 'square' })) }),
+    // (f) a row with large space: a large heading with a long word, a text, and a wide button that fills.
+    b({
+      space: 'large',
+      items: [
+        small('heading', { text: 'Nejnezdevětadevadesáteronásobitelnějšího', level: 'large' }),
+        small('text', { body: rich('Dlouhé slovo se musí zalomit uvnitř, a nic nesmí přečnívat ze stránky ani na telefonu.') }),
+        small('button', { label: 'Zobrazit všechny služby a ceník ordinace', link: '/sluzby' }),
+      ],
+    }),
+  ]
+}
+
+/** Make the type and its entries, and put the nine blocks at the end of the home page. Returns the long entry's slug. */
 async function setUpSite(row) {
   const s = row._site
   const base = s.url
   const cookie = await signIn(base)
   await chooseLook(base, cookie, s.look, s.presets[0])
 
-  await changeModel(base, cookie, [{
+  if (!SECTIONS_MODE) await changeModel(base, cookie, [{
     op: 'type.add', name: 'custom_course', label: { cs: 'Kurzy', en: 'Courses' }, labelSingular: { cs: 'Kurz', en: 'Course' },
     page: { prefix: 'kurzy' }, publish: true,
   }])
-  await changeModel(base, cookie, TYPE_FIELDS.map((field) => ({ op: 'field.add', type: 'custom_course', field })))
-  await changeModel(base, cookie, [{ op: 'type.update', type: 'custom_course', page: { image: 'cover', summary: 'perex' } }])
+  if (!SECTIONS_MODE) {
+    await changeModel(base, cookie, [...TYPE_FIELDS, ...(CARDS_MODE ? CARD_FIELDS : [])].map((field) => ({ op: 'field.add', type: 'custom_course', field })))
+    await changeModel(base, cookie, [{ op: 'type.update', type: 'custom_course', page: { image: 'cover', summary: 'perex' } }])
+  }
+
+  if (CARDS_MODE) {
+    // A second type with one text field and no entries.
+    await changeModel(base, cookie, [{ op: 'type.add', name: 'custom_note', label: { cs: 'Poznámky', en: 'Notes' }, labelSingular: { cs: 'Poznámka', en: 'Note' }, publish: true }])
+    await changeModel(base, cookie, [{ op: 'field.add', type: 'custom_note', field: { key: 'note', type: 'text', label: { cs: 'Poznámka', en: 'Note' } } }])
+  }
 
   // The pictures the seed uploaded (images only), a different one for each entry, round again when there are few.
   const media = await call(base, cookie, 'GET', '/api/cms/_media?accept=image/*&limit=60')
@@ -218,12 +468,17 @@ async function setUpSite(row) {
 
   const made = []
   let n = 0
-  for (const c of courses()) {
-    const body = {
-      title: c.title, slug: c.slug, status: 'published', perex: c.perex, level: c.level, price: c.price, program: c.program,
-      ...(c.picture ? { cover: pictures[n++ % pictures.length] } : {}),
-      ...(c.at ? { startsAt: pragueMoment(c.at[0], c.at[1]) } : {}),
-    }
+  const list = SECTIONS_MODE ? [] : courses()
+  if (CARDS_MODE) list.push(TITLE_ONLY)
+  for (const [i, c] of list.entries()) {
+    const body = c === TITLE_ONLY
+      ? { title: c.title, slug: c.slug, status: 'published' }
+      : {
+        title: c.title, slug: c.slug, status: 'published', perex: c.perex, level: c.level, price: c.price, program: c.program,
+        ...(c.picture ? { cover: pictures[n++ % pictures.length] } : {}),
+        ...(c.at ? { startsAt: pragueMoment(c.at[0], c.at[1]) } : {}),
+        ...(CARDS_MODE ? CARD_EXTRAS[i] : {}),
+      }
     const res = await call(base, cookie, 'POST', '/api/cms/custom_course', body)
     if (res.status !== 201) throw new Error(`entry ${c.slug} on ${base}: ${res.status} ${res.text.slice(0, 400)}`)
     made.push({ id: res.body.row.id, slug: res.body.row.slug ?? c.slug })
@@ -234,7 +489,17 @@ async function setUpSite(row) {
   if (pages.status !== 200) throw new Error(`page list on ${base}: ${pages.status} ${pages.text.slice(0, 300)}`)
   const home = (pages.body.rows ?? []).find((p) => p.slug === 'home')
   if (!home) throw new Error(`no home page on ${base}`)
-  const block = (type, heading, text, source, layout) => ({ id: crypto.randomUUID(), type, heading, text, source, layout })
+  if (SECTIONS_MODE) {
+    const saved = await call(base, cookie, 'PATCH', `/api/cms/page/${home.id}`, { sections: [...(home.sections ?? []), ...kitSectionBlocks(pictures)] })
+    if (saved.status !== 200) throw new Error(`home page of ${base}: ${saved.status} ${saved.text.slice(0, 600)}`)
+    return null
+  }
+  if (CARDS_MODE) {
+    const saved = await call(base, cookie, 'PATCH', `/api/cms/page/${home.id}`, { sections: [...(home.sections ?? []), ...cardLists()] })
+    if (saved.status !== 200) throw new Error(`home page of ${base}: ${saved.status} ${saved.text.replace(/\s+/g, ' ').slice(0, 1500)}`)
+    return null
+  }
+  const block = (type, heading, text, source, layout, choices = {}) => ({ id: crypto.randomUUID(), type, heading, text, source, layout, ...choices })
   const sections = [
     ...(home.sections ?? []),
     block('custom_entries', 'Kurzy a workshopy', 'Malé skupiny, hodně praxe a odpovědi na všechno, na co se zeptáte.', {
@@ -250,6 +515,17 @@ async function setUpSite(row) {
     block('custom_chosen', 'Doporučujeme', null, {
       type: 'custom_course', show: { image: 'cover', text: 'perex', date: 'startsAt', label: 'level' }, entries: [made[3].id, made[1].id],
     }, null),
+    // The kit's choices (templates/kit/sections.ts): four side by side at most with square pictures, two with upright ones.
+    block('custom_entries', 'Všechny kurzy', null, {
+      type: 'custom_course', show: { image: 'cover', date: 'startsAt', label: 'level' }, limit: 5,
+    }, 'cards', { columns: '4', picture: 'square' }),
+    block('custom_chosen', 'Dva tipy na jaro', null, {
+      type: 'custom_course', show: { image: 'cover', text: 'perex', date: 'startsAt', label: 'level' }, entries: [made[0].id, made[2].id],
+    }, 'cards', { columns: '2', picture: 'portrait' }),
+    // The table layout: the date and the level as the quiet line, the price and the short description as facts.
+    block('custom_entries', 'Kurzy v tabulce', null, {
+      type: 'custom_course', show: { date: 'startsAt', label: 'level', more: ['price', 'perex'] }, limit: 5,
+    }, 'table'),
   ]
   const saved = await call(base, cookie, 'PATCH', `/api/cms/page/${home.id}`, { sections })
   if (saved.status !== 200) throw new Error(`home page of ${base}: ${saved.status} ${saved.text.slice(0, 600)}`)
@@ -301,7 +577,7 @@ async function main() {
   const pgUrl = arg('pg')
   const prefix = arg('prefix')
   if (!entry || !out || !pgUrl || typeof prefix !== 'string') {
-    console.error('usage: custom-shots.mjs --entry <server> --out <folder> --pg <postgres url> --prefix tzx_ [--templates a,b] [--keep] [--port <n>]')
+    console.error('usage: custom-shots.mjs --entry <server> --out <folder> --pg <postgres url> --prefix tzx_ [--templates a,b] [--keep] [--port <n>] [--sections | --cards]')
     process.exit(2)
   }
   if (!prefix.startsWith('tzx_')) {
@@ -390,9 +666,34 @@ async function main() {
           const homeErrors = await visit(browser, s.url, size, async (page, response) => {
             if (response?.status() !== 200) fail(key('home'), `the home page answered ${response?.status()}`)
             await settle(page)
-            const blocks = page.locator('section.custom-block')
+            const selector = CARDS_MODE ? CARD_SECTION_SELECTOR : SECTIONS_MODE ? SECTION_SELECTOR : 'section.custom-block'
+            const blocks = page.locator(selector)
             const count = await blocks.count()
-            if (count !== 3) fail(key('home'), `${count} blocks of section.custom-block, expected 3`)
+            if (count !== SHOTS.length) fail(key('home'), `${count} blocks of ${selector}, expected ${SHOTS.length}: ${(await blocks.evaluateAll((els) => els.map((e) => (e.textContent ?? '').trim().slice(0, 20)))).join(' | ')}`)
+            const over = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth])
+            if (over[0] > over[1]) fail(key('home'), `sideways overflow: scrollWidth ${over[0]} > ${over[1]}`)
+            if (SECTIONS_MODE) {
+              // Nothing of a layout sticks out of the page (an overflow hidden by a look would not show in scrollWidth).
+              const out = await page.evaluate(() => [...document.querySelectorAll('.kit-lay, .kit-lay-item, .kit-lay-item *')].flatMap((el) => {
+                const r = el.getBoundingClientRect()
+                return r.width > 0 && (r.left < -0.5 || r.right > document.documentElement.clientWidth + 0.5) ? [`${el.className || el.tagName} ${Math.round(r.left)}..${Math.round(r.right)}`] : []
+              }))
+              if (out.length) fail(key('home'), `a layout sticks out of the page: ${out.slice(0, 4).join(' | ')}`)
+            }
+            if (CARDS_MODE) {
+              // Nothing of the cards sticks out of the page (an overflow hidden by a look would not show in scrollWidth).
+              const outside = await page.evaluate((sel) => [...document.querySelectorAll(sel)].flatMap((el) => {
+                const r = el.getBoundingClientRect()
+                return r.width > 0 && (r.left < -0.5 || r.right > document.documentElement.clientWidth + 0.5) ? [`${el.className || el.tagName} ${Math.round(r.left)}..${Math.round(r.right)}`] : []
+              }), CARD_SELECTOR)
+              if (outside.length) fail(key('home'), `cards stick out of the page: ${outside.slice(0, 4).join(' | ')}`)
+              // `usual`: a price is grouped by non-breaking spaces ("od 2 490 Kč"); the soonest course costs 890, so look at every card.
+              const texts = await blocks.nth(0).locator('.kit-card').evaluateAll((els) => els.map((e) => (e.textContent ?? '').replace(/[\u00a0\u202f]/g, '~')))
+              if (!texts.some((t) => /od~2~490~Kč/.test(t))) fail(key('home'), `no price "od 2 490 Kč" with non-breaking spaces in the list \`usual\`: ${texts.map((t) => t.slice(0, 90)).join(' || ')}`)
+              // `empty`: a card that holds a heading only.
+              const onlyHeading = await blocks.nth(3).locator('.kit-card').evaluateAll((els) => els.filter((e) => e.querySelectorAll('.kit-card-item').length === 1 && e.querySelector('.kit-card-heading')).length)
+              if (!onlyHeading) fail(key('home'), 'no card with a heading only in the list `empty`')
+            }
             // A header that stays on screen would lie over a block's picture: hidden, without moving anything.
             await page.evaluate(() => {
               for (const el of document.querySelectorAll('body *')) {
@@ -401,11 +702,19 @@ async function main() {
               }
             })
             for (let i = 0; i < Math.min(count, SHOTS.length); i++) {
-              await blocks.nth(i).screenshot({ path: shot(SHOTS[i]), animations: 'disabled', caret: 'hide' })
+              if (SHOTS[i] === 'faq') await blocks.nth(i).locator('details').first().evaluate((el) => { el.open = true })
+              if (SHOTS[i] === 'close') {
+                // The narrow section and the one that follows it, in one picture.
+                const [a, b] = await Promise.all([blocks.nth(i - 1).boundingBox(), blocks.nth(i).boundingBox()])
+                const y = a.y + await page.evaluate(() => window.scrollY)
+                await page.screenshot({ path: shot('close'), animations: 'disabled', caret: 'hide', fullPage: true, clip: { x: Math.min(a.x, b.x), y, width: Math.max(a.width, b.width), height: b.y + b.height - a.y } })
+              }
+              else await blocks.nth(i).screenshot({ path: shot(SHOTS[i]), animations: 'disabled', caret: 'hide' })
             }
           })
           if (homeErrors.length) report.browserErrors[key('home')] = homeErrors
 
+          if (SECTIONS_MODE || CARDS_MODE) continue
           const entryErrors = await visit(browser, `${s.url}/kurzy/${row._entrySlug}`, size, async (page, response) => {
             if (response?.status() !== 200) fail(key('entry'), `the entry page answered ${response?.status()}`)
             await settle(page)
@@ -442,8 +751,9 @@ async function main() {
           }
           catch (e) { fail(`sheet ${name}`, e.message) }
         }
-        await sheet('blocks', (s) => SHOTS.map((w) => `${s.slug}-${w}-${size.width}.png`))
-        await sheet('entry', (s) => [`${s.slug}-entry-${size.width}.png`])
+        await sheet(CARDS_MODE ? 'cards' : SECTIONS_MODE ? 'sections' : 'blocks', (s) => SHOTS.map((w) => `${s.slug}-${w}-${size.width}.png`))
+        if (SECTIONS_MODE) await sheet('layouts', (s) => SHOTS.filter((w) => w.startsWith('lay')).map((w) => `${s.slug}-${w}-${size.width}.png`))
+        if (!SECTIONS_MODE && !CARDS_MODE) await sheet('entry', (s) => [`${s.slug}-entry-${size.width}.png`])
       }
     }
     endPhase('sheets')

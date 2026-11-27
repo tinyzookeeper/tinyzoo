@@ -5,6 +5,8 @@
    Written in the cascade layers the design was written in: utilities win over these rules
    where both speak. */
 html[data-look="patra"] {
+  /* The space above a kit section "close to the section above": this look keeps its space above a section only. */
+  --custom-close: 2rem;
   --font-display: "Instrument Serif", Georgia, serif;
   --font-sans: "Geologica", system-ui, sans-serif;
   /* The colours of the first preset (Bronz); a preset from the settings overrides them. */

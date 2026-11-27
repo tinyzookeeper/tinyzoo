@@ -1,12 +1,13 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { CUSTOM_PREFIX, defineEntity, defineSingleton, emitSchema, f } from 'tinyzoo'
 import {
-  customBlockPlan, customCards, customChosenEntries, customEntryHref, customEntryView, customFieldText, customPageFor, customShow,
+  customBlockPlan, customCards, customChosenEntries, customEntryHref, customEntryView, customFieldText, customPageFor, customShow, customTable,
   type CustomPage, type CustomType, type CustomTypeField,
 } from '../../templates/kit/app/utils/customTypes'
 import { customPrefixProblems, exportedTypeNames } from '../../templates/kit/design-build'
+import { ENTRY_COLUMNS, ENTRY_LAYOUTS, ENTRY_PICTURES, kitEntryBlocks } from '../../templates/kit/sections'
 import { repoRoot } from '../setup/database'
 
 // What the kit decides about a site's own content types before it draws them
@@ -155,6 +156,29 @@ describe('which request a block leads to', () => {
     expect(layout('rows')).toBe('rows')
   })
 
+  it('shows three cards side by side at most, or the two or four the block chose', () => {
+    const columns = (c: unknown) => { const p = customBlockPlan(block(binding(), { columns: c }), types, 'entries'); return p.ok ? p.columns : null }
+    expect(columns(undefined)).toBe(3)
+    expect(columns(null)).toBe(3)
+    expect(columns('')).toBe(3)
+    expect(columns('2')).toBe(2)
+    expect(columns('3')).toBe(3)
+    expect(columns('4')).toBe(4)
+    expect(columns('12')).toBe(3)
+  })
+
+  it('cuts the pictures on their side, or to the square or the upright shape the block chose', () => {
+    const picture = (c: unknown) => { const p = customBlockPlan(block(binding(), { picture: c }), types, 'chosen'); return p.ok ? p.picture : null }
+    const chosen = (c: unknown) => { const p = customBlockPlan(block(binding({ entries: ['a'] }), { picture: c }), types, 'chosen'); return p.ok ? p.picture : null }
+    expect(picture('square')).toBeNull() // a block of chosen entries with none chosen draws nothing
+    expect(chosen(undefined)).toBe('landscape')
+    expect(chosen(null)).toBe('landscape')
+    expect(chosen('landscape')).toBe('landscape')
+    expect(chosen('square')).toBe('square')
+    expect(chosen('portrait')).toBe('portrait')
+    expect(chosen('round')).toBe('landscape')
+  })
+
   it('asks for chosen entries one by one, in the picked order, each once and at most 12', () => {
     expect(request(block(binding({ entries: ['b', 'a', 'b', 'c'] })), 'chosen')).toEqual({
       kind: 'chosen', paths: ['/api/content/custom_course/b', '/api/content/custom_course/a', '/api/content/custom_course/c'],
@@ -226,7 +250,7 @@ describe('the cards of a block', () => {
     const [card] = customCards([entry], plan({ image: 'cover', date: 'startsAt', label: 'level', text: 'about', more: ['price', 'full'] }), opts)
     expect(card).toEqual({
       id: 'e1', title: 'Jóga', href: '/kurzy/j%C3%B3ga', image: entry.cover, meta: '14. března 2027, 18.30 · Lehký', text: 'Text',
-      more: [{ label: 'Cena', value: '2490' }, { label: '', value: 'Obsazeno' }],
+      more: [{ key: 'price', label: 'Cena', value: '2490' }, { key: 'full', label: '', value: 'Obsazeno' }],
     })
   })
 
@@ -244,7 +268,64 @@ describe('the cards of a block', () => {
 
   it('leave out extra facts without a value', () => {
     const [card] = customCards([{ ...entry, price: null, full: false }], plan({ more: ['price', 'full', 'level'] }), opts)
-    expect(card!.more).toEqual([{ label: 'Úroveň', value: 'Lehký' }])
+    expect(card!.more).toEqual([{ key: 'level', label: 'Úroveň', value: 'Lehký' }])
+  })
+})
+
+describe('the layout of a block', () => {
+  const layout = (l: unknown) => { const p = customBlockPlan({ source: { type: 'custom_course' }, layout: l }, types, 'entries'); return p.ok ? p.layout : null }
+
+  it('is a table when the block says table, and cards for anything else it does not know', () => {
+    expect(layout('table')).toBe('table')
+    expect(layout('rows')).toBe('rows')
+    expect(layout('grid')).toBe('cards')
+    expect(layout(3)).toBe('cards')
+    expect(layout(null)).toBe('cards')
+  })
+})
+
+describe('the table of a block', () => {
+  const plan = (show: Record<string, unknown>) => {
+    const p = customBlockPlan({ source: { type: 'custom_course', show }, layout: 'table' }, types, 'entries')
+    if (!p.ok) throw new Error(p.reason)
+    return p
+  }
+  const entries = [
+    { id: 'e1', slug: 'jóga', name: 'Jóga', startsAt: '2027-03-14T17:30:00.000Z', price: 2490, level: 'easy', full: true },
+    { id: 'e2', slug: 'box', name: 'Box', price: null, level: null },
+  ]
+  const table = (show: Record<string, unknown>, lang = 'cs', list: unknown[] = entries) => {
+    const p = plan(show)
+    return customTable(customCards(list, p, { lang, types }), p, { lang })
+  }
+
+  it('has the title first, headed with the title field\'s label, and nothing more for a bare block', () => {
+    const t = table({})
+    expect(t.columns).toEqual([{ key: ':title', label: 'name' }])
+    expect(t.rows).toEqual([
+      { id: 'e1', title: 'Jóga', href: '/kurzy/j%C3%B3ga', cells: { ':title': 'Jóga' } },
+      { id: 'e2', title: 'Box', href: '/kurzy/box', cells: { ':title': 'Box' } },
+    ])
+  })
+
+  it('adds the date and label as one column and a column per extra fact, headed in the language', () => {
+    const cs = table({ date: 'startsAt', label: 'level', more: ['price', 'full'] })
+    expect(cs.columns.map((c) => c.label)).toEqual(['name', 'Začátek · Úroveň', 'Cena', 'Obsazeno'])
+    expect(cs.columns.map((c) => c.key)).toEqual([':title', ':meta', 'price', 'full'])
+    expect(cs.rows[0]!.cells).toEqual({ ':title': 'Jóga', ':meta': '14. března 2027, 18.30 · Lehký', price: '2490', full: 'Obsazeno' })
+    expect(cs.rows[1]!.cells).toEqual({ ':title': 'Box', ':meta': '', price: '', full: '' })
+    const en = table({ date: 'startsAt', label: 'level', more: ['price'] }, 'en')
+    expect(en.columns.map((c) => c.label)).toEqual(['name', 'Starts · Level', 'Price'])
+  })
+
+  it('leaves out the date column and a fact column when no entry has a value for them', () => {
+    const t = table({ date: 'startsAt', label: 'level', more: ['price', 'full'] }, 'cs', [entries[1]])
+    expect(t.columns.map((c) => c.key)).toEqual([':title'])
+    expect(table({ more: ['price', 'full'] }, 'cs', [entries[0]]).columns.map((c) => c.key)).toEqual([':title', 'price', 'full'])
+  })
+
+  it('is empty for no entries, with the title column only', () => {
+    expect(table({ more: ['price'] }, 'cs', [])).toEqual({ columns: [{ key: ':title', label: 'name' }], rows: [] })
   })
 })
 
@@ -395,5 +476,83 @@ describe('the twenty templates', () => {
       const committed = readFileSync(join(repoRoot, 'templates', id, 'server', 'db', 'schema.ts'), 'utf8')
       expect(emitSchema(config) === committed, `templates/${id}/server/db/schema.ts differs from what its cms.config.ts gives`).toBe(true)
     }
+  })
+})
+
+// The frame of the kit's sections (docs/builder-plan.md, 3.1): a look's own Text part, with what
+// the section draws in its slot. A look without the slot would draw the heading and drop the rest.
+describe('the frame every look gives the kit\'s sections', () => {
+  const templates = readdirSync(join(repoRoot, 'templates'), { withFileTypes: true })
+    .filter((d) => d.isDirectory() && d.name !== 'kit' && d.name !== 'app' && existsSync(join(repoRoot, 'templates', d.name, 'looks.ts')))
+    .map((d) => d.name)
+  const parts = templates.flatMap((template) => {
+    const folder = join(repoRoot, 'templates', template, 'app', 'components')
+    return readdirSync(folder, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && existsSync(join(folder, d.name, 'Text.vue')))
+      .map((d) => ({ look: `${template}/${d.name}`, source: readFileSync(join(folder, d.name, 'Text.vue'), 'utf8') }))
+  })
+
+  it('is there in all 52 looks of the 20 templates', () => {
+    expect(templates).toHaveLength(20)
+    expect(parts).toHaveLength(52)
+  })
+
+  it('has one slot in each look\'s Text part, after its heading and its text', () => {
+    const wrong = parts.filter((p) => {
+      const slots = p.source.match(/<slot\b[^>]*\/>/g) ?? []
+      return slots.length !== 1 || p.source.indexOf('<slot') < p.source.lastIndexOf('block.body')
+    })
+    expect(wrong.map((p) => p.look)).toEqual([])
+  })
+
+  it('is passed on by LookPart, and the entries of a site\'s own types are drawn inside it', () => {
+    const kit = join(repoRoot, 'templates', 'kit', 'app', 'components')
+    expect(readFileSync(join(kit, 'LookPart.vue'), 'utf8')).toContain('<template v-if="$slots.default" #default><slot /></template>')
+    expect(readFileSync(join(kit, 'KitEntries.vue'), 'utf8')).toMatch(/<LookPart [^>]*part="Text"/)
+  })
+})
+
+// The two blocks as the hosted templates use them (templates/kit/sections.ts): tinyzoo's, with
+// the kit's choices of how the entries are shown.
+describe('the kit\'s blocks of a site\'s own types', () => {
+  const blocks = kitEntryBlocks()
+
+  it('are tinyzoo\'s two blocks, each with its fields and the two choices after them', () => {
+    expect(Object.keys(blocks)).toEqual(['custom_entries', 'custom_chosen'])
+    for (const def of Object.values(blocks)) expect(Object.keys(def.fields)).toEqual(['heading', 'text', 'source', 'layout', 'columns', 'picture'])
+  })
+
+  it('offer cards, rows and a table, in the layout\'s place', () => {
+    for (const def of Object.values(blocks)) {
+      expect((def.fields as unknown as Record<string, { meta: { options: readonly string[] } }>).layout!.meta.options).toEqual(['cards', 'rows', 'table'])
+    }
+    expect(ENTRY_LAYOUTS).toEqual(['cards', 'rows', 'table'])
+  })
+
+  it('offer two, three or four columns and three picture shapes, the default first', () => {
+    const { columns, picture } = blocks.custom_entries.fields as unknown as Record<string, { meta: { options: readonly string[] } }>
+    expect(columns!.meta.options).toEqual(['2', '3', '4'])
+    expect(picture!.meta.options).toEqual(['landscape', 'square', 'portrait'])
+    expect(ENTRY_COLUMNS[0]).toBe('3')
+    expect(ENTRY_PICTURES[0]).toBe('landscape')
+  })
+
+  it('are in the page blocks of all 20 templates, in place of tinyzoo\'s own', () => {
+    const configs = readdirSync(join(repoRoot, 'templates'), { withFileTypes: true })
+      .filter((d) => d.isDirectory() && d.name !== 'kit' && d.name !== 'app' && existsSync(join(repoRoot, 'templates', d.name, 'cms.config.ts')))
+      .map((d) => ({ id: d.name, source: readFileSync(join(repoRoot, 'templates', d.name, 'cms.config.ts'), 'utf8') }))
+    expect(configs).toHaveLength(20)
+    expect(configs.filter((c) => !c.source.includes('...kitEntryBlocks()') || c.source.includes('customTypeBlocks')).map((c) => c.id)).toEqual([])
+  })
+})
+
+describe('the page of one entry, drawn in the look\'s frame', () => {
+  const source = readFileSync(join(repoRoot, 'templates', 'kit', 'app', 'components', 'KitCustomEntry.vue'), 'utf8')
+
+  it('is the look\'s Text part as the first section, not a container of the kit\'s own', () => {
+    expect(source).toContain('part="Text"')
+    expect(source).toContain(':first="true"')
+    expect(source).not.toContain('max-width: 80rem')
+    expect(source).not.toContain('custom-wrap')
   })
 })

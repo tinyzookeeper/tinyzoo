@@ -6,6 +6,8 @@
    Written in the cascade layers the design was written in: utilities win over these rules
    where both speak. */
 html[data-look="po-slunci"] {
+  /* The space above a kit section "close to the section above": this look keeps its space above a section only. */
+  --custom-close: 2rem;
   --font-display: "DM Serif Display", Georgia, serif;
   --font-sans: "Red Hat Text", system-ui, sans-serif;
   /* The colours of the first preset (Moře); a preset from the settings overrides them. */

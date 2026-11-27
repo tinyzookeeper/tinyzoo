@@ -1,5 +1,6 @@
 import { z, type ZodTypeAny } from 'zod'
 import type { CmsAdminField } from './admin'
+import type { CustomFieldKind } from './custom-kinds'
 import type { AnyFieldDescriptor, FieldDescriptor, FieldKind } from './descriptor'
 import type { LocalizedText } from './i18n'
 import { upgradeRichText } from './richtext'
@@ -13,10 +14,12 @@ import { upgradeRichText } from './richtext'
  *   [{ id: 'k3j…', type: 'hero', heading: 'Vítejte', image: '<media id>' }, …]
  *
  * Block fields use the regular field catalog, minus relations (v1): text, slug,
- * number, boolean, datetime, select, rich text, media, and one level of lists
- * (`f.list()`: FAQ questions, feature cards, price rows inside one block). Rich text
- * is sanitised on write like everywhere else; media ids (also inside a block's
- * lists) are resolved by the content API and counted by media cleanup.
+ * number, boolean, datetime, select, rich text, media, groups, and lists two levels
+ * deep (`f.list()` or `f.blocks()`: FAQ questions, feature cards, price rows inside one
+ * block; a layout's small blocks and the groups among them, each group with small
+ * blocks of its own). Rich text is sanitised on write like everywhere else; media ids
+ * (also inside a block's lists) are resolved by the content API and counted by media
+ * cleanup.
  *
  * Stored JSON outlives the code that wrote it, so a block (or `f.list`) can carry a
  * `version`: stored blocks are stamped `v` (left out while it is 1) and anything
@@ -31,8 +34,8 @@ import { upgradeRichText } from './richtext'
  */
 
 /**
- * Field types allowed inside a block, a list item or a group ('blocks' = a list, one
- * level deep; 'group' = a named object of fields). A 'binding' is allowed in a block only,
+ * Field types allowed inside a block, a list item or a group ('blocks' = a list, two
+ * levels deep at most, see `MAX_LIST_DEPTH`; 'group' = a named object of fields). A 'binding' is allowed in a block only,
  * as one of its own fields (see `checkContainedFields`).
  *
  * @internal
@@ -76,7 +79,146 @@ export const blockVersion = (def: Pick<BlockDef, 'version'>): number => def.vers
 export function defineBlock<F extends Record<string, AnyFieldDescriptor>>(def: BlockDef<F>): BlockDef<F> {
   checkVersioning('Block', def)
   checkContainedFields('Block', def.fields, { reserved: true, binding: true })
+  const cards = (Object.entries(def.fields) as [string, FieldDescriptor][]).filter(([, fld]) => isCardBinding(fld)).map(([key]) => key)
+  if (cards.length > 1) throw new Error(`Block fields ${cards.map((k) => `"${k}"`).join(' and ')} are both a card's binding (customTypeCard()): a block shows one card, so it holds one.`)
   return def
+}
+
+// ── a card's references to the fields of the type it shows ──
+
+type FieldLike = { type?: string; meta?: Record<string, unknown> | null } | null | undefined
+
+/**
+ * The text format that marks a reference to a field of the type a card shows. A text with a
+ * format is never typed in the page, searched or summed up as words, and a reference is none of
+ * those.
+ *
+ * @internal
+ */
+export const FIELD_REF_FORMAT = 'field'
+
+/**
+ * Whether a field is a reference to a field of the type a card shows (`customTypeFieldRef()`).
+ *
+ * @internal
+ */
+export const isFieldRef = (fld: FieldLike): boolean =>
+  !!fld && fld.type === 'text' && fld.meta?.format === FIELD_REF_FORMAT && !!fld.meta?.ref && typeof fld.meta.ref === 'object'
+
+/**
+ * The kinds a reference takes, or an empty list for a field that is no reference.
+ *
+ * @internal
+ */
+export function fieldRefTakes(fld: FieldLike): CustomFieldKind[] {
+  if (!isFieldRef(fld)) return []
+  const takes = (fld!.meta!.ref as { takes?: unknown }).takes
+  return Array.isArray(takes) ? takes.filter((k): k is CustomFieldKind => typeof k === 'string') : []
+}
+
+/**
+ * Whether a field is a card's binding (`customTypeCard()`).
+ *
+ * @internal
+ */
+export const isCardBinding = (fld: FieldLike): boolean => !!fld && fld.type === 'binding' && fld.meta?.binding === 'card'
+
+/**
+ * The key of a block's card binding, or null when the block shows no card.
+ *
+ * @internal
+ */
+export function cardBindingKey(def: Pick<BlockDef, 'fields'> | undefined | null): string | null {
+  for (const [key, fld] of Object.entries(def?.fields ?? {}) as [string, FieldDescriptor][]) if (isCardBinding(fld)) return key
+  return null
+}
+
+const refRefusal = (trail: string[]) =>
+  `${trail.join(' › ')} is a reference to a field of a content type (customTypeFieldRef()). A reference is a field of a block inside a block that shows a card (customTypeCard()): of its blocks, or of the blocks of a list inside one of them. Not of a collection, a global, a group, or a block of the page itself.`
+
+/**
+ * Where a reference may stand, checked when the config loads (`defineEntity`): as a field of a
+ * block inside a page block that holds a card's binding, at the first or the second level. A
+ * block is defined on its own before anything says where it goes, so the place is known only
+ * here, from the entity down. `where` is the entity's name; a refusal names the path.
+ *
+ * @internal
+ */
+export function checkFieldRefPlaces(where: string, fields: Record<string, AnyFieldDescriptor>): void {
+  for (const [key, fld] of Object.entries(fields) as [string, FieldDescriptor][]) {
+    const trail = [where, key]
+    if (isFieldRef(fld)) throw new Error(refRefusal(trail))
+    if (fld.type === 'group') checkFieldRefPlaces(trail.join(' › '), (fld.fields ?? {}) as Record<string, AnyFieldDescriptor>)
+    else if (fld.type === 'blocks') {
+      for (const [type, def] of Object.entries(fld.blocks ?? {})) checkTopBlockRefs([...trail, type], def)
+    }
+  }
+}
+
+/** A block of an entity's list: no reference of its own; inside, references only when it holds a card. */
+function checkTopBlockRefs(trail: string[], def: BlockDef) {
+  const bindingKey = cardBindingKey(def)
+  const card = bindingKey !== null
+  if (bindingKey) checkCardOptions([...trail, bindingKey], def)
+  for (const [key, fld] of Object.entries(def.fields) as [string, FieldDescriptor][]) {
+    if (isFieldRef(fld)) throw new Error(refRefusal([...trail, key]))
+    if (fld.type === 'group') checkNoRefs([...trail, key], fld.fields ?? {})
+    else if (fld.type === 'blocks') checkInnerRefs([...trail, key], fld, card)
+  }
+}
+
+/**
+ * A card's starter and groups (`customTypeCard({ starter, groups })`) name blocks of the card's list
+ * (the block's first `f.blocks()`) and fields of those blocks.
+ */
+function checkCardOptions(trail: string[], def: BlockDef) {
+  const opts = (def.fields[trail[trail.length - 1]!] as FieldDescriptor | undefined)?.meta?.card as { starter?: any[]; groups?: any[]; heading?: string } | undefined
+  if (!opts) return
+  const list = (Object.values(def.fields) as FieldDescriptor[]).find((f) => f.type === 'blocks' && !f.meta?.list)
+  const where = trail.join(' › ')
+  const check = (what: string, block: string, ...values: (Record<string, unknown> | undefined)[]) => {
+    const inner = list?.blocks?.[block]
+    if (!inner) throw new Error(`${where}: ${what} names the block "${block}", which the card's list does not have${list ? ` (it has ${Object.keys(list.blocks ?? {}).join(', ')})` : ': the block has no list of blocks'}.`)
+    for (const v of values) for (const key of Object.keys(v ?? {})) {
+      if (!(key in inner.fields)) throw new Error(`${where}: ${what} sets "${key}", which the block "${block}" does not have.`)
+    }
+  }
+  opts.starter?.forEach((step, i) => check(`starter[${i}]`, step.block, step.set))
+  opts.groups?.forEach((g, i) => check(`groups[${i}]`, g.block, g.set, g.next))
+  if (opts.heading !== undefined) {
+    const field = def.fields[opts.heading] as FieldDescriptor | undefined
+    if (!field) throw new Error(`${where}: heading names "${opts.heading}", which the block does not have.`)
+    if (field.type !== 'text' || field.meta?.format || field.meta?.setting) throw new Error(`${where}: heading names "${opts.heading}", which is not a plain text field of the block.`)
+  }
+}
+
+/** A reference's `own` and `only` name fields of its own block. */
+function checkRefSiblings(trail: string[], def: BlockDef, fld: FieldDescriptor) {
+  const ref = fld.meta?.ref as { own?: string; only?: Record<string, string[]> } | undefined
+  const names = [...(ref?.own ? [ref.own] : []), ...Object.values(ref?.only ?? {}).flat()]
+  for (const name of names) {
+    if (!(name in def.fields)) throw new Error(`${trail.join(' › ')} names "${name}", which its block does not have (customTypeFieldRef({ own, only }) name fields of the same block).`)
+  }
+}
+
+/** The blocks of a list inside a block: a reference is theirs only inside a card. */
+function checkInnerRefs(trail: string[], list: FieldDescriptor, card: boolean) {
+  for (const [type, def] of Object.entries(list.blocks ?? {})) {
+    for (const [key, fld] of Object.entries(def.fields) as [string, FieldDescriptor][]) {
+      if (isFieldRef(fld) && !card) throw new Error(refRefusal([...trail, type, key]))
+      if (isFieldRef(fld)) checkRefSiblings([...trail, type, key], def, fld)
+      if (fld.type === 'group') checkNoRefs([...trail, type, key], fld.fields ?? {})
+      else if (fld.type === 'blocks') checkInnerRefs([...trail, type, key], fld, card)
+    }
+  }
+}
+
+/** A group holds no reference, at any depth. */
+function checkNoRefs(trail: string[], fields: Record<string, FieldDescriptor>) {
+  for (const [key, fld] of Object.entries(fields)) {
+    if (isFieldRef(fld)) throw new Error(refRefusal([...trail, key]))
+    if (fld.type === 'group') checkNoRefs([...trail, key], fld.fields ?? {})
+  }
 }
 
 /** Does a set of fields hold a list (`f.list`, `f.blocks`), directly or inside a group? */
@@ -85,11 +227,19 @@ export function holdsList(fields: Record<string, AnyFieldDescriptor>): boolean {
 }
 
 /**
+ * How many lists deep the fields of a block (or a group) may go: a list, and a list
+ * inside its items (a page's layout section holds small blocks and groups, a group holds
+ * small blocks). The items of that inner list hold plain fields.
+ */
+const MAX_LIST_DEPTH = 2
+
+/**
  * The rules for fields that sit inside something else (a block, a list item, a group):
- * only the field types blocks support; a list inside is one level (its items hold
- * plain fields and groups, not more lists); a group inside a block or a list holds no
- * list (only a group straight on an entry may). A binding is a field of a block itself
- * (`opts.binding`), never of a group, a list item or a block inside another block.
+ * only the field types blocks support; lists go two levels deep at most (a list, and a
+ * list in its items, whose items hold plain fields and groups); a group inside a block
+ * or a list holds no list (only a group straight on an entry may). A binding is a field
+ * of a block itself (`opts.binding`), never of a group, a list item or a block inside
+ * another block.
  */
 export function checkContainedFields(what: string, fields: Record<string, AnyFieldDescriptor>, opts: { reserved?: boolean; binding?: boolean } = { reserved: true }) {
   for (const [key, fld] of Object.entries(fields) as [string, FieldDescriptor][]) {
@@ -101,20 +251,36 @@ export function checkContainedFields(what: string, fields: Record<string, AnyFie
       throw new Error(`${what} field "${key}" has type "${fld.type}", which blocks, lists and groups do not support (allowed: ${[...BLOCK_FIELD_TYPES].join(', ')}).`)
     }
     if (fld.type === 'binding' && !opts.binding) throw new Error(bindingRefusal(what, key))
-    // A list inside a block is one level: its items hold plain fields, not more lists.
-    if (fld.type === 'blocks') {
-      for (const inner of Object.values(fld.blocks ?? {})) {
-        for (const [innerKey, innerFld] of Object.entries(inner.fields) as [string, FieldDescriptor][]) {
-          if (innerFld.type === 'binding') throw new Error(bindingRefusal(what, innerKey))
-          if (innerFld.type === 'blocks' || (innerFld.type === 'group' && holdsList(innerFld.fields ?? {}))) {
-            throw new Error(`${what} field "${key}" is a list whose items have a list ("${innerKey}"). Lists inside a block are one level deep.`)
-          }
-        }
+    if (fld.type === 'blocks') checkListItems(what, fld, [key])
+    checkGroup(what, key, fld)
+  }
+}
+
+/**
+ * The item types of a list at `trail` (the keys from the block's own field down to it):
+ * no binding, no group holding a list, and a list inside only while `trail` is shorter
+ * than `MAX_LIST_DEPTH`. Each item type was checked on its own already when it was made
+ * with `defineBlock`; this is what it may not hold because of where it sits.
+ */
+function checkListItems(what: string, list: FieldDescriptor, trail: string[]) {
+  for (const inner of Object.values(list.blocks ?? {})) {
+    for (const [innerKey, innerFld] of Object.entries(inner.fields) as [string, FieldDescriptor][]) {
+      if (innerFld.type === 'binding') throw new Error(bindingRefusal(what, innerKey))
+      checkGroup(what, innerKey, innerFld)
+      if (innerFld.type !== 'blocks') continue
+      const deeper = [...trail, innerKey]
+      if (deeper.length > MAX_LIST_DEPTH) {
+        throw new Error(`${what} field "${trail[0]}" holds lists three levels deep (${deeper.join(' › ')}). Lists inside a block go two levels deep at most: a list, and a list in its items.`)
       }
+      checkListItems(what, innerFld, deeper)
     }
-    if (fld.type === 'group' && holdsList(fld.fields ?? {})) {
-      throw new Error(`${what} field "${key}" is a group with a list inside. Inside a block or a list a group holds plain fields only (a group straight on an entry may hold a list).`)
-    }
+  }
+}
+
+/** A group inside a block, a list item or another group holds plain fields only. */
+function checkGroup(what: string, key: string, fld: FieldDescriptor) {
+  if (fld.type === 'group' && holdsList(fld.fields ?? {})) {
+    throw new Error(`${what} field "${key}" is a group with a list inside. Inside a block or a list a group holds plain fields only (a group straight on an entry may hold a list).`)
   }
 }
 
@@ -422,6 +588,9 @@ function compile(blocks: Record<string, BlockDef>): Map<string, Compiled> {
   return out
 }
 
+/** The most items a list field takes: `f.list({ max })` or `f.blocks(…, { max })`, else 500. */
+const listMax = (fld: FieldDescriptor): number => (fld.meta?.list as { max?: number | null } | undefined)?.max ?? (fld.meta?.max as number | undefined) ?? 500
+
 type Problem = { code: string; path: (string | number)[]; message: string; [k: string]: unknown }
 const problem = (path: (string | number)[], message: string): Problem => ({ code: 'custom', path, message })
 const idOf = (b: Record<string, any>) => (typeof b.id === 'string' ? b.id : null)
@@ -550,7 +719,7 @@ function validateBlockList(
         continue
       }
       const nested: Problem[] = []
-      const checked = validateBlockList(fld.blocks!, (fld.meta?.list as { max?: number | null } | undefined)?.max ?? 500, raw, storedOfType?.[key], [key], nested)
+      const checked = validateBlockList(fld.blocks!, listMax(fld), raw, storedOfType?.[key], [key], nested)
       own.push(...nested)
       if (checked) value[key] = checked
     }

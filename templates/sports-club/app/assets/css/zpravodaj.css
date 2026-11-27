@@ -63,8 +63,6 @@ html[data-look="zpravodaj"] {
     .prose-look { max-width: 44rem; }
     .prose-look > * + * { margin-top: 1.1rem; }
     .prose-look h2 { font-family: var(--font-display); color: var(--ink); font-weight: 700; font-size: 1.75rem; line-height: 1.15; margin-top: 2.4rem; }
-    /* the title of an entry's page (the kit's KitCustomEntry) in the type of these headings */
-    .custom-entry .custom-entry-title { font-family: var(--font-display); font-weight: 700; color: var(--ink); }
     .prose-look h3 { font-family: var(--font-display); color: var(--ink); font-weight: 700; font-size: 1.35rem; line-height: 1.2; margin-top: 1.8rem; }
     .prose-look a { color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-color: var(--brand); text-decoration-thickness: 2px; text-underline-offset: 4px; }
     .prose-look a:hover { color: var(--brand); }

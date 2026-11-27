@@ -5,7 +5,11 @@ import { FIELD_KEY, TYPE_NAME } from './model-doc'
 // of its fields go where. It lives apart from `custom-blocks.ts` because `fields.ts`
 // needs the schema and `custom-blocks.ts` needs `fields.ts`.
 
-/** Which custom type a block shows, and which field goes to which place. */
+/**
+ * Which custom type a block shows, and which field goes to which place. A card's binding
+ * (`customTypeCard()`) holds the type, the order and the limit only: the card's own blocks say
+ * which field each shows.
+ */
 export interface CmsBinding {
   /** The name of the custom type. */
   type: string
@@ -48,3 +52,27 @@ export const bindingSchema = z.lazy(() => {
     entries: z.array(z.uuid()).max(BINDING_ENTRIES_MAX).optional(),
   })
 })
+
+/**
+ * The shape of a card's binding: the type, the order and how many. No places and no picked
+ * entries: the card's blocks name their fields themselves.
+ *
+ * @internal
+ */
+export const cardBindingSchema = z.lazy(() => {
+  const key = z.string().max(BINDING_NAME_MAX).regex(FIELD_KEY, 'Not a field key')
+  return z.strictObject({
+    type: z.string().max(BINDING_NAME_MAX).regex(TYPE_NAME, 'Not the name of a custom type'),
+    order: z.strictObject({ by: key, dir: z.enum(['asc', 'desc']) }).nullish(),
+    limit: z.number().int().min(1).max(BINDING_LIMIT_MAX).nullish(),
+  })
+})
+
+/**
+ * The shape of a reference to a field of the type a card shows: a field key, or an empty text
+ * for none. Whether the type has the field, and whether its kind fits, is each site's own and is
+ * checked by the server.
+ *
+ * @internal
+ */
+export const fieldRefSchema = z.lazy(() => z.string().trim().max(BINDING_NAME_MAX).refine((v) => v === '' || FIELD_KEY.test(v), 'Not a field key'))

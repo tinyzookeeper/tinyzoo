@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { customTypesSetting } from '../../shared/sharedHosting'
+import { builderSetting, customTypesSetting } from '../../shared/sharedHosting'
 import { appOf, type AppDef, type TemplateDef } from '../../shared/templates'
 import { HostingError } from './types'
 
@@ -15,6 +15,9 @@ import { HostingError } from './types'
  * NUXT_* names only). Off: what the drivers start and write is as it always was.
  */
 export const cloudCustomTypes = (): boolean => customTypesSetting(process.env.CLOUD_CUSTOM_TYPES)
+
+/** CLOUD_BUILDER=on: the one app's process gets the editor in the preview (experimental). Read like CLOUD_CUSTOM_TYPES. */
+export const cloudBuilder = (): boolean => builderSetting(process.env.CLOUD_BUILDER)
 
 /** The app's server entry. It need not exist. */
 export const entryOf = (root: string, app: AppDef): string => join(root, app.sourceDir, '.output', 'server', 'index.mjs')

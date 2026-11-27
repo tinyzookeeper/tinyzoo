@@ -6,6 +6,7 @@
 //
 // Drawing never fails: a binding that names a type the site does not have gives nothing to
 // draw, and a field the type no longer has is left out.
+import type { CustomFieldKind } from 'tinyzoo'
 import { dateParts, formatDate } from './format'
 
 /** Text a person reads, by language: `{ cs: 'Kurzy', en: 'Courses' }`. */
@@ -15,6 +16,8 @@ export type CustomLabel = Record<string, string>
 export interface CustomTypeField {
   key: string
   type: 'text' | 'richtext' | 'number' | 'boolean' | 'datetime' | 'select' | 'media' | 'file' | 'gallery' | 'color' | 'relation' | (string & {})
+  /** What a block that shows it sees (tinyzoo's customFieldKind); null for a kind tinyzoo does not know. Given since part 3a. */
+  kind?: CustomFieldKind | null
   label: CustomLabel
   help?: CustomLabel | null
   long?: boolean
@@ -165,9 +168,17 @@ export type CustomRequest =
   | { kind: 'list'; path: string; query: { limit: number; sort?: string; dir?: 'asc' | 'desc' } }
   | { kind: 'chosen'; paths: string[] }
 
+/** How many cards stand side by side at most (the block's choice; the page shows fewer on narrow screens). */
+export type CustomColumns = 2 | 3 | 4
+/** The shape a card's picture is cut to (the block's choice). */
+export type CustomPicture = 'landscape' | 'square' | 'portrait'
+
+/** How a block lays its entries out (the block's choice): cards, rows, or a table. */
+export type CustomLayout = 'cards' | 'rows' | 'table'
+
 /** What a block of a site's type draws, or why it draws nothing. */
 export type CustomBlockPlan =
-  | { ok: true; type: CustomType; show: CustomShow; layout: 'cards' | 'rows'; request: CustomRequest; heading: string; text: string }
+  | { ok: true; type: CustomType; show: CustomShow; layout: CustomLayout; columns: CustomColumns; picture: CustomPicture; request: CustomRequest; heading: string; text: string }
   | { ok: false; reason: string }
 
 /** How many entries a list shows when the block says nothing, and the most it may show (tinyzoo's BINDING_LIMIT_*). */
@@ -211,7 +222,8 @@ export function customShow(type: CustomType, show: unknown): CustomShow {
 
 /**
  * What a block of the type `custom_entries` (`kind: 'entries'`) or `custom_chosen` (`'chosen'`) draws:
- * its type, its places, its layout (a new block's empty layout is cards) and the request for
+ * its type, its places, its layout (a new block's empty layout is cards: three side by side at
+ * most, pictures on their side) and the request for
  * its entries. Nothing to draw (`ok: false`, with the reason) when the block has no binding, the
  * site has no such type, or a block of chosen entries has none chosen.
  *
@@ -225,7 +237,10 @@ export function customBlockPlan(block: unknown, types: CustomType[] | null | und
   const type = customTypeOf(types, binding.type)
   if (!type) return { ok: false, reason: `the site has no type "${binding.type}"` }
   const show = customShow(type, binding.show)
-  const layout = b.layout === 'rows' ? 'rows' : 'cards'
+  const layout: CustomLayout = b.layout === 'rows' ? 'rows' : b.layout === 'table' ? 'table' : 'cards'
+  // The kit's choices (templates/kit/sections.ts). Empty or unknown is the default.
+  const columns: CustomColumns = b.columns === '2' || b.columns === 2 ? 2 : b.columns === '4' || b.columns === 4 ? 4 : 3
+  const picture: CustomPicture = b.picture === 'square' || b.picture === 'portrait' ? b.picture : 'landscape'
   const heading = typeof b.heading === 'string' ? b.heading.trim() : ''
   const text = typeof b.text === 'string' ? b.text.trim() : ''
   const base = `/api/content/${encodeURIComponent(type.name)}`
@@ -234,12 +249,21 @@ export function customBlockPlan(block: unknown, types: CustomType[] | null | und
       .filter((id, i, all): id is string => typeof id === 'string' && id !== '' && all.indexOf(id) === i)
       .slice(0, CUSTOM_CHOSEN_MAX)
     if (!ids.length) return { ok: false, reason: 'no entries are chosen' }
-    return { ok: true, type, show, layout, heading, text, request: { kind: 'chosen', paths: ids.map((id) => `${base}/${encodeURIComponent(id)}`) } }
+    return { ok: true, type, show, layout, columns, picture, heading, text, request: { kind: 'chosen', paths: ids.map((id) => `${base}/${encodeURIComponent(id)}`) } }
   }
-  const raw = Number(binding.limit)
+  return { ok: true, type, show, layout, columns, picture, heading, text, request: customListRequest(type, binding) }
+}
+
+/**
+ * The request for a list of a type's entries: the binding's order, else the type's own order, else the
+ * API's default (a type arranged by hand comes in that order by itself); the binding's limit, else 6, at most 48.
+ */
+export function customListRequest(type: CustomType, binding: unknown): Extract<CustomRequest, { kind: 'list' }> {
+  const b = isObject(binding) ? binding : {}
+  const raw = Number(b.limit)
   const limit = Number.isInteger(raw) && raw >= 1 ? Math.min(raw, CUSTOM_LIST_MAX) : CUSTOM_LIST_LIMIT
-  const order = validOrder(type, binding.order) ?? (type.order === 'manual' ? null : validOrder(type, type.order))
-  return { ok: true, type, show, layout, heading, text, request: { kind: 'list', path: base, query: { limit, ...(order ? { sort: order.by, dir: order.dir } : {}) } } }
+  const order = validOrder(type, b.order) ?? (type.order === 'manual' ? null : validOrder(type, type.order))
+  return { kind: 'list', path: `/api/content/${encodeURIComponent(type.name)}`, query: { limit, ...(order ? { sort: order.by, dir: order.dir } : {}) } }
 }
 
 /** One entry as a card or a row draws it. Each part is null or empty when the entry has nothing for it. */
@@ -252,7 +276,7 @@ export interface CustomCard {
   /** The date and the label, joined with " · ". */
   meta: string
   text: string
-  more: { label: string; value: string }[]
+  more: { key: string; label: string; value: string }[]
 }
 
 /** The address of an entry's page, or null when the type has no pages or the entry no address. */
@@ -276,10 +300,46 @@ export function customCards(entries: unknown[], plan: Extract<CustomBlockPlan, {
       .map((f) => ({ field: f, value: text(f, entry) }))
       .filter((m) => m.value)
       // (a yes/no shows its label as the value: it needs no label beside it)
-      .map((m) => ({ label: m.field.type === 'boolean' ? '' : customLabel(m.field.label, opts.lang), value: m.value }))
+      .map((m) => ({ key: m.field.key, label: m.field.type === 'boolean' ? '' : customLabel(m.field.label, opts.lang), value: m.value }))
     out.push({ id: String(entry.id ?? title), title, href: customEntryHref(type, entry), image, meta, text: text(show.text, entry), more })
   }
   return out
+}
+
+/** The keys of the table's own columns; a colon cannot be in a field's key, so they never clash with one. */
+export const TABLE_TITLE = ':title'
+export const TABLE_META = ':meta'
+
+/** A block's entries as a table: the columns, and a row per entry with its cells by column key. */
+export interface CustomTable {
+  columns: { key: string; label: string }[]
+  rows: { id: string; title: string; href: string | null; cells: Record<string, string> }[]
+}
+
+/**
+ * The cards of a block as a table, with no picture and no long text: the title always (its column
+ * is headed with the title field's label), the date and label as one column and each extra fact as its
+ * own, the last two only when some entry has a value for them. A cell without a value is empty.
+ */
+export function customTable(cards: CustomCard[], plan: Extract<CustomBlockPlan, { ok: true }>, opts: { lang: string }): CustomTable {
+  const { type, show } = plan
+  const titleField = customFieldOf(type, type.titleField)
+  const columns: CustomTable['columns'] = [{ key: TABLE_TITLE, label: customLabel(titleField?.label, opts.lang) }]
+  if (cards.some((c) => c.meta)) {
+    const label = [show.date, show.label].filter((f): f is CustomTypeField => !!f).map((f) => customLabel(f.label, opts.lang)).filter(Boolean).join(' · ')
+    columns.push({ key: TABLE_META, label })
+  }
+  for (const f of show.more) {
+    if (cards.some((c) => c.more.some((m) => m.key === f.key))) columns.push({ key: f.key, label: customLabel(f.label, opts.lang) })
+  }
+  const rows = cards.map((c) => {
+    const cells: Record<string, string> = {}
+    for (const col of columns) {
+      cells[col.key] = col.key === TABLE_TITLE ? c.title : col.key === TABLE_META ? c.meta : (c.more.find((m) => m.key === col.key)?.value ?? '')
+    }
+    return { id: c.id, title: c.title, href: c.href, cells }
+  })
+  return { columns, rows }
 }
 
 /** The entries of chosen entries' answers, in the picked order: an entry that did not come (404, a failure) is left out. */

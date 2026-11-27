@@ -1,6 +1,7 @@
 import { boolean, getTableConfig, type PgColumn, pgEnum, type PgTable, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 import { buildColumn, camel, snake } from './fields'
+import { checkFieldRefPlaces } from './blocks'
 import { cmsMedia, cmsMediaSizes } from './media'
 import { cmsAccessTokens, cmsAudit, cmsOauthClients, cmsOauthCodes, cmsOauthRequests, cmsCollab, cmsRevisions, cmsSearch, cmsState, cmsTokens, cmsUsers } from './system'
 import type { LocalesDef } from './locales'
@@ -403,6 +404,8 @@ function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
       throw new Error(`Field "${key}" in "${name}" is reserved by the CMS (${[...RESERVED_FIELD_NAMES].join(', ')}, and names starting with "_"). Rename the field; a rename is a migration: see "Renaming a field": ${docsUrl('renamingField')}`)
     }
   }
+  // A reference to a field of a content type stands only inside a block that shows a card.
+  checkFieldRefPlaces(name, def.fields as unknown as Record<string, AnyFieldDescriptor>)
   // Only a collection has a list. A global (`defineSingleton`) is read whole at `/api/content/_global/:name`,
   // which takes none of these parameters, so its fields may use the names.
   if (def.content?.public && !singleton) {

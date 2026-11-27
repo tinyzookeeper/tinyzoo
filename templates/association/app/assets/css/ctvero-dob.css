@@ -70,8 +70,6 @@ html[data-look="ctvero-dob"] {
     .prose-look { max-width: 46rem; }
     .prose-look > * + * { margin-top: 1rem; }
     .prose-look h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink); font-size: 2rem; line-height: 1.1; margin-top: 2.4rem; }
-    /* the title of an entry's page (the kit's KitCustomEntry) in the type of these headings */
-    .custom-entry .custom-entry-title { font-family: var(--font-display); font-weight: 700; color: var(--ink); }
     .prose-look h3 { font-family: var(--font-display); font-weight: 700; color: var(--ink); font-size: 1.5rem; line-height: 1.15; margin-top: 1.8rem; }
     .prose-look a { color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; text-decoration-color: color-mix(in srgb, var(--brand) 55%, transparent); }
     .prose-look a:hover { color: var(--brand); text-decoration-color: var(--brand); }
@@ -83,7 +81,3 @@ html[data-look="ctvero-dob"] {
     .prose-look strong { color: var(--ink); font-weight: 600; }
   }
 }
-
-/* The header lies over the top of the page (80px): the page of an entry (the kit's KitCustomEntry) starts below it.
-   Outside the layers, so it stands over the kit's own spacing. */
-html[data-look="ctvero-dob"] .custom-entry { padding-top: calc(80px + clamp(2rem, 4vw, 3.5rem)); }

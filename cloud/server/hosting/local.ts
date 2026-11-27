@@ -6,10 +6,10 @@ import { promisify } from 'node:util'
 import { siteUrlFor, siteUrlPattern } from '../../shared/address'
 import { parsePortRange, pickPort } from '../../shared/ports'
 import { planById } from '../../shared/plans'
-import { customTypesEnv, localSiteRow, sharedDirectoryText, splitSiteEnv } from '../../shared/sharedHosting'
+import { builderEnv, customTypesEnv, localSiteRow, sharedDirectoryText, splitSiteEnv } from '../../shared/sharedHosting'
 import { assertSlug, DATABASE_PREFIX, databaseNameFor, quoteIdent } from '../../shared/slug'
 import { appOf, modelOf } from '../../shared/templates'
-import { builtAppOf, cloudCustomTypes } from './apps'
+import { builtAppOf, cloudBuilder, cloudCustomTypes } from './apps'
 import { writePrivate } from './directory'
 import { HostingError, type HostedSite, type HostingDriver, type OnStep, type Provisioned, type SiteSpec } from './types'
 
@@ -271,6 +271,8 @@ function start(spec: SiteSpec, dir: string, port: number, directory: string): nu
         NUXT_CMS_TENANCY_FILE: directory,
         // The sites' own content types (CLOUD_CUSTOM_TYPES=on), for the one app only.
         ...customTypesEnv(builtAppOf(config().root, spec.template).app, cloudCustomTypes()),
+        // The editor in the preview (CLOUD_BUILDER=on), for the one app only.
+        ...builderEnv(builtAppOf(config().root, spec.template).app, cloudBuilder()),
       },
     })
     child.unref()

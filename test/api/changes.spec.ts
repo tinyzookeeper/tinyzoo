@@ -152,6 +152,10 @@ describe('response headers', () => {
     expect(res.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
     expect(res.headers.get('referrer-policy')).toBe('same-origin')
     expect(res.headers.get('x-request-id')).toMatch(/^[\w.-]{8,64}$/)
+    // The sheet beside a page's preview may be framed by the admin only with the editor in the preview on (off here).
+    const sheet = await fetch(`${anonymous().baseURL}/admin/login?embed=builder`)
+    expect(sheet.headers.get('x-frame-options')).toBe('DENY')
+    expect(sheet.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
   })
 
   it('keep a sane incoming request id and replace a hostile one', async () => {

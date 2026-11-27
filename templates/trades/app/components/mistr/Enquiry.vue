@@ -14,7 +14,7 @@ const hours = computed(() => [settings.value?.hoursLine, settings.value?.emergen
     <div class="wrap py-20 md:py-28">
       <div class="grid lg:grid-cols-12 gap-10 lg:gap-14 items-start">
         <div class="lg:col-span-5">
-          <component :is="first ? 'h1' : 'h2'" class="h2"><KitMarked :text="block.heading" plain /></component>
+          <component :is="first ? 'h1' : 'h2'" v-bind="cmsField('heading')" class="h2"><KitMarked :text="block.heading" plain /></component>
           <p v-if="block.text" class="serif mt-5">{{ tidyText(block.text) }}</p>
           <div v-if="phone || settings?.email" class="mt-9 pt-7 border-t border-line">
             <template v-if="phone">

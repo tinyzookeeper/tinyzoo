@@ -70,8 +70,6 @@ html[data-look="cesta"] {
     .prose-look { max-width: 44rem; }
     .prose-look > * + * { margin-top: 1rem; }
     .prose-look h2 { font-weight: 800; font-size: 2.2rem; line-height: 1.1; margin-top: 2.6rem; }
-    /* the title of an entry's page (the kit's KitCustomEntry) in the type of these headings */
-    .custom-entry .custom-entry-title { font-weight: 800; }
     .prose-look h3 { font-weight: 700; font-size: 1.6rem; line-height: 1.15; margin-top: 2rem; }
     .prose-look a { color: var(--brand); text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
     .prose-look a:hover { color: var(--ink); }

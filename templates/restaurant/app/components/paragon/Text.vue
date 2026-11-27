@@ -5,9 +5,10 @@ defineProps<{ block: BlockOf<'text'>; first?: boolean }>()
 
 <template>
   <section class="wrap py-12 lg:py-20">
-    <div class="sheet max-w-[48rem] mx-auto px-5 pt-9 pb-9 sm:px-10 sm:pt-12 sm:pb-12">
+    <div class="sheet max-w-[48rem] px-5 pt-9 pb-9 sm:px-10 sm:pt-12 sm:pb-12" :class="$slots.default ? 'mb-8 lg:mb-10' : 'mx-auto'">
       <component :is="first ? 'h1' : 'h2'" v-if="block.heading" class="h text-[2.2rem] sm:text-[3rem] pb-4 border-b-[3px] border-double border-ink mb-7"><KitMarked :text="block.heading" plain /></component>
       <CmsContent v-if="block.body" :doc="block.body" class="prose-look" />
     </div>
+    <slot />
   </section>
 </template>

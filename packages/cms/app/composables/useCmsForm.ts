@@ -113,9 +113,13 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   // Shared text (rich text typed together, see useCmsCollab) is not kept in this tab
   // but in the shared document, which outlives the visit: the page tells us about it.
   let shared: CmsSharedText | null = null
+  /** Unsaved changes kept beside this form, which leaving would lose as well (set by the page that keeps them). */
+  let elsewhere: (() => boolean) | null = null
   /** Whether leaving now would lose unsaved work — not when the only changes are
    *  shared text someone else is still editing (it stays with them). */
   function leaveLoses(): boolean {
+    // Changes kept beside this form (entries changed in the page's preview) would be lost too.
+    if (elsewhere?.()) return true
     if (!dirty.value) return false
     if (!shared?.othersHere()) return true
     const fields = shared.fields()
@@ -283,7 +287,12 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     shared = s
   }
 
-  return { state, fieldErrors, issues, editable, writable, dirty, saving, conflict, load, replace, merge, body, submit, changedFields, setSharedText, quiet, confirmSwitchOffs }
+  /** Tell the unsaved-changes guard about changes kept beside this form (it asks before leaving while `has()` is true). */
+  function setUnsavedElsewhere(has: () => boolean) {
+    elsewhere = has
+  }
+
+  return { state, fieldErrors, issues, editable, writable, dirty, saving, conflict, load, replace, merge, body, submit, changedFields, setSharedText, setUnsavedElsewhere, quiet, confirmSwitchOffs }
 }
 
 export interface CmsSharedText {

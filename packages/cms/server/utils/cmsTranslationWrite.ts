@@ -121,6 +121,7 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   const seenBefore = await changeSnapshot(e, id)
   const schema = z.object(Object.fromEntries(e.localized.map((k) => [k, (e.fields[k]!.zod('update', { stored: before?.[k] }) as any).nullable().optional()]))).strict()
   const data: Record<string, unknown> = parseOr422(schema, cleaned)
+  assertCardRefs(e, data, before)
   const jsonKeys = e.localized.filter((k) => JSON_MEDIA_TYPES.has(e.fields[k]!.type) && k in data)
   const oldMedia = jsonKeys.flatMap((k) => jsonMediaIds(e.fields[k], before?.[k]))
 

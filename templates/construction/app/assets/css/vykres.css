@@ -101,8 +101,6 @@ html[data-look="vykres"] {
     .prose-look { max-width: 42rem; font-size: 17px; line-height: 1.65; }
     .prose-look > * + * { margin-top: 1rem; }
     .prose-look h2 { font-family: var(--font-display); font-weight: 300; font-size: 1.7rem; line-height: 1.15; letter-spacing: -.02em; color: var(--ink); margin-top: 2.4rem; padding-top: 1rem; border-top: 1px solid var(--ink); }
-    /* the title of an entry's page (the kit's KitCustomEntry) in the type of these headings */
-    .custom-entry .custom-entry-title { font-family: var(--font-display); font-weight: 300; letter-spacing: -.02em; color: var(--ink); }
     .prose-look h3 { font-family: var(--font-display); font-weight: 400; font-size: 1.3rem; line-height: 1.2; color: var(--ink); margin-top: 1.8rem; }
     .prose-look a { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
     .prose-look a:hover { color: var(--brand); }
@@ -114,3 +112,8 @@ html[data-look="vykres"] {
     .prose-look strong { color: var(--ink); font-weight: 600; }
   }
 }
+
+/* The Text part draws a line under its heading and keeps its text 2rem below it (mt-8): the kit's
+   sections in this frame (KitEntries, KitCustomEntry) keep the same space. Outside the layers. */
+html[data-look="vykres"] .custom-block .custom-wrap,
+html[data-look="vykres"] .custom-entry .custom-entry-inner { margin-top: 2rem; }

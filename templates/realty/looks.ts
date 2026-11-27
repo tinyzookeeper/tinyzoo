@@ -11,6 +11,7 @@ export const looks = defineLooks([
   {
     // The calm office of a careful agent: paper white, hairlines, a book serif, listings set like land-register records.
     id: 'katastr',
+    heading: 'text-[2.1rem] md:text-[2.75rem] leading-[1.1] mb-8',
     name: { cs: 'Katastr', en: 'Land Register' },
     own: { against: ['--brand-ink', '--paper', '--tint'], fixed: ['#ffffff'] },
     presets: [
@@ -22,6 +23,7 @@ export const looks = defineLooks([
   {
     // The banner an agent hangs on a balcony: one loud colour, very heavy type, 2 px black rules, listings as one ruled sheet.
     id: 'cedule',
+    heading: 'text-[3.2rem] md:text-[5rem] tracking-[-0.05em] leading-[0.9] mb-8',
     name: { cs: 'Cedule', en: 'Banner' },
     own: { calm: true, against: ['--brand-ink'] },
     presets: [
@@ -33,6 +35,7 @@ export const looks = defineLooks([
   {
     // A street in the evening with the lights on: a warm dark page, lamp-coloured accents, window-shaped photographs.
     id: 'rozsviceno',
+    heading: 'text-[2.3rem] md:text-[3.2rem] mb-8',
     name: { cs: 'Rozsvíceno', en: 'Lights On' },
     own: { main: '--accent', against: ['--accent-ink', '--bg', '--surface', '--surface-2'], fixed: ['#f3ebdd'] },
     presets: [

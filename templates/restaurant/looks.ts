@@ -11,6 +11,8 @@ export const looks = defineLooks([
   {
     // A first-republic dining room: a dark page the colour of the wainscoting, brass hairlines, menus on cream cards.
     id: 'salon',
+    button: 'btn btn-brand',
+    heading: 'font-display font-medium text-[2.4rem] lg:text-[3.3rem] leading-[1.08] tracking-[-.01em] mb-8 lg:mb-10',
     name: { cs: 'Salon', en: 'Dining Room' },
     own: { against: ['--bg', '--brand-ink', '--panel', '--text'] },
     presets: [
@@ -22,6 +24,8 @@ export const looks = defineLooks([
   {
     // A poster: one loud colour, a headline as wide as the page, 2 px tables, food from above cut into plates.
     id: 'talir',
+    button: 'btn btn-ink',
+    heading: 'wide text-[2.5rem] lg:text-[4.4rem] mb-8 lg:mb-10',
     name: { cs: 'Talíř', en: 'Plate' },
     own: { calm: true, against: ['--brand-ink', '--paper'] },
     presets: [
@@ -33,6 +37,7 @@ export const looks = defineLooks([
   {
     // The pub's own paperwork: forms printed in ink and filled in on a typewriter, a red stamp, the waiter's pencil.
     id: 'paragon',
+    heading: 'h text-[2.2rem] sm:text-[3rem] pb-4 border-b-[3px] border-double border-ink mb-7',
     name: { cs: 'Paragon', en: 'Receipt' },
     own: { against: ['--brand-ink', '--paper', '--sheet', '--tint', '--type'] },
     presets: [

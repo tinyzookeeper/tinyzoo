@@ -53,9 +53,9 @@ const help = computed(() => fieldHelp(props.field))
 const compact = computed(() => props.placement === 'sidebar')
 const showHelp = ref(false)
 const inputId = computed(() => `cms-field-${props.idPrefix ?? ''}${props.field.key}`)
-// Composite fields (rich text, images, blocks, choice buttons) have no single control to focus.
+// Composite fields (rich text, images, blocks, choice buttons and segments) have no single control to focus.
 const composite = computed(() => ['richtext', 'media', 'blocks', 'gallery', 'group', 'binding'].includes(props.field.type)
-  || (!override.value && cmsSelectAsButtons(props.field, props.placement ?? 'main')))
+  || (!override.value && (cmsSelectAsButtons(props.field, props.placement ?? 'main') || cmsSelectAsSegments(props.field))))
 const isSwitch = computed(() => props.field.type === 'boolean' && !override.value)
 // Field widgets that adapt to where they sit (e.g. the image field) read this; in a
 // details row the controls are quiet (no box until hovered).

@@ -1,7 +1,8 @@
-import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, f, seo } from 'tinyzoo'
+import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
 import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
+import { kitEntryBlocks, kitSections } from 'tinyzoo-template-kit/sections'
 
 // The content model of the Garage template: what the owner can write and change. One model
 // for all three looks (looks.ts): a look decides how a block is drawn, never what it holds.
@@ -499,7 +500,7 @@ const richText = defineBlock({
 
 // Pages built from blocks: title, address, status, blocks, SEO, preview.
 export const Page = definePages({
-  blocks: { hero, facts, lamps, season, prices, workshop, steps, makes, extras, team, reviews, booking, where, text: richText, ...customTypeBlocks() },
+  blocks: { hero, facts, lamps, season, prices, workshop, steps, makes, extras, team, reviews, booking, where, text: richText, ...kitEntryBlocks(), ...kitSections() },
 })
 
 // ── menus ──

@@ -1,0 +1,2565 @@
+// The editor in the preview, drawn over the site's page: hover names, a selected block with its
+// toolbar, "+" between blocks and drag to reorder. Plain DOM in a shadow root, so the site's
+// CSS and the tool's cannot touch each other. It changes nothing in the page but the marked
+// blocks' transforms while one is dragged, and it only reports what the owner did: the admin
+// decides, changes the content and the page redraws (see shared/builder.ts for the messages).
+// Loaded on the first `cms:builder:on` only (plugins/cmsLivePreview.client.ts).
+//
+// Blocks inside a block's list (a layout's small blocks, a group's) are marked by <CmsBlocks> too,
+// so the page is a tree of marked elements: each click goes one level deeper (a section, then a
+// block in it, then a block in a group), Escape goes up a level. A list runs in the direction it is
+// drawn in: a stack top to bottom, a row left to right, a wrapping row or a grid line by line.
+//
+// The admin may draw the page smaller than it lays it out (a desktop page scaled to fit the panel):
+// it says so (`scale`), and the tools are drawn larger by as much (`k`), so their chips, toolbars, "+"
+// and lines keep their size on the screen and their targets stay easy to hit. Every distance the tool
+// measures on the screen (how far a drag starts, how near a "+" shows) is counted in screen pixels too.
+//
+// A site marks the element that shows a field with `cmsField()` (since 2d). With its block selected, one
+// more click on a marked plain text puts the cursor there (typing.ts); a click on another marked field
+// (a rich text, a picture) selects its block and asks the admin to bring that field into view in its
+// panel, and a double click on a picture opens the panel's chooser. While a text is typed the toolbar
+// steps aside, the "+" and the hover names are not drawn, and nothing can be dragged.
+//
+// Since 2e a text a site's component does not mark is found by itself: the page compares the clicked
+// element's text with the block's own values (shared/builder-match.ts), so a look's own block is typed in
+// as the kit's are. A picture is found by its address. A double click on a text types into it at any
+// depth (it selects the path down to its block in the same gesture); over a text that can be typed in the
+// pointer is a text cursor and the text has a faint dotted outline; over another field of the selected
+// block, a pointer and the field's name. While the tools are on a press never selects the page's text.
+//
+// Since 2f the page knows what it loaded through the content API (sources.ts): a text or a picture of the
+// selected block that is no field of its own but an entry's (a notice, a dish) or a global's is found in
+// those records (shared/builder-sources.ts). Hovering the entry's card shows its collection and title; a
+// click selects it, a level below the block, with "Edit" and "Open in its section"; a double click on its
+// text edits it beside the page with that field in view. The admin's panel hears which sources the
+// selected block draws from.
+//
+// Since 2g an entry's or a global's values are edited where they stand. A plain text is typed in the page
+// as a block's own (a click in the text of the selected card, or a double click at any depth), with a quiet
+// line saying whose it is and that it is shared. Anything else that has a control of its own (a number, a
+// date, a choice, a rich text, a text with a form, several values one element shows together) asks the
+// admin for a box with those controls, drawn over the preview at the element (`cms:builder:value`); the
+// page keeps telling where the element is (`cms:builder:anchor`). Which values an element shows is found
+// from their forms (shared/builder-values.ts). What cannot be changed here selects the card, as before.
+//
+// Since 3c (second half) a section that shows a type's entries with a card of the owner's own (the admin says
+// which: `cms:builder:cards`) is one design drawn once per entry: each card holds the same blocks, with the
+// same ids. A click selects the design, never an entry: the clicked card is where the tools stand (the
+// outline solid there, dashed in every other card, the toolbar, the "+" places, a drag), and the admin hears
+// which entry it shows. The entry stays reachable: a double click on a value changes it exactly (the card
+// names the entry, the block its field: no guessing), and the block's toolbar opens the whole entry. While
+// the section is selected the card under the pointer names what each of its blocks shows; while the panel
+// points at a field (`cms:builder:try`) every card draws it in that block (useCmsEditingTry() in the kit).
+//
+// Since 3e the admin may be phone-sized: the preview fills the screen and the selected block's panel is a
+// sheet over the bottom of the frame (`bottom`, screen pixels). The bottom of what is seen is the frame's
+// less the sheet: the toolbar, the "+", the chips and the notes keep above its top edge, a drag scrolls the
+// page at it, and the selected block is brought into view above it (geometry.ts: scrollToShow) when the
+// sheet rises or a block is picked that it covers. The admin hears when a text starts and stops being typed
+// (typing.ts), to put the sheet aside for the keyboard. For a touch screen the tools' buttons have a target
+// of 40 px at least, a second tap within 400 ms and 24 px counts as a double click when the browser's mouse
+// event says it does not, and for 450 ms after a press on the page the tools take no press: the second press
+// of a double click meant for the card's text under the toolbar goes to the text, never to a button. On a touch
+// screen the "+" places between the selected block's blocks are left out (they covered the text a tap was meant
+// for; the sheet's panel adds there), and the toolbar on a narrow screen shows its buttons without the name.
+import { cmsBuilderFieldInfo, cmsBuilderFieldValue, cmsFieldOf, type CmsBuilderCard, type CmsBuilderField, type CmsBuilderKey, type CmsBuilderKind, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace, type CmsBuilderTexts, type CmsBuilderToAdmin, type CmsBuilderToPage, type CmsBuilderTry, type CmsBuilderValueAlso } from '../../shared/builder'
+import { cardBlockName, cardChipAt, cardNameLine, cardPageKey, cardSectionName, cardStagger, cardTryLanded, cardValueEdit, cardValuePart } from '../../shared/builder-card-page'
+import {
+  cmsMatchAt, cmsMatchChain, cmsMatchElements, cmsMatchFields, cmsMatchPictureOf, cmsMatchPictures, cmsMatchReport, cmsMatchShown, cmsMatchUnmarked, cmsMatchValue, cmsSrcsetUrls,
+  type CmsMatchField, type CmsMatchPicture,
+} from '../../shared/builder-match'
+import {
+  cmsEntityFieldAt, cmsSourceCardAt, cmsSourceFields, cmsSourceFind, cmsSourcePartAt, cmsSourcePictureOf, cmsSourcesOf, cmsSourceTitle, cmsSourceWithRelated, cmsTextsReport,
+  type CmsBuilderEntity, type CmsBuilderEntityField, type CmsSourceCard, type CmsSourceFound, type CmsSourcePart, type CmsSourcePicture, type CmsSourceRecord,
+} from '../../shared/builder-sources'
+import { cmsValueAt, cmsValueIndex, type CmsValueIndex, type CmsValuePath } from '../../shared/builder-values'
+import { cmsSourceChanges, cmsSourceRecords, cmsSourcesLoadedBy } from './sources'
+import { cmsBuilderBlocks, cmsBuilderDraft, cmsBuilderHold, cmsBuilderInstances, cmsBuilderMarkers, cmsBuilderPending, cmsBuilderTry } from './state'
+import { endTyping, setupTyping, startTyping, typingEl } from './typing'
+import {
+  addSlots, axisOf, cardPlaces, cellShifts, dropPlace, droppedOrder, edgeSpeed, innerArea, leastHidden, nearestBoundary, nearestSlot, nextPress, oneLine, placeInList, pressCount,
+  sameSizes, scrollTargetFor, scrollToShow, selectDepth, shiftFor, slotsOf, targetAmongOthers, visibleBottom, weighCovers,
+  type Box, type PressRecord, type Slot,
+} from './geometry'
+
+const MARK = '[data-cms-block]'
+const EASE = 'cubic-bezier(.2,.7,.2,1)'
+const DRAG_START = 4
+const FALLBACK_MS = 2000
+const BAR_HEIGHT = 30
+/** How long a dragged block hovers over a group before the group takes it (ms). */
+const DWELL = 400
+/** How long after a press on the page the tools take no press (ms): a double click's second press goes to the page. */
+const LULL = 450
+
+let labels: Record<string, string> = {}
+let kinds: CmsBuilderListKinds | null = null
+let words: CmsBuilderTexts | null = null
+let selected: CmsBuilderPath | null = null
+let scrollToSelected = false
+/** The page was laid out anew (the admin changed its width): bring the selected block back into view if it left it. */
+let keepInView = false
+let hover: BNode | null = null
+let plus: { list: string, after: string } | null = null
+let press: { pointerId: number, startX: number, startY: number, node: BNode } | null = null
+let drag: Drag | null = null
+let holding = false
+/** When a drag was called off (Escape): the click its release still makes must not select or let go. */
+let calledOff = 0
+let frame = 0
+let ui: Ui | null = null
+/** How much smaller the admin draws the page than it lays it out (1: as large). */
+let scale = 1
+/** Page pixels per screen pixel: the tools are drawn this much larger, so they keep their size on the screen. */
+const k = () => 1 / scale
+/** Since 3e: screen pixels at the bottom of the frame the admin covers (a sheet over it). */
+let inset = 0
+/** The bottom of what is seen (viewport px): the frame's, less the sheet, never close under a header that stays at the top. */
+const seenBottom = (sticky: number) => visibleBottom(innerHeight, inset * k(), sticky)
+/** After the sheet moved (`bottom`: always) or a block was picked (`pick`: one that fits): bring the selected block into view above it. */
+let coverCheck: 'bottom' | 'pick' | null = null
+/** Until when (ms) a scroll that brought the block into view runs: the tools follow it. */
+let followUntil = 0
+/** The last touch or pen press, and the last press of any kind (by time alone): for the double tap and for the toolbar's second press. */
+let touchPress: PressRecord | null = null
+let anyPress: PressRecord | null = null
+let lullTimer: ReturnType<typeof setTimeout> | undefined
+let nodes: BNode[] = []
+let nodeOfEl = new WeakMap<Element, BNode>()
+/** What the pointer is over that a click (or a double click) edits: a text cursor, or a field of the selected block. */
+let hint: { el: HTMLElement; node: HTMLElement | Text; range?: [number, number]; kind: 'text' | 'field'; label: string; entry?: boolean } | null = null
+let hintTarget: Node | null = null
+/** When typing last started from a press or a click: the second press of a double click must not select a word. */
+let startedAt = 0
+/** Typing started on a double click's second press: the click that press makes is no click of the person's. */
+let swallow = 0
+const observed = new Set<Element>()
+/** Since 2f: the collections and globals as the admin describes them, and the entry being edited (its blocks are its own). */
+let entities: Record<string, CmsBuilderEntity> = {}
+let entitiesVersion = 0
+let self: { entity: string; id: string } | null = null
+/**
+ * The entry selected inside the selected block (a level below it), and its card's "…" menu. `piece`: the part
+ * of a card in several pieces that was clicked (a teacher's name, each time it stands in a timetable).
+ */
+let entry: { key: string; entity: string; id: string; piece: Node | null } | null = null
+let entryMenu = false
+/** The entry card the pointer is over, inside the selected block (and the piece of it under the pointer). */
+let cardHover: { key: string; entity: string; id: string; piece: Node | null } | null = null
+let cardHinted: HTMLElement | null = null
+/** Since 2g: the entry or global whose text is being typed in the page: the page says whose it is. */
+let typingOf: { entity: string; id: string } | null = null
+/**
+ * Since 2g: the values the admin shows a box for, the element they stand in (found again when the page
+ * draws it anew) and the box last told to the admin.
+ */
+let boxed: { key: string; entity: string; id: string; values: CmsValuePath[]; also?: CmsBuilderValueAlso[]; node: HTMLElement | Text; sent: string } | null = null
+/** What the admin last heard about the selected block's sources. */
+let sourcesSent = ''
+let sourcesAt = ''
+/** Since 3c: what the admin says about each card section's blocks, by the section's id. */
+let cards: Record<string, CmsBuilderCard> = {}
+/** Since 3c: the card the person clicked in a card section (its entry's id, else its place): the tools stand in it. */
+let activeCard: { section: string; key: string } | null = null
+/** Since 3c: the card under the pointer, in a card section. */
+let hoverCard: { section: string; key: string } | null = null
+/** Since 3c: the field tried on a block of a card's design; a chosen one stays until the page draws it itself (`landing`: it does now). */
+let tried: (CmsBuilderTry & { landing?: boolean }) | null = null
+let triedTimer: ReturnType<typeof setTimeout> | undefined
+
+/** A marked block on the page: its elements (one, or a fragment's), its parent block and its path. */
+interface BNode {
+  id: string
+  type: string
+  list: string
+  els: HTMLElement[]
+  parent: BNode | null
+  path: CmsBuilderPath
+  key: string
+}
+
+interface Ui {
+  host: HTMLElement
+  root: ShadowRoot
+  hover: HTMLElement
+  chip: HTMLElement
+  context: HTMLElement
+  box: HTMLElement
+  bar: HTMLElement
+  name: HTMLElement
+  prev: HTMLButtonElement
+  next: HTMLButtonElement
+  duplicate: HTMLButtonElement
+  remove: HTMLButtonElement
+  handle: HTMLButtonElement
+  line: HTMLElement
+  add: HTMLButtonElement
+  drop: HTMLElement
+  into: HTMLElement
+  from: HTMLElement
+  cell: HTMLElement
+  typing: HTMLElement
+  note: HTMLElement
+  noteName: HTMLElement
+  noteText: HTMLElement
+  boxed: HTMLElement
+  hint: HTMLElement
+  card: HTMLElement
+  cardChip: HTMLElement
+  cardBox: HTMLElement
+  cardBar: HTMLElement
+  cardEdit: HTMLButtonElement
+  cardEditLabel: HTMLElement
+  cardMore: HTMLButtonElement
+  cardMenu: HTMLElement
+  cardOpen: HTMLElement
+  adds: HTMLButtonElement[]
+  empties: HTMLButtonElement[]
+  /** Since 3c: the selected block of a card's design in every other card (dashed), the chips on the card under the pointer, the entry's action. */
+  repeats: HTMLElement[]
+  marks: HTMLElement[]
+  entryRule: HTMLElement
+  entry: HTMLButtonElement
+}
+
+/** A list as the drag found it: its container (`null`: the page's own list), its blocks and their boxes in the document. */
+interface ListGeo {
+  container: BNode | null
+  path: CmsBuilderPath
+  items: BNode[]
+  boxes: Box[]
+  area: Box | null
+  axis: 'x' | 'y'
+  single: boolean
+  slots: Slot[]
+  depth: number
+}
+
+interface Drag {
+  node: BNode
+  own: ListGeo
+  from: number
+  /** The list it would land in, and where: for its own list among the others, for another one among all. */
+  into: ListGeo
+  index: number
+  slot: Slot | null
+  candidates: ListGeo[]
+  /** Its own list is a grid of cells of one size: the others close the gap and open one at the target. */
+  cells: boolean
+  /** The group the pointer is over and since when; it takes the block after DWELL ms, or at once in its inner area. */
+  dwell: { list: ListGeo; since: number } | null
+  step: number
+  free: boolean
+  startX: number
+  startY: number
+  startScroll: number
+  /** A large block inside a section is carried smaller, so the place it goes to stays in sight. */
+  shrink: number
+  lastX: number
+  lastY: number
+  styles: Map<HTMLElement, string | null>
+}
+
+const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+const send = (message: CmsBuilderToAdmin) => window.parent.postMessage(message, location.origin)
+const samePath = (a: CmsBuilderPath | null, b: CmsBuilderPath | null) => !!a && !!b && a.length === b.length && a.every((id, i) => b[i] === id)
+
+// ---- the blocks of the page
+
+/** Every marked block, in document order, each with its parent (the nearest marked block around it). */
+function scan(): BNode[] {
+  const out: BNode[] = []
+  const byKey = new Map<string, BNode>()
+  nodeOfEl = new WeakMap()
+  for (const el of document.querySelectorAll<HTMLElement>(MARK)) {
+    // An element hidden behind the twin a text is typed in (typing.ts) is not drawn: its twin stands for it.
+    if (!el.isConnected || el.hasAttribute('data-cms-hidden')) continue
+    const id = el.dataset.cmsBlock ?? ''
+    const list = el.dataset.cmsBlockList ?? ''
+    const k = `${list}\n${id}`
+    let node = byKey.get(k)
+    if (!node) {
+      const up = el.parentElement?.closest<HTMLElement>(MARK)
+      const parent = up ? nodeOfEl.get(up) ?? null : null
+      const path = parent ? [...parent.path, id] : [id]
+      node = { id, type: el.dataset.cmsBlockType ?? '', list, els: [], parent, path, key: path.join('/') }
+      byKey.set(k, node)
+      out.push(node)
+    }
+    node.els.push(el)
+    nodeOfEl.set(el, node)
+  }
+  return out
+}
+
+function nodeOf(target: Node | null): BNode | null {
+  const el = (target instanceof Element ? target : target?.parentElement)?.closest<HTMLElement>(MARK) ?? null
+  if (!el) return null
+  // Drawn since the last look: look again.
+  if (!nodeOfEl.has(el)) nodes = scan()
+  return nodeOfEl.get(el) ?? null
+}
+
+/**
+ * The block at a path, else the deepest block along it that the page draws (a list the page draws without
+ * marks). A block of a card's design stands once per card: the one in the card the tools stand in.
+ */
+function nodeAt(path: CmsBuilderPath | null): BNode | null {
+  if (!path) return null
+  for (let n = path.length; n > 0; n--) {
+    const key = path.slice(0, n).join('/')
+    const found = nodes.filter((x) => x.key === key)
+    if (!found.length) continue
+    if (found.length > 1) {
+      const section = sectionOf(found[0]!)
+      const li = cardOf(section) ? cardIn(section) : null
+      const mine = li ? found.find((x) => inLi(x, li)) : undefined
+      if (mine) return mine
+    }
+    return found[0]!
+  }
+  return null
+}
+
+const chainOf = (node: BNode): BNode[] => (node.parent ? [...chainOf(node.parent), node] : [node])
+const sectionOf = (node: BNode): BNode => chainOf(node)[0]!
+const siblingsOf = (node: BNode) => nodes.filter((n) => n.parent === node.parent && n.list === node.list)
+/**
+ * The blocks of a container's list (its first list, as the admin counts it). A card section's list is its
+ * card's: the one in `within`, else the card the tools stand in (or the one under the pointer, or the first).
+ */
+function childrenOf(container: BNode | null, within?: HTMLElement | null): BNode[] {
+  let all = nodes.filter((n) => n.parent === container)
+  if (container && !container.parent && cardOf(container)) {
+    const li = within ?? cardIn(container, { hovered: true, first: true })
+    all = li ? all.filter((n) => inLi(n, li)) : []
+  }
+  return all.filter((n) => n.list === all[0]?.list)
+}
+
+// ---- a card bound to a content type (since 3c, second half)
+
+const CARD = 'li[data-kit-card]'
+/** What the admin says about a card section (a block of the page's list), or null. */
+const cardOf = (section: BNode | null | undefined): CmsBuilderCard | null => (section && !section.parent && Object.hasOwn(cards, section.id) ? cards[section.id]! : null)
+/** The card (an `li` the kit marks while editing) a node is in, inside a card section's own element. */
+function cardLiOf(target: Node | null, section: BNode): HTMLElement | null {
+  const el = (target instanceof Element ? target : target?.parentElement)?.closest<HTMLElement>(CARD) ?? null
+  return el && section.els.some((root) => root.contains(el)) ? el : null
+}
+const liKey = (li: HTMLElement) => cardPageKey(li.dataset.kitCardEntry, li.dataset.kitCard)
+function liAt(section: BNode, key: string | null | undefined): HTMLElement | null {
+  if (!key) return null
+  for (const root of section.els) for (const li of root.querySelectorAll<HTMLElement>(CARD)) if (liKey(li) === key) return li
+  return null
+}
+/** The card the tools stand in, in a card section: the clicked one; else (`hovered`) the one under the pointer; else (`first`) the first. */
+function cardIn(section: BNode, o: { hovered?: boolean; first?: boolean } = {}): HTMLElement | null {
+  if (activeCard?.section === section.id) {
+    const li = liAt(section, activeCard.key)
+    if (li) return li
+  }
+  if (o.hovered && hoverCard?.section === section.id) {
+    const li = liAt(section, hoverCard.key)
+    if (li) return li
+  }
+  return o.first ? section.els[0]?.querySelector<HTMLElement>(CARD) ?? null : null
+}
+const inLi = (n: BNode, li: HTMLElement) => n.els.some((el) => li.contains(el))
+/** The card a block of a card's design stands in; null for the section itself and outside card sections. */
+function liOfNode(node: BNode): HTMLElement | null {
+  if (!node.parent) return null
+  const section = sectionOf(node)
+  return cardOf(section) ? cardLiOf(node.els[0] ?? null, section) : null
+}
+/** How many cards of entries a section draws. */
+const cardCount = (section: BNode) => section.els.reduce((n, el) => n + el.querySelectorAll(`${CARD}[data-kit-card-entry]`).length, 0)
+/** The entry a card shows (its type and id); null for the sample card and the empty card. */
+function entryOfLi(li: HTMLElement | null): { entity: string; id: string } | null {
+  const entity = li?.dataset.kitCardCollection
+  const id = li?.dataset.kitCardEntry
+  return entity && id ? { entity, id } : null
+}
+/** The clicked card's entry, for the admin (its panel takes its examples from it), when `path` is in that card's section. */
+function clickedEntry(path: CmsBuilderPath | null): { entity: string; id: string } | null {
+  if (!path || !activeCard || activeCard.section !== path[0]) return null
+  const section = nodes.find((n) => !n.parent && n.id === path[0])
+  return section ? entryOfLi(liAt(section, activeCard.key)) : null
+}
+/** What a block's chip and toolbar say: a card section's type and its repeats, a card block's name and what it shows. */
+function namesOf(node: BNode): { label: string; shows: string; warn: boolean } {
+  const card = cardOf(sectionOf(node))
+  if (card && !node.parent) return { ...cardSectionName(card.label || nameOf(node), cardCount(node)), warn: false }
+  if (card) return cardBlockName(card.blocks[node.id], nameOf(node))
+  return { label: nameOf(node), shows: '', warn: false }
+}
+function setName(el: HTMLElement, name: { label: string; shows: string; warn: boolean }) {
+  el.textContent = name.label
+  if (!name.shows) return
+  const shows = document.createElement('i')
+  shows.textContent = name.shows
+  if (name.warn) shows.className = 'warn'
+  el.append(' ', shows)
+}
+
+/**
+ * A field tried on a block of a card's design (the admin's panel points at a row of *Obsah bere z*): every card
+ * draws it at once (the kit reads useCmsEditingTry()), with no step of the history and nothing sent to the
+ * server. `null` ends it, unless the field was chosen: then the page keeps drawing it until its own content has
+ * it (the admin's draft names it, and the page has loaded anew), so the old value never shows in between.
+ */
+function setTry(next: CmsBuilderTry | null) {
+  if (!next) {
+    if (tried?.chosen) return
+    tried = null
+    cmsBuilderTry.value = null
+    return
+  }
+  clearTimeout(triedTimer)
+  tried = { ...next }
+  cmsBuilderTry.value = { section: next.path[0]!, block: next.path[next.path.length - 1]!, key: next.key, value: next.value }
+  if (!next.chosen) return
+  stagger(next.path)
+  const chosen = tried
+  // Never longer than a few seconds, whatever the draft says.
+  triedTimer = setTimeout(() => endTry(chosen), 6000)
+  landed(cmsBuilderDraft.data)
+}
+
+function endTry(which: CmsBuilderTry) {
+  if (tried !== which) return
+  tried = null
+  cmsBuilderTry.value = null
+}
+
+/** The admin's draft came: once it holds the chosen field, the page shows its own content again after it has loaded it anew. */
+function landed(data: unknown) {
+  const t = tried
+  if (!t?.chosen || t.landing || !cardTryLanded(cmsBuilderFieldValue(data, t.path, t.key), t)) return
+  t.landing = true
+  clearTimeout(triedTimer)
+  triedTimer = setTimeout(() => endTry(t), 1500)
+}
+
+/** The values a chosen field brings come in card by card: each block of the design fades up in turn, with a soft glow. None with reduced motion. */
+function stagger(path: CmsBuilderPath) {
+  if (reduced() || !ui) return
+  const key = path.join('/')
+  // After the kit has drawn the field (Vue draws on its next tick).
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (!ui) return
+    nodes = scan()
+    const host = ui.host.getBoundingClientRect()
+    nodes.filter((n) => n.key === key).forEach((n, i) => {
+      const delay = cardStagger(i, false)
+      for (const el of n.els) el.animate([{ opacity: 0.25, transform: `translateY(${4 * k()}px)` }, { opacity: 1, transform: 'none' }], { duration: 220, delay, easing: EASE, fill: 'backwards' })
+      const glow = make('div', 'o glow', ui!.root)
+      place(glow, host, rectOf(n))
+      glow.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, delay: delay + 120, easing: 'ease-out', fill: 'both' }).finished.then(() => glow.remove(), () => glow.remove())
+    })
+  }))
+}
+
+/** What a block is, from the admin's kinds along its path. */
+function kindOf(node: BNode): CmsBuilderKind | null {
+  const parentList = node.parent ? kindOf(node.parent)?.list : kinds
+  return parentList?.types[node.type] ?? null
+}
+const listKindsOf = (container: BNode | null): CmsBuilderListKinds | null => (container ? kindOf(container)?.list ?? null : kinds)
+const nameOf = (node: BNode) => kindOf(node)?.label ?? labels[node.type] ?? node.type
+
+function rectOf(node: BNode): DOMRect {
+  const rects = node.els.map((el) => el.getBoundingClientRect())
+  if (rects.length === 1) return rects[0]!
+  const left = Math.min(...rects.map((r) => r.left))
+  const top = Math.min(...rects.map((r) => r.top))
+  return new DOMRect(left, top, Math.max(...rects.map((r) => r.right)) - left, Math.max(...rects.map((r) => r.bottom)) - top)
+}
+/** A box in the document's coordinates. */
+function boxOf(node: BNode): Box {
+  const r = rectOf(node)
+  return { left: r.left + scrollX, top: r.top + scrollY, right: r.right + scrollX, bottom: r.bottom + scrollY }
+}
+
+/** The direction a list is drawn in: from where its blocks stand, else from its element's CSS. */
+function axisOfList(items: BNode[], boxes: Box[], container: BNode | null): 'x' | 'y' {
+  const seen = axisOf(boxes)
+  if (seen) return seen
+  const holder = items[0]?.els[0]?.parentElement ?? container?.els[0] ?? null
+  if (!holder) return 'y'
+  const style = getComputedStyle(holder)
+  return style.display.includes('flex') && style.flexDirection.startsWith('row') ? 'x' : 'y'
+}
+
+/** The left and right edge (viewport px) of a list's blocks together. */
+function listSpan(items: BNode[]) {
+  const rects = items.map(rectOf)
+  return { left: Math.min(...rects.map((r) => r.left)), right: Math.max(...rects.map((r) => r.right)) }
+}
+
+/** Where "+" sits after each block of the page's list: the middle of the gap to the next block, or the last block's bottom edge. */
+function boundaries(items: BNode[]): number[] {
+  const rects = items.map(rectOf)
+  return rects.map((r, i) => (rects[i + 1] ? (r.bottom + rects[i + 1]!.top) / 2 : r.bottom))
+}
+
+/** The bottom edge (viewport px) of a header that stays at the top of the window while the page scrolls; 0 when there is none. */
+function stickyBottom(): number {
+  let bottom = 0
+  for (const el of document.elementsFromPoint(innerWidth / 2, 1)) {
+    for (let at: Element | null = el; at && at !== document.body && at !== document.documentElement; at = at.parentElement) {
+      const position = getComputedStyle(at).position
+      if (position !== 'fixed' && position !== 'sticky') continue
+      const r = at.getBoundingClientRect()
+      if (r.top <= 1 && r.bottom < innerHeight / 2) bottom = Math.max(bottom, r.bottom)
+      break
+    }
+  }
+  return bottom
+}
+
+// ---- drawing
+
+function schedule() {
+  if (!frame) frame = requestAnimationFrame(render)
+}
+
+function place(el: HTMLElement, host: DOMRect, rect: { left: number, top: number, width: number, height: number }) {
+  el.hidden = false
+  el.style.left = `${rect.left - host.left}px`
+  el.style.top = `${rect.top - host.top}px`
+  el.style.width = `${rect.width}px`
+  el.style.height = `${rect.height}px`
+}
+
+/**
+ * Above the block's top edge, or inside it when there is no room above: near the top of the page,
+ * under a header that stays at the top, or above the first block of the page's list (where the
+ * site's header is).
+ */
+function above(el: HTMLElement, host: DOMRect, rect: DOMRect, height: number, inside: boolean, sticky: number) {
+  el.hidden = false
+  const width = el.offsetWidth * k()
+  const gap = 6 * k()
+  const h = height * k()
+  const left = Math.min(Math.max(rect.left, 4 * k()), Math.max(4 * k(), document.documentElement.clientWidth - width - 4 * k()))
+  el.style.left = `${left - host.left}px`
+  const top = rect.top - h - gap
+  const room = !inside && top >= sticky + 2 && rect.top + scrollY >= h + gap
+  el.style.top = `${aboveSheet(room ? top : Math.max(rect.top, sticky) + gap, h, sticky) - host.top}px`
+}
+
+/** A top edge that keeps something `h` tall above the sheet (the bottom of what is seen); as it was when no sheet covers the frame. */
+function aboveSheet(top: number, h: number, sticky: number): number {
+  if (inset <= 0) return top
+  return Math.min(top, Math.max(sticky, seenBottom(sticky) - h - 4 * k()))
+}
+
+function render() {
+  frame = 0
+  if (!ui) return
+  ui.host.style.setProperty('--k', String(k()))
+  nodes = scan()
+  const host = ui.host.getBoundingClientRect()
+  const sticky = stickyBottom()
+  watchBlocks()
+  const current = nodeAt(selected)
+  drawSelection(current, host, sticky)
+  drawHover(current, host, sticky)
+  drawPlus(host)
+  drawAdds(current, host)
+  drawEmpties(host)
+  drawDrop(host)
+  drawTyping(host, sticky)
+  drawHint(host, sticky)
+  drawCards(current, host, sticky)
+  drawCardChips(current, host)
+  drawBoxed(current, host)
+  sendSources(current)
+  const bottom = seenBottom(sticky)
+  if (current && keepInView && !scrollToSelected && !drag) {
+    keepInView = false
+    const r = rectOf(current)
+    if (r.bottom < sticky + 24 || r.top > bottom - 24) {
+      const room = bottom - sticky
+      window.scrollTo({ top: Math.max(0, r.top + scrollY - sticky - Math.max(24, (room - Math.min(r.height, room)) / 2)), behavior: 'auto' })
+    }
+  }
+  if (current && scrollToSelected) {
+    scrollToSelected = false
+    coverCheck = null
+    // Only this page scrolls: scrollIntoView would scroll the admin around the frame too.
+    const r = rectOf(current)
+    follow()
+    window.scrollTo({ top: scrollTargetFor(r, scrollY, sticky, bottom), behavior: reduced() ? 'auto' : 'smooth' })
+  }
+  else if (coverCheck) {
+    const check = coverCheck
+    coverCheck = null
+    if (current && !drag && !typingEl()) {
+      const r = rectOf(current)
+      // A block picked by a press in the page that is too tall for the room stays: the person is looking at it already.
+      const at = check === 'pick' && r.height >= bottom - sticky ? null : scrollToShow(r, scrollY, sticky, bottom)
+      if (at !== null) {
+        follow()
+        window.scrollTo({ top: at, behavior: reduced() ? 'auto' : 'smooth' })
+      }
+    }
+  }
+}
+
+/** The page scrolls by itself for a moment (a block brought into view): the tools are drawn again as it goes. */
+function follow() {
+  followUntil = performance.now() + 900
+}
+
+const ARROWS = { y: ['up', 'down'], x: ['left', 'right'] } as const
+
+function drawSelection(current: BNode | null, host: DOMRect, sticky: number) {
+  if (!ui) return
+  ui.box.hidden = ui.bar.hidden = ui.context.hidden = true
+  // A block of a card's design: solid in the card the tools stand in, dashed in every other card.
+  const repeats = current?.parent && !drag && liOfNode(current) ? nodes.filter((n) => n !== current && n.key === current.key) : []
+  pool(ui.repeats, repeats.length, () => make('div', 'o rep', ui!.root))
+  repeats.forEach((n, i) => place(ui!.repeats[i]!, host, rectOf(n)))
+  if (!current) return
+  const rect = rectOf(current)
+  place(ui.box, host, rect)
+  ui.box.classList.toggle('sub', !!current.parent)
+  if (current.parent && !drag) place(ui.context, host, rectOf(current.parent))
+  // An entry selected inside it: the block is the place around it, and the entry has the toolbar.
+  const held = !!selectedCard(current)
+  ui.box.classList.toggle('held', held)
+  // While a text is typed the toolbar steps aside: it never covers the line being typed.
+  if (drag || typingEl() || held) return
+  const list = siblingsOf(current)
+  const at = list.indexOf(current)
+  const axis = axisOfList(list, list.map(boxOf), current.parent)
+  const [back, on] = ARROWS[axis]
+  ui.prev.innerHTML = svg(ICONS[back])
+  ui.next.innerHTML = svg(ICONS[on])
+  label(ui.prev, axis === 'x' ? words?.moveLeft ?? words?.moveUp : words?.moveUp)
+  label(ui.next, axis === 'x' ? words?.moveRight ?? words?.moveDown : words?.moveDown)
+  setName(ui.name, namesOf(current))
+  // A block of a card: one quiet action opens the whole entry of the card it stands in.
+  const whose = entryOfLi(liOfNode(current))
+  const editable = !!whose && entityOf(whose.entity)?.edit !== false && !!words?.editEntry
+  ui.entry.hidden = ui.entryRule.hidden = !editable
+  if (editable) {
+    const title = cmsSourceTitle(allRecords().get(whose!.entity)?.entries.get(whose!.id) ?? {}, entityOf(whose!.entity), '')
+    label(ui.entry, title ? `${words!.editEntry} · ${title}` : words!.editEntry)
+  }
+  ui.prev.disabled = at <= 0
+  ui.next.disabled = at >= list.length - 1
+  // The first block of the page's list keeps its toolbar inside its top edge (the site's header is above it).
+  if (!current.parent && at === 0) above(ui.bar, host, rect, BAR_HEIGHT, true, sticky)
+  else placeNested(current, host, rect, sticky)
+}
+
+/**
+ * The text on the page around a block, as boxes in the document: what a toolbar should not hide. Around
+ * a small block, its section; around a section, it and the sections before and after it.
+ */
+let textCache: { key: string; own: Box[]; other: Box[] } | null = null
+function textAround(node: BNode): { own: Box[]; other: Box[] } {
+  const section = chainOf(node)[0]!
+  const near = node.parent ? [section] : (() => {
+    const list = siblingsOf(node)
+    const at = list.indexOf(node)
+    return [list[at - 1], node, list[at + 1]].filter((n): n is BNode => !!n)
+  })()
+  // The card the tools stand in is part of what is looked at: another card of the design has other own text.
+  const li = liOfNode(node)
+  const key = `${node.key}\n${li ? liKey(li) : ''}\n${near.flatMap((n) => n.els.map((el) => el.offsetHeight)).join()}`
+  if (textCache?.key === key) return textCache
+  const own: Box[] = []
+  const other: Box[] = []
+  const range = document.createRange()
+  let count = 0
+  for (const root of near.flatMap((n) => n.els)) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    for (let n = walker.nextNode(); n && count < 600; n = walker.nextNode()) {
+      if (!n.nodeValue?.trim()) continue
+      count++
+      range.selectNodeContents(n)
+      const mine = node.els.some((el) => el.contains(n))
+      for (const r of range.getClientRects()) (mine ? own : other).push({ left: r.left + scrollX, top: r.top + scrollY, right: r.right + scrollX, bottom: r.bottom + scrollY })
+    }
+  }
+  textCache = { key, own, other }
+  return textCache
+}
+
+/**
+ * A block's toolbar where it hides the least: above it, inside its top edge (left or right) when it is
+ * tall enough, or below it; never over its own text when another place is free, and on the screen
+ * (under a header that stays at the top).
+ */
+function placeNested(node: BNode, host: DOMRect, rect: DOMRect, sticky: number) {
+  if (!ui) return
+  ui.bar.hidden = false
+  const w = ui.bar.offsetWidth * k()
+  const h = BAR_HEIGHT * k()
+  const gap = 6 * k()
+  const width = document.documentElement.clientWidth
+  const clampX = (x: number) => Math.min(Math.max(x, 4 * k()), Math.max(4 * k(), width - w - 4 * k()))
+  const tall = rect.height >= h * 2 + gap * 2
+  // Since 3e: a block of a card's design may stand inside the card's top edge (over its picture) or below the card too.
+  const li = liOfNode(node)
+  const card = li ? li.getBoundingClientRect() : null
+  const places: { left: number; top: number }[] = [
+    { left: clampX(rect.left), top: rect.top - h - gap },
+    ...(tall ? [{ left: clampX(rect.left + gap), top: rect.top + gap }, { left: clampX(rect.right - w - gap), top: rect.top + gap }] : []),
+    { left: clampX(rect.left), top: rect.bottom + gap },
+    // A block taller than the screen, scrolled past its top: at the top of what shows of it.
+    ...(rect.top < sticky && rect.bottom > sticky + h * 3 ? [{ left: clampX(rect.left + gap), top: sticky + gap }] : []),
+    ...(card ? cardPlaces(card, w, h, gap, clampX) : []),
+  ]
+  const text = textAround(node)
+  const doc = (b: Box): Box => ({ left: b.left - scrollX, top: b.top - scrollY, right: b.right - scrollX, bottom: b.bottom - scrollY })
+  // The text of the card's other rows weighs 3: the toolbar goes over the picture sooner than over the price row.
+  const covers = weighCovers(text.own.map(doc), text.other.map(doc), card)
+  const boxes = places.map((p) => ({ left: p.left, top: p.top, right: p.left + w, bottom: p.top + h }))
+  const best = places[leastHidden(boxes, covers, { left: 0, top: sticky, right: width, bottom: seenBottom(sticky) })]!
+  ui.bar.style.left = `${best.left - host.left}px`
+  ui.bar.style.top = `${best.top - host.top}px`
+}
+
+function drawHover(current: BNode | null, host: DOMRect, sticky: number) {
+  if (!ui) return
+  ui.hover.hidden = ui.chip.hidden = true
+  if (hover && !hover.els.some((el) => el.isConnected)) hover = null
+  if (!hover || drag || typingEl()) return
+  // The block the next click would select.
+  const chain = chainOf(hover)
+  const next = chain[selectDepth(chain.map((n) => n.id), current?.path ?? null)] ?? null
+  if (!next || next === current || (current && next.key === current.key)) return
+  const rect = rectOf(next)
+  place(ui.hover, host, rect)
+  ui.hover.classList.toggle('sub', !!next.parent)
+  ui.chip.textContent = cardNameLine(namesOf(next))
+  const list = siblingsOf(next)
+  above(ui.chip, host, rect, 20, !next.parent && list[0] === next, sticky)
+}
+
+function drawPlus(host: DOMRect) {
+  if (!ui) return
+  ui.add.hidden = ui.line.hidden = true
+  if (!plus || drag || typingEl()) return
+  const items = nodes.filter((n) => !n.parent && n.list === plus!.list)
+  const at = items.findIndex((n) => n.id === plus!.after)
+  if (at < 0) return
+  const y = boundaries(items)[at]!
+  const { left, right } = listSpan(items)
+  place(ui.line, host, { left, top: y, width: right - left, height: 0 })
+  ui.add.hidden = false
+  ui.add.style.left = `${(left + right) / 2 - 13 * k() - host.left}px`
+  ui.add.style.top = `${y - 13 * k() - host.top}px`
+}
+
+/** The list the "+" of the selection add to: the selected block's own list when it has one, else the list it is in (inside a section). */
+function addContext(current: BNode | null): { container: BNode, items: BNode[] } | null {
+  if (!current) return null
+  const own = listKindsOf(current)
+  // A card section: only in the clicked card, or the one under the pointer; not in every repeat.
+  if (own && !current.parent && cardOf(current)) {
+    const li = cardIn(current, { hovered: true })
+    return li ? { container: current, items: childrenOf(current, li) } : null
+  }
+  if (own) return { container: current, items: childrenOf(current) }
+  return current.parent ? { container: current.parent, items: siblingsOf(current) } : null
+}
+
+function pool<T extends HTMLElement>(list: T[], count: number, make: () => T) {
+  while (list.length < count) list.push(make())
+  list.forEach((b, i) => { b.hidden = i >= count })
+}
+
+/** A "+" at each place of the selected container's list, along its direction. */
+function drawAdds(current: BNode | null, host: DOMRect) {
+  if (!ui) return
+  // On a touch screen the "+" places between the selected block's blocks stand over their text (a narrow price
+  // in a card's row) and take the taps meant for it: the panel's own *Add* does it there (since 3e).
+  const coarse = matchMedia('(pointer: coarse)').matches
+  const context = drag || holding || typingEl() || coarse ? null : addContext(current)
+  const list = context ? listKindsOf(context.container) : null
+  const full = !!list && list.max !== null && (context?.items.length ?? 0) >= list.max
+  const items = context && list && !full ? context.items : []
+  const boxes = items.map(boxOf)
+  const slots = items.length ? addSlots(slotsOf(boxes, axisOfList(items, boxes, context!.container)), items.length) : []
+  pool(ui.adds, slots.length, () => {
+    const b = tool(ui!.root, ICONS.plus, 'add small')
+    b.addEventListener('click', () => { const p = (b as any).__place as CmsBuilderPlace | undefined; if (p) send({ type: 'cms:builder:add', place: p }) })
+    return b
+  })
+  slots.forEach((s, i) => {
+    const b = ui!.adds[i]!
+    const ids = items.map((n) => n.id)
+    ;(b as any).__place = placeInList(ids, s.index, context!.container.path)
+    label(b, words?.insertHere)
+    // Along a stack, at the right end of the line (the toolbar stands at the left); along a row, in the middle of the gap.
+    const x = s.y1 === s.y2 ? s.x2 - 14 * k() : (s.x1 + s.x2) / 2
+    b.style.left = `${inPage(x - scrollX - 12 * k(), 24 * k()) - host.left}px`
+    b.style.top = `${(s.y1 + s.y2) / 2 - scrollY - 12 * k() - host.top}px`
+  })
+}
+
+/** In every block whose list is empty (a new layout, a new group): "Add a block", which adds at the end of that list. */
+function drawEmpties(host: DOMRect) {
+  if (!ui) return
+  // A group of a card's design is empty in every card: it offers "Add" once, in the card the tools stand in.
+  const once = (n: BNode) => {
+    const li = liOfNode(n)
+    return !li || li === cardIn(sectionOf(n), { hovered: true, first: true })
+  }
+  const empty = drag || typingEl() ? [] : nodes.filter((n) => listKindsOf(n) && !nodes.some((c) => c.parent === n) && once(n))
+  pool(ui.empties, empty.length, () => {
+    const b = make('button', 'empty', ui!.root) as HTMLButtonElement
+    b.type = 'button'
+    b.addEventListener('click', () => {
+      const path = (b as any).__path as CmsBuilderPath | undefined
+      if (!path) return
+      if (!samePath(selected, path)) choose(path)
+      send({ type: 'cms:builder:add', place: { end: true, in: path } })
+    })
+    return b
+  })
+  empty.forEach((n, i) => {
+    const b = ui!.empties[i]!
+    ;(b as any).__path = n.path
+    b.innerHTML = `${svg(ICONS.plus)}<span>${escapeHtml(words?.addBlock ?? words?.insertHere ?? '+')}</span>`
+    // An empty card: in the middle of the card, not of the whole section.
+    const blank = !n.parent && cardOf(n) ? n.els[0]?.querySelector<HTMLElement>(`${CARD}[data-kit-card-empty]`) : null
+    const r = blank ? blank.getBoundingClientRect() : rectOf(n)
+    b.style.left = `${r.left + r.width / 2 - host.left}px`
+    b.style.top = `${r.top + r.height / 2 - host.top}px`
+  })
+}
+
+/** A left edge (viewport px) that keeps something `width` wide inside the page, so the tools never make it scroll sideways. */
+const inPage = (left: number, width: number) => Math.min(Math.max(left, 2), document.documentElement.clientWidth - width - 2)
+
+const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
+
+/** Where the dragged block lands: in its own list of one line, the edge it settles against; else the nearest gap; in an empty list, the list itself. */
+function drawDrop(host: DOMRect) {
+  if (!ui) return
+  ui.drop.hidden = ui.into.hidden = ui.from.hidden = ui.cell.hidden = true
+  if (!drag) return
+  const d = drag
+  const at = (b: Box) => ({ left: b.left - scrollX, top: b.top - scrollY, width: b.right - b.left, height: b.bottom - b.top })
+  // Another list takes the block: its outline lights (a group, a layout), with the line inside it.
+  if (d.into !== d.own && d.into.area) {
+    place(ui.into, host, at(d.into.area))
+    if (!d.into.items.length) return
+  }
+  // A grid: the cell it lands in. A wrapping row of blocks of other sizes: where it came from.
+  if (d.into === d.own && !d.own.single) {
+    if (d.cells) {
+      if (d.index !== d.from) place(ui.cell, host, at(d.own.boxes[d.index]!))
+      return
+    }
+    place(ui.from, host, at(d.own.boxes[d.from]!))
+  }
+  if (d.into === d.own && d.own.single) {
+    if (d.index === d.from) return
+    const others = d.own.boxes.filter((_, i) => i !== d.from)
+    const all = d.own.boxes
+    const x = d.own.axis === 'x'
+    const edge = d.index > d.from ? (x ? others[d.index - 1]!.right : others[d.index - 1]!.bottom) : (x ? others[d.index]!.left : others[d.index]!.top)
+    const from = x ? Math.min(...all.map((b) => b.top)) : Math.min(...all.map((b) => b.left))
+    const to = x ? Math.max(...all.map((b) => b.bottom)) : Math.max(...all.map((b) => b.right))
+    const t = 3 * k()
+    if (x) place(ui.drop, host, { left: edge - scrollX - t / 2, top: from - scrollY, width: t, height: to - from })
+    else place(ui.drop, host, { left: from - scrollX, top: edge - scrollY - t / 2, width: to - from, height: t })
+    return
+  }
+  const s = d.slot
+  if (!s || (d.into === d.own && d.index === d.from)) return
+  const t = 3 * k()
+  if (s.x1 === s.x2) place(ui.drop, host, { left: s.x1 - scrollX - t / 2, top: s.y1 - scrollY, width: t, height: s.y2 - s.y1 })
+  else place(ui.drop, host, { left: s.x1 - scrollX, top: s.y1 - scrollY - t / 2, width: s.x2 - s.x1, height: t })
+}
+
+/**
+ * A quiet outline around the text being typed, a little outside it. Since 2g, when the text is an entry's
+ * or a global's: a line above it (below it when there is no room) with whose it is and that it is shared.
+ */
+function drawTyping(host: DOMRect, sticky: number) {
+  if (!ui) return
+  const el = typingEl()
+  ui.typing.hidden = ui.note.hidden = true
+  if (!el) {
+    typingOf = null
+    return
+  }
+  const r = el.getBoundingClientRect()
+  const pad = 4 * k()
+  const box = { left: r.left - pad, top: r.top - pad, width: r.width + pad * 2, height: Math.max(r.height, 16 * k()) + pad * 2 }
+  place(ui.typing, host, box)
+  const info = typingOf ? entityOf(typingOf.entity) : undefined
+  if (!info || !words?.shared) return
+  ui.noteName.textContent = info.label
+  ui.noteText.textContent = words.shared
+  // Where it hides the least of the block's text: under the text, above it, or beside it.
+  const current = nodeAt(selected)
+  if (current) leastHiddenAt(ui.note, current, host, new DOMRect(box.left, box.top, box.width, box.height), ui.note.offsetHeight, sticky, true, true)
+  else above(ui.note, host, new DOMRect(box.left, box.top, box.width, box.height), ui.note.offsetHeight, false, sticky)
+}
+
+/** A quiet outline around the element whose values the admin shows a box for; the admin hears where it is. */
+function drawBoxed(current: BNode | null, host: DOMRect) {
+  if (!ui) return
+  ui.boxed.hidden = true
+  if (!boxed) return
+  if (!current || current.key !== boxed.key) return closeBox(true)
+  if (!boxed.node.isConnected) {
+    // The page drew it anew (its value changed): the same values of the same entry, found again.
+    const want = JSON.stringify([boxed.values, boxed.also ?? null])
+    for (const [node, part] of foundIn(current).parts) {
+      if (part.entity !== boxed.entity || part.id !== boxed.id || JSON.stringify([part.kind === 'value' ? part.values : [part.at ?? [part.field]], part.also ?? null]) !== want) continue
+      boxed.node = node
+      break
+    }
+  }
+  // Not found for now (its text is empty, or the page shows it another way): the box stays where it was.
+  if (!boxed.node.isConnected) return
+  const r = rectOfNode(boxed.node)
+  if (!r.width && !r.height) return
+  const pad = 3 * k()
+  place(ui.boxed, host, { left: r.left - pad, top: r.top - pad, width: r.width + pad * 2, height: r.height + pad * 2 })
+  const rect = { left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) }
+  const said = JSON.stringify(rect)
+  if (said === boxed.sent) return
+  boxed.sent = said
+  send({ type: 'cms:builder:anchor', rect })
+}
+
+/** Let go of the box (`tell`: the admin closes its box too). */
+function closeBox(tell: boolean) {
+  if (!boxed) return
+  boxed = null
+  if (tell) send({ type: 'cms:builder:anchor', rect: null })
+  schedule()
+}
+
+/** A faint dotted outline around what the pointer is over that a click edits; over a field of the selected block, its name in the chip. */
+function drawHint(host: DOMRect, sticky: number) {
+  if (!ui) return
+  ui.hint.hidden = true
+  if (hint && !hint.el.isConnected) setHint(null)
+  if (!hint || drag || press || holding || typingEl()) return
+  const r = rectOfNode(hint.node, hint.range)
+  if (!r.width && !r.height) return
+  const pad = 2 * k()
+  place(ui.hint, host, { left: r.left - pad, top: r.top - pad, width: r.width + pad * 2, height: r.height + pad * 2 })
+  if (hint.kind === 'field' && hint.label && ui.chip.hidden) {
+    ui.chip.textContent = hint.label
+    above(ui.chip, host, r, 20, false, sticky)
+  }
+}
+
+/** The box of an element, or of a text node (a part of its element's text). */
+function rectOfNode(n: HTMLElement | Text, part?: [number, number]): DOMRect {
+  if (n.nodeType === 1) return (n as HTMLElement).getBoundingClientRect()
+  const range = document.createRange()
+  const length = n.nodeValue?.length ?? 0
+  if (part) {
+    range.setStart(n, Math.min(part[0], length))
+    range.setEnd(n, Math.min(part[1], length))
+  }
+  else range.selectNodeContents(n)
+  return range.getBoundingClientRect()
+}
+
+/** The element the pointer's hint is on: the page's cursor follows its attribute (a text cursor, or a pointer). */
+function setHint(next: typeof hint) {
+  if (hint?.node === next?.node && hint?.range?.[0] === next?.range?.[0] && hint?.kind === next?.kind && hint?.label === next?.label) return
+  hint?.el.removeAttribute('data-cms-hint')
+  hint = next
+  next?.el.setAttribute('data-cms-hint', next.kind)
+}
+
+/** Observe the marked blocks (and only them) for a change of size. */
+function watchBlocks() {
+  const els = new Set(nodes.flatMap((n) => n.els))
+  for (const el of observed) if (!els.has(el as HTMLElement)) { sizes.unobserve(el); observed.delete(el) }
+  for (const el of els) if (!observed.has(el)) { sizes.observe(el); observed.add(el) }
+}
+
+const sizes = new ResizeObserver(() => {
+  textCache = null
+  schedule()
+})
+
+// ---- presses: taps, and the second press of a double click that began outside the tools (since 3e)
+
+/**
+ * Every press, first (a capture listener on the window): the last touch or pen press with its count, for a
+ * double tap; the last press of any kind, by time alone, for whether a row of presses began on the tools; and
+ * a press on the page quiets the tools for a moment.
+ */
+function notePress(e: PointerEvent) {
+  if (!ui) return
+  const inside = e.composedPath().includes(ui.host)
+  const here = { at: performance.now(), x: e.clientX * scale, y: e.clientY * scale, inside }
+  anyPress = nextPress(anyPress, here, { ms: 500, px: Infinity })
+  if (e.pointerType === 'touch' || e.pointerType === 'pen') touchPress = nextPress(touchPress, here)
+  if (inside) return
+  // The second press of a double click on the page's text may land where the toolbar has just appeared: it
+  // goes to what is under the toolbar. (The toolbar's own double click, "move down" twice, began on it.)
+  ui.host.classList.add('lull')
+  clearTimeout(lullTimer)
+  lullTimer = setTimeout(() => ui?.host.classList.remove('lull'), LULL)
+}
+
+/** Whether the press being handled is the second of a row that began outside the tools: a tool takes none of it. */
+function startsOutside(): boolean {
+  return !!anyPress && !anyPress.inside && anyPress.count >= 2 && performance.now() - anyPress.at <= 1000
+}
+
+/** A click on a tool that is the second of a double click begun on the page is nobody's: the page took the press. */
+function guardTools(e: MouseEvent) {
+  if (!anyPress || anyPress.inside || performance.now() - anyPress.at > 1000) return
+  if (pressCount(e.detail, anyPress, performance.now()) < 2) return
+  e.preventDefault()
+  e.stopImmediatePropagation()
+}
+
+// ---- pointer: hover, "+", select
+
+function track(e: PointerEvent) {
+  if (press || e.composedPath().includes(ui!.host)) return
+  const target = e.composedPath()[0] as Node
+  hover = nodeOf(target)
+  plus = plusNear(e.clientX, e.clientY)
+  // The card under the pointer, in a card section (since 3c).
+  const section = hover ? sectionOf(hover) : null
+  const li = section && cardOf(section) ? cardLiOf(target, section) : null
+  hoverCard = li ? { section: section!.id, key: liKey(li) } : null
+  if (target !== hintTarget || e.type === 'pointerdown') {
+    hintTarget = target
+    setHint(drag || typingEl() ? null : hintAt(target, e.clientX, e.clientY))
+    // An entry's card in the selected block: its outline and name, and a pointer. (Not in a card section: a click there selects the design.)
+    const current = nodeAt(selected)
+    const card = drag || typingEl() || (hint && hint.kind === 'text' && !hint.entry) || (section && cardOf(section)) ? null : cardAt(current, target)
+    cardHover = card && current ? { key: current.key, entity: card.entity, id: card.id, piece: pieceOf(card, target) } : null
+    const first = card?.els[0]
+    // Over the selected card the pointer says what a click does there (a text cursor, or nothing new).
+    const chosen = !!card && !!current && !!entry && entry.key === current.key && entry.entity === card.entity && entry.id === card.id
+    setCardHint(card && !chosen ? (first?.nodeType === 3 ? first.parentElement : first as HTMLElement | undefined) ?? null : null)
+  }
+  schedule()
+}
+
+/**
+ * What a click there edits, for the pointer: a plain text anywhere (a double click types into it; in the
+ * selected block one click does), or another field of the selected block (a click brings it into view).
+ */
+function hintAt(target: Node, x: number, y: number): typeof hint {
+  const hit = fieldAt(target, x, y)
+  if (!hit) {
+    // In a card section a value is the card's entry's, changed by a double click (no hint of 2g's here).
+    const at = nodeOf(target)
+    return at && cardOf(sectionOf(at)) ? null : entryHintAt(target, x, y)
+  }
+  if (hit.kind === 'text') return { el: hit.el, node: hit.node, range: hit.range, kind: 'text', label: '' }
+  const current = nodeAt(selected)
+  if (!current || current.key !== hit.owner.key) return null
+  return { el: hit.el, node: hit.node, kind: 'field', label: hit.info?.label ?? hit.field }
+}
+
+/**
+ * Since 2g: over a text or a value of the selected entry's card: a text cursor where a click types, the
+ * field's name where a click opens its control. Elsewhere the card's own outline and name say what a click does.
+ */
+function entryHintAt(target: Node, x: number, y: number): typeof hint {
+  const current = nodeAt(selected)
+  if (!current || nodeOf(target)?.key !== current.key) return null
+  const at = entryPartAt(current, target, x, y)
+  if (!at) return null
+  // A value (a time, a number, a choice, several values together) opens its controls on the first click in
+  // the selected block, whichever entry is selected in it; a text is typed in the selected entry.
+  const edit = entryEdit(at.part)
+  if (!edit) return null
+  const chosen = !!entry && entry.key === current.key && at.part.entity === entry.entity && at.part.id === entry.id
+  if (!chosen && !(at.part.kind === 'value' && edit.how === 'box')) return null
+  const el = at.el.nodeType === 3 ? at.el.parentElement! : at.el as HTMLElement
+  return { el, node: at.el, kind: edit.how === 'type' ? 'text' : 'field', label: edit.how === 'type' ? '' : edit.label, entry: true }
+}
+
+/** The "+" between two blocks of the page's list, near the pointer. */
+function plusNear(x: number, y: number) {
+  const top = nodes.filter((n) => !n.parent)
+  for (const list of new Set(top.map((n) => n.list))) {
+    const items = top.filter((n) => n.list === list)
+    const { left, right } = listSpan(items)
+    if (x < left || x > right) continue
+    const at = nearestBoundary(y, boundaries(items), 24 * k())
+    if (at !== null) return { list, after: items[at]!.id }
+  }
+  return null
+}
+
+function choose(path: CmsBuilderPath | null) {
+  selected = path
+  // The clicked card belongs to its section: another section (or none) lets go of it.
+  if (!path || path[0] !== activeCard?.section) activeCard = null
+  closeBox(true)
+  entry = null
+  entryMenu = false
+  sourcesAt = sourcesSent = ''
+  if (path && inset > 0) coverCheck = 'pick'
+  // What the pointer's hint says depends on the selection: asked again at the next move.
+  hintTarget = null
+  if (hint?.kind === 'field') setHint(null)
+  const card = clickedEntry(path)
+  send(path ? { type: 'cms:builder:select', id: path[path.length - 1]!, path, ...(card ? { card } : {}) } : { type: 'cms:builder:select', id: null })
+  schedule()
+}
+
+function onClick(e: MouseEvent) {
+  if (e.composedPath().includes(ui!.host)) return
+  e.preventDefault()
+  e.stopImmediatePropagation()
+  if (calledOff && performance.now() - calledOff < 400) {
+    calledOff = 0
+    return
+  }
+  // The click of the press that started typing (a double click's second one).
+  if (swallow && performance.now() - swallow < 700) {
+    swallow = 0
+    return
+  }
+  const target = e.composedPath()[0] as Node
+  // A click inside the text being typed moves the cursor, nothing else.
+  const typing = typingEl()
+  if (typing?.contains(target)) return
+  nodes = scan()
+  const node = nodeOf(target)
+  if (!node) return choose(null)
+  if (cardOf(sectionOf(node))) return cardClick(target, node, e.clientX, e.clientY)
+  const chain = chainOf(node)
+  const current = nodeAt(selected)
+  const next = chain[selectDepth(chain.map((n) => n.id), current?.path ?? null)]!
+  const hit = fieldAt(target, e.clientX, e.clientY)
+  if (hit) {
+    const mine = !!current && current.key === hit.owner.key
+    // A plain text of the selected block: the cursor goes there.
+    if (mine && hit.kind === 'text') {
+      begin(hit, e.clientX, e.clientY)
+      return
+    }
+    // Another field of the block this click selects (or of the selected one): the panel brings it into view.
+    if (hit.kind !== 'text' && (mine || next.key === hit.owner.key)) {
+      if (!mine) choose(hit.owner.path)
+      send({ type: 'cms:builder:field', id: hit.owner.id, path: hit.owner.path, field: hit.field, ...(hit.item ? { item: hit.item } : {}) })
+      return
+    }
+  }
+  // A text or a value of the selected entry (since 2g): typed where it stands, or its control opens over it.
+  // A value (a time, a number, a choice, several values together) opens its controls on the first click in
+  // the selected block, whichever entry is selected: every time of a week answers a click the same way,
+  // whether one row made it or two (a day's hours from its first row to its last, in no card).
+  const part = current && node.key === current.key ? entryPartAt(current, target, e.clientX, e.clientY) : null
+  if (current && part) {
+    const edit = entryEdit(part.part)
+    const chosen = !!entry && entry.key === current.key && part.part.entity === entry.entity && part.part.id === entry.id
+    if (edit && (chosen || (part.part.kind === 'value' && edit.how === 'box'))) {
+      if (edit.how === 'type') beginEntry(current, part, edit, e.clientX, e.clientY)
+      else openBox(current, part, edit)
+      return
+    }
+  }
+  // An entry's card in the selected block (since 2f): selected, a level below the block.
+  const card = cardAt(current, target)
+  if (current && card) {
+    selectEntry(current, card, target)
+    return
+  }
+  // A folded answer of the selected block opens and closes by its summary, as it does for a visitor.
+  const summary = (target instanceof Element ? target : target.parentElement)?.closest('summary')
+  if (summary && current && nodeOf(summary)?.key === current.key && summary.parentElement instanceof HTMLDetailsElement) {
+    summary.parentElement.open = !summary.parentElement.open
+    return
+  }
+  choose(next.path)
+}
+
+/** Start typing in a plain text found under the pointer, the cursor where the press or the click was. */
+function begin(hit: FieldHit, x: number, y: number) {
+  if (!hit.info?.text) return
+  setHint(null)
+  // A text of the block itself is typed: an entry selected inside it is let go.
+  entry = null
+  entryMenu = false
+  const data = cmsBuilderBlocks.get(`${hit.owner.list}\n${hit.owner.id}`)
+  const drawn = data ? cmsBuilderFieldValue(data, [hit.owner.id], hit.field, hit.item) : undefined
+  startTyping({ el: hit.node, range: hit.range, drawn, path: hit.owner.path, field: hit.field, item: hit.item, lines: hit.info.text === 'lines', max: hit.info.max, x, y })
+  startedAt = performance.now()
+  schedule()
+}
+
+/**
+ * A press on the page. While the tools are on it never selects the page's text (a double click would
+ * select a word, a drag a range); inside the text being typed it does what it does in any text field,
+ * except the second press of the double click that started typing. The second press of a double click
+ * on a text types into it at any depth: the path down to its block is selected in the same gesture and
+ * the cursor goes where the press was. On a rich text it brings the field into view in the panel.
+ */
+function onMouseDown(e: MouseEvent) {
+  if (e.button !== 0 || e.composedPath().includes(ui!.host)) return
+  const target = e.composedPath()[0] as Node
+  // A press outside the element a box stands at closes the box.
+  if (boxed && !boxed.node.contains(target)) closeBox(true)
+  const typing = typingEl()
+  if (typing?.contains(target)) {
+    if (pressCount(e.detail, touchPress, performance.now()) >= 2 && performance.now() - startedAt < 700) e.preventDefault()
+    return
+  }
+  e.preventDefault()
+  // A press whose default is prevented does not move the focus: the page still takes the keys (Escape, Alt with an arrow).
+  if (!document.hasFocus()) window.focus()
+  // A second touch within 400 ms and 24 px counts as a double click where the browser's mouse event says it does not.
+  if (pressCount(e.detail, touchPress, performance.now()) !== 2) return
+  nodes = scan()
+  const pressed = nodeOf(target)
+  if (pressed && cardOf(sectionOf(pressed))) {
+    if (cardPress(target, pressed, e.clientX, e.clientY)) swallow = performance.now()
+    return
+  }
+  const hit = fieldAt(target, e.clientX, e.clientY)
+  if (!hit && entryPress(target, e.clientX, e.clientY)) {
+    swallow = performance.now()
+    return
+  }
+  if (!hit || (hit.kind !== 'text' && hit.kind !== 'rich')) return
+  if (!samePath(selected, hit.owner.path)) choose(hit.owner.path)
+  if (hit.kind === 'rich') {
+    send({ type: 'cms:builder:field', id: hit.owner.id, path: hit.owner.path, field: hit.field, ...(hit.item ? { item: hit.item } : {}) })
+    swallow = performance.now()
+    return
+  }
+  begin(hit, e.clientX, e.clientY)
+  swallow = performance.now()
+}
+
+/**
+ * The second press of a double click on an entry's text, value or picture: its block and its card are
+ * selected, and (since 2g) a plain text is typed where the press was, a value's control opens over it.
+ * What cannot be changed in the page (a picture) opens the entry beside the page with that field in view.
+ */
+function entryPress(target: Node, x: number, y: number): boolean {
+  const node = nodeOf(target)
+  if (!node) return false
+  const at = entryPartAt(node, target, x, y)
+  if (!at) return false
+  const found = foundIn(node)
+  const card = found.cards.find((c) => c.entity === at.part.entity && c.id === at.part.id)
+  if (!samePath(selected, node.path)) choose(node.path)
+  const edit = entryEdit(at.part)
+  if (edit?.how === 'type') beginEntry(node, at, edit, x, y)
+  else if (edit) openBox(node, at, edit)
+  else {
+    if (card) selectEntry(node, card, at.el)
+    editEntry(at.part.entity, at.part.id, at.part.field)
+  }
+  return true
+}
+
+// ---- a card section: a click selects the design, a double click changes the entry's value (since 3c)
+
+/**
+ * A click in a card section. Levels as in a layout (the section, a block of the card or a group, a block in
+ * a group), in the card that was clicked, which the tools stand in from now on; the admin hears its entry.
+ * The selected block's own text (a heading's, a button's label, the words around a number) is typed: every
+ * card follows. A click on the selected picture block brings what it shows into view in the panel. Never 2f's
+ * card of an entry, never 2g's box on one click: those are a double click here.
+ */
+function cardClick(target: Node, node: BNode, x: number, y: number) {
+  const section = sectionOf(node)
+  const li = cardLiOf(target, section)
+  const was = activeCard?.key
+  if (li) activeCard = { section: section.id, key: liKey(li) }
+  const chain = chainOf(node)
+  const current = nodeAt(selected)
+  const next = chain[selectDepth(chain.map((n) => n.id), current?.path ?? null)]!
+  const told = () => {
+    // The selection stays, the card changed: the admin's examples follow it.
+    const card = activeCard?.key !== was && selected?.[0] === section.id ? clickedEntry(selected) : null
+    if (card && selected) send({ type: 'cms:builder:select', id: selected[selected.length - 1]!, path: selected, card })
+  }
+  const hit = fieldAt(target, x, y)
+  if (hit?.kind === 'text' && current && hit.owner.key === current.key) {
+    told()
+    begin(hit, x, y)
+    return
+  }
+  const info = cardOf(section)!.blocks[node.id]
+  if (current && node.key === current.key && info?.kind === 'picture' && info.ref) {
+    told()
+    send({ type: 'cms:builder:field', id: node.id, path: node.path, field: info.ref })
+    schedule()
+    return
+  }
+  choose(next.path)
+}
+
+/**
+ * The second press of a double click in a card section: the block of the design under the pointer is selected
+ * in that card, and the value it shows of that card's entry is changed exactly (the card names the entry, the
+ * block its field): a plain text typed where it stands, a number, a date, a choice, a rich text or a link in
+ * 2g's box, a picture (or a file, the entry's page) in the entry's own form beside the page. The block's own
+ * text is typed as the block's field. False: nothing of a card under the pointer.
+ */
+function cardPress(target: Node, node: BNode, x: number, y: number): boolean {
+  const section = sectionOf(node)
+  const card = cardOf(section)!
+  const li = cardLiOf(target, section)
+  if (!li) return false
+  activeCard = { section: section.id, key: liKey(li) }
+  const leaf = [...chainOf(node)].reverse().find((n) => n.parent && card.blocks[n.id] && !card.blocks[n.id]!.group)
+  if (!leaf) return false
+  const hit = fieldAt(target, x, y)
+  if (!samePath(selected, leaf.path)) choose(leaf.path)
+  if (hit?.kind === 'text' && hit.owner.key === leaf.key) {
+    begin(hit, x, y)
+    return true
+  }
+  const edit = cardValueEdit(card.blocks[leaf.id])
+  const whose = entryOfLi(li)
+  if (!edit || !whose) return true
+  if (edit.how === 'entry') {
+    editEntry(whose.entity, whose.id, edit.field ?? undefined)
+    return true
+  }
+  const part: CmsSourcePart = edit.how === 'value'
+    ? { entity: whose.entity, id: whose.id, field: edit.field, kind: 'value', values: [[edit.field]] }
+    : { entity: whose.entity, id: whose.id, field: edit.field, kind: edit.how }
+  const change = entryEdit(part)
+  // Not here (a field this person may not change, one the page knows nothing of): the whole entry, as 2g does.
+  if (!change) {
+    editEntry(whose.entity, whose.id, edit.field)
+    return true
+  }
+  const el = change.how === 'type' && typeof change.raw === 'string' ? cardValuePart(partsOf(leaf).map((n) => ({ node: n, text: shown(n) })), cmsMatchValue(change.raw)) : null
+  if (el) {
+    setHint(null)
+    closeBox(true)
+    startTyping({
+      el, drawn: change.raw, path: leaf.path, field: part.field, item: null, lines: change.info.text === 'lines', max: change.info.max, x, y,
+      entry: { entity: part.entity, id: part.id, at: change.values[0]! },
+    })
+    typingOf = { entity: part.entity, id: part.id }
+    startedAt = performance.now()
+    schedule()
+    return true
+  }
+  // A text the page shows another way (with words around it), and every other value: the box, at the block.
+  endTyping()
+  setHint(null)
+  const r = (leaf.els[0] ?? li).getBoundingClientRect()
+  const rect = { left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) }
+  boxed = { key: leaf.key, entity: part.entity, id: part.id, values: change.values, node: leaf.els[0] ?? li, sent: JSON.stringify(rect) }
+  send({ type: 'cms:builder:value', entity: part.entity, id: part.id, values: change.values, rect })
+  schedule()
+  return true
+}
+
+// ---- an entry's values edited where they stand (since 2g)
+
+type PartHit = { el: Part; part: CmsSourcePart }
+
+/** The part of an entry under the pointer in a block: a text node beside other content counts on its own. */
+function entryPartAt(node: BNode, target: Node, x?: number, y?: number): PartHit | null {
+  const start = target instanceof Element ? target : target.parentElement
+  const under = start && x !== undefined && y !== undefined ? textNodeAt(start, x, y) : null
+  return cmsSourcePartAt(foundIn(node), (under?.node ?? target) as Part)
+}
+
+interface EntryEdit {
+  /** Typed in the page (a plain text), or changed in the admin's box over it. */
+  how: 'type' | 'box'
+  /** Every value the element shows. */
+  values: CmsValuePath[]
+  info: CmsBuilderEntityField
+  /** A plain text's value as the page loaded it. */
+  raw: unknown
+  /** The fields' names. */
+  label: string
+  /** Values of other entries the element shows too. */
+  also?: CmsBuilderValueAlso[]
+}
+
+/**
+ * How a part of an entry is changed in the page: a plain text is typed, anything else that has a control of
+ * its own (a number, a date, a choice, a rich text, a text with a form, several values together) gets the
+ * admin's box. `null`: not here (a picture, a field or an entry this person may not change).
+ */
+function entryEdit(part: CmsSourcePart): EntryEdit | null {
+  const info = entityOf(part.entity)
+  if (!info || info.edit === false || part.kind === 'picture' || cmsBuilderPending.locked.has(`${part.entity}\n${part.id}`)) return null
+  const row = allRecords().get(part.entity)?.entries.get(part.id)
+  const values = part.kind === 'value' ? part.values ?? [] : [part.at ?? [part.field]]
+  const fields = values.map((at) => cmsEntityFieldAt(info, row, at))
+  // Values of other entries shown with them: each must be one this person may change here.
+  for (const other of part.also ?? []) {
+    if (cmsBuilderPending.locked.has(`${part.entity}\n${other.id}`)) return null
+    const theirs = allRecords().get(part.entity)?.entries.get(other.id)
+    fields.push(...other.values.map((at) => cmsEntityFieldAt(info, theirs, at)))
+  }
+  if (!values.length || fields.some((f) => !f || f.locked || !(f.kind === 'text' || f.kind === 'rich' || f.kind === 'value'))) return null
+  const label = [...new Set(fields.map((f) => f!.label ?? '').filter(Boolean))].join(' · ')
+  const first = fields[0]!
+  if (part.kind === 'text' && first.text) return { how: 'type', values, info: first, raw: cmsValueAt(row, values[0]!), label }
+  return { how: 'box', values, info: first, raw: undefined, label, ...(part.also ? { also: part.also } : {}) }
+}
+
+/** The entry's card is selected with it (its block is the place around it). */
+function withCard(node: BNode, hit: PartHit) {
+  const card = foundIn(node).cards.find((c) => c.entity === hit.part.entity && c.id === hit.part.id)
+  if (card) selectEntry(node, card, hit.el)
+}
+
+/** Start typing in an entry's plain text, the cursor where the press or the click was. */
+function beginEntry(node: BNode, hit: PartHit, edit: EntryEdit, x: number, y: number) {
+  setHint(null)
+  closeBox(true)
+  withCard(node, hit)
+  startTyping({
+    el: hit.el, drawn: edit.raw, path: node.path, field: hit.part.field, item: null, lines: edit.info.text === 'lines', max: edit.info.max, x, y,
+    entry: { entity: hit.part.entity, id: hit.part.id, at: edit.values[0]! },
+  })
+  typingOf = { entity: hit.part.entity, id: hit.part.id }
+  startedAt = performance.now()
+  schedule()
+}
+
+/** Ask the admin for the controls of the values an element shows, drawn over the preview at the element. */
+function openBox(node: BNode, hit: PartHit, edit: EntryEdit) {
+  endTyping()
+  setHint(null)
+  // Values of several entries belong to no one card: the block stays selected, no entry in it.
+  if (edit.also) clearEntry()
+  else withCard(node, hit)
+  const r = rectOfNode(hit.el)
+  const rect = { left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) }
+  boxed = { key: node.key, entity: hit.part.entity, id: hit.part.id, values: edit.values, ...(edit.also ? { also: edit.also } : {}), node: hit.el, sent: JSON.stringify(rect) }
+  send({ type: 'cms:builder:value', entity: hit.part.entity, id: hit.part.id, values: edit.values, rect, ...(edit.also ? { also: edit.also } : {}) })
+  schedule()
+}
+
+/** A double click on a picture (or another field not typed in the page) of the selected block: the panel opens its chooser. */
+function onDoubleClick(e: MouseEvent) {
+  if (e.composedPath().includes(ui!.host) || typingEl()) return
+  const hit = fieldAt(e.composedPath()[0] as Node, e.clientX, e.clientY)
+  const current = nodeAt(selected)
+  if (!hit || hit.kind === 'text' || (hit.found && hit.kind !== 'picture') || !current || current.key !== hit.owner.key) return
+  e.preventDefault()
+  send({ type: 'cms:builder:field', id: hit.owner.id, path: hit.owner.path, field: hit.field, ...(hit.item ? { item: hit.item } : {}), open: true })
+}
+
+/** A field under the pointer: its element, its block, what the admin says it is, and whether the page found it by itself. */
+interface FieldHit {
+  /** The element (for a text node, its element: the pointer's cursor is set on it). */
+  el: HTMLElement
+  /** What shows the field: the element, or a text node beside other content of its element. */
+  node: HTMLElement | Text
+  /** The field is this part of the text node's text. */
+  range?: [number, number]
+  field: string
+  item: string | null
+  owner: BNode
+  info: CmsBuilderField | null
+  /** A plain text (typed in the page), a rich text, a picture, or another marked field. */
+  kind: 'text' | 'rich' | 'picture' | 'other'
+  found: boolean
+}
+
+/**
+ * The field under the pointer: an element marked with `cmsField()` (the mark wins), else the text or the
+ * picture the page finds by itself in the block the pointer is in. `data-cms-field="off"` on the element
+ * or around it: nothing.
+ */
+function fieldAt(target: Node | null, x?: number, y?: number): FieldHit | null {
+  const start = (target instanceof Element ? target : target?.parentElement) ?? null
+  if (!start) return null
+  const marked = start.closest<HTMLElement>('[data-cms-field]:not([data-cms-hidden])')
+  if (marked?.getAttribute('data-cms-field') === 'off') return null
+  const mark = marked && cmsFieldOf(marked)
+  const owner = marked && nodeOf(marked)
+  if (marked && mark && owner) {
+    const info = cmsBuilderFieldInfo(kindOf(owner), mark.field, mark.item)
+    return { el: marked, node: marked, ...mark, owner, info, kind: info?.text ? 'text' : 'other', found: false }
+  }
+  if (start.closest('[data-cms-typing], [data-cms-hidden]')) return null
+  const node = nodeOf(start)
+  if (!node) return null
+  const hit = textFound(node, start as HTMLElement, x, y)
+  if (hit) return hit
+  return x === undefined || y === undefined ? null : pictureFound(node, start, x, y)
+}
+
+// ---- texts and pictures found by themselves (since 2e)
+
+/** Each element's text in the normal form, until the page changes. */
+let shownCache = new WeakMap<Node, string>()
+const shown = (n: Node): string => {
+  let t = shownCache.get(n)
+  if (t === undefined) {
+    t = cmsMatchShown(n as unknown as Parameters<typeof cmsMatchShown>[0])
+    shownCache.set(n, t)
+  }
+  return t
+}
+/** Bumped whenever the page's elements or texts change: what was found in a block is found again. */
+let domVersion = 0
+const changes = new MutationObserver(() => {
+  shownCache = new WeakMap()
+  domVersion++
+})
+const visible = (el: Element) => el.getClientRects().length > 0
+
+/** A block's texts and pictures the page may find, from its values (kept while they stay the same). */
+const fieldsCache = new WeakMap<object, { kind: CmsBuilderKind | null; texts: CmsMatchField[]; pictures: CmsMatchPicture[] }>()
+function matchable(node: BNode): { texts: CmsMatchField[]; pictures: CmsMatchPicture[] } {
+  const data = cmsBuilderBlocks.get(`${node.list}\n${node.id}`)
+  const kind = kindOf(node)
+  if (!data || !kind?.fields) return { texts: [], pictures: [] }
+  const cached = fieldsCache.get(data)
+  if (cached && cached.kind === kind) return cached
+  const made = { kind, texts: cmsMatchFields(data, kind.fields), pictures: cmsMatchPictures(data, kind.fields) }
+  fieldsCache.set(data, made)
+  return made
+}
+
+/** The elements of a block that show something, in the page's order (not those of a block inside it). */
+const elementsOf = (node: BNode) => (cmsMatchElements(node.els as never[]) as unknown as HTMLElement[]).filter(visible)
+/** The same, with the text nodes that stand beside other content of their element. */
+const partsOf = (node: BNode) => (cmsMatchElements(node.els as never[], { texts: true, text: shown as never }) as unknown as (HTMLElement | Text)[])
+  .filter((n) => visible(n.nodeType === 3 ? n.parentElement! : n as HTMLElement))
+
+/** The text node under the pointer, inside `el`, and the place in its text; or null. */
+function textNodeAt(el: Element, x: number, y: number): { node: Text; offset: number } | null {
+  const doc = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null
+    caretRangeFromPoint?: (x: number, y: number) => Range | null
+  }
+  let n: Node | null | undefined
+  let offset = 0
+  if (doc.caretPositionFromPoint) {
+    const p = doc.caretPositionFromPoint(x, y)
+    n = p?.offsetNode
+    offset = p?.offset ?? 0
+  }
+  else {
+    const r = doc.caretRangeFromPoint?.(x, y)
+    n = r?.startContainer
+    offset = r?.startOffset ?? 0
+  }
+  if (!n || n.nodeType !== 3 || !el.contains(n)) return null
+  // The browser's caret goes to the nearest text even from empty space: only a text under the pointer counts.
+  const range = document.createRange()
+  range.selectNodeContents(n)
+  const near = 2 * k()
+  const on = [...range.getClientRects()].some((r) => x >= r.left - near && x <= r.right + near && y >= r.top - near && y <= r.bottom + near)
+  return on ? { node: n as Text, offset } : null
+}
+
+/** The plain or rich text of the block that the element (or one around it, up to the block) shows. */
+function textFound(node: BNode, el: HTMLElement, x?: number, y?: number): FieldHit | null {
+  const { texts } = matchable(node)
+  if (!texts.length) return null
+  const under = x !== undefined && y !== undefined ? textNodeAt(el, x, y) : null
+  const chain = cmsMatchChain((under?.node ?? el) as never, node.els as never[])
+  const m = cmsMatchAt(chain, cmsMatchUnmarked(texts, cmsMatchElements(node.els as never[])), () => partsOf(node) as never[], shown as never, under?.offset ?? null)
+  if (!m || !('field' in m)) return null
+  const info = cmsBuilderFieldInfo(kindOf(node), m.field.field, m.field.item)
+  if (m.field.kind === 'text' && !info?.text) return null
+  const hit = m.el as unknown as HTMLElement | Text
+  return {
+    el: hit.nodeType === 3 ? hit.parentElement! : hit as HTMLElement, node: hit, ...(m.range ? { range: m.range } : {}),
+    field: m.field.field, item: m.field.item, owner: node, info, kind: m.field.kind, found: true,
+  }
+}
+
+const sourcesOf = (img: HTMLImageElement) => [img.currentSrc, img.getAttribute('src') ?? '', ...cmsSrcsetUrls(img.getAttribute('srcset'))]
+
+/** The picture field of the block whose picture is under the pointer (a layer drawn over a picture lets the click through to it). */
+function pictureFound(node: BNode, start: Element, x: number, y: number): FieldHit | null {
+  const { pictures } = matchable(node)
+  if (!pictures.length) return null
+  const img = (start instanceof HTMLImageElement ? start : null)
+    ?? document.elementsFromPoint(x, y).find((el): el is HTMLImageElement => el instanceof HTMLImageElement && nodeOf(el) === node)
+  if (!img) return null
+  const own = sourcesOf(img)
+  const same = elementsOf(node).filter((el): el is HTMLImageElement => el instanceof HTMLImageElement && (el.currentSrc || el.src) === (img.currentSrc || img.src))
+  const p = cmsMatchPictureOf(own, pictures, { index: same.indexOf(img), count: same.length })
+  if (!p) return null
+  return { el: img, node: img, field: p.field, item: p.item, owner: node, info: cmsBuilderFieldInfo(kindOf(node), p.field, p.item), kind: 'picture', found: true }
+}
+
+/**
+ * For the measuring script (templates/app/scripts/typing-coverage.mjs): per block, its plain and rich texts
+ * and pictures, and which of them a click finds (and why not). Reads only; on `window` while the tools are on.
+ */
+function coverage() {
+  nodes = scan()
+  return nodes.map((node) => {
+    const { texts, pictures } = matchable(node)
+    const report = cmsMatchReport(node.els as never[], texts, visible as never, shown as never)
+    const imgs = elementsOf(node).filter((el): el is HTMLImageElement => el instanceof HTMLImageElement)
+    const seen = new Set<CmsMatchPicture>()
+    for (const img of imgs) {
+      const same = imgs.filter((el) => (el.currentSrc || el.src) === (img.currentSrc || img.src))
+      const p = cmsMatchPictureOf(sourcesOf(img), pictures, { index: same.indexOf(img), count: same.length })
+      if (p) seen.add(p)
+    }
+    const name = (f: { field: string; item: string | null }) => (f.item ? `${f.field}@${f.item.slice(0, 6)}` : f.field)
+    return {
+      path: node.path, type: node.type,
+      found: report.found.map((x) => ({ field: name(x.field), kind: x.field.kind, marked: x.marked, inItem: !!x.field.item })),
+      missed: report.missed.map((x) => ({ field: name(x.field), kind: x.field.kind, inItem: !!x.field.item, reason: x.reason, value: x.field.norm.slice(0, 80) })),
+      pictures: { total: pictures.length, found: seen.size, missed: pictures.filter((p) => !seen.has(p)).map(name) },
+    }
+  })
+}
+
+// ---- content from elsewhere: entries of a collection, a global's values (since 2f)
+
+/** Everything the page loaded, with the entries put inside them through a relation (kept while the records stay the same). */
+let recordsCache: { at: string; all: Map<string, CmsSourceRecord> } | null = null
+function allRecords(): Map<string, CmsSourceRecord> {
+  const at = `${cmsSourceChanges.version}\n${entitiesVersion}`
+  if (recordsCache?.at !== at) recordsCache = { at, all: cmsSourceWithRelated(cmsSourceRecords, entities) }
+  return recordsCache.all
+}
+
+/** The texts and pictures of everything the page loaded (kept while the records stay the same). */
+let sourceCache: { at: string; texts: CmsMatchField[]; pictures: CmsSourcePicture[]; values: CmsValueIndex } | null = null
+function sourceFields() {
+  const at = `${cmsSourceChanges.version}\n${entitiesVersion}`
+  if (sourceCache?.at !== at) {
+    // The languages a value may be written in on this page: the page's own, then the browser's.
+    const langs = [document.documentElement.lang, navigator.language].filter(Boolean)
+    const made = cmsSourceFields(allRecords().values(), entities, self, langs)
+    sourceCache = { at, texts: made.texts, pictures: made.pictures, values: cmsValueIndex(made.values) }
+  }
+  return sourceCache
+}
+
+type Part = HTMLElement | Text
+/** Whether entries of `child` come inside entries of `parent` through a relation (a lesson's teacher). */
+const related = (parent: string, child: string) => Object.values(entityOf(parent)?.fields ?? {}).some((f) => f.kind === 'relation' && f.to === child)
+/** What a block shows of entries and globals (kept until the page or the records change). */
+const foundCache = new Map<string, { at: string; found: CmsSourceFound<Part> }>()
+function foundIn(node: BNode): CmsSourceFound<Part> {
+  const at = `${domVersion}\n${cmsSourceChanges.version}\n${entitiesVersion}\n${node.els.length}`
+  const cached = foundCache.get(node.key)
+  if (cached && cached.at === at && node.els.every((el) => el.isConnected)) return cached.found
+  const { texts: own, pictures: ownPictures } = matchable(node)
+  const { texts, pictures, values } = sourceFields()
+  const picture = (n: Part): CmsSourcePicture | null => {
+    if (!(n instanceof HTMLImageElement) || !pictures.length) return null
+    const from = sourcesOf(n)
+    return ownPictures.length && cmsMatchPictureOf(from, ownPictures) ? null : cmsSourcePictureOf(from, pictures)
+  }
+  const loads = new Set(cmsSourcesLoadedBy(cmsBuilderInstances.get(`${node.list}\n${node.id}`)))
+  // What is inside a list or a group of a global (a menu's items) counts only where the block loads that
+  // global: the same words elsewhere on the page are a look's own. And a value found by a form (a number, a
+  // date) counts only for what the block loads, or what comes inside that through a relation: the same
+  // figure in another block's entry is a coincidence.
+  const mine = (entity: string) => loads.has(entity) || [...loads].some((l) => related(l, entity))
+  const allow = (part: CmsSourcePart) => {
+    if (part.kind === 'value') return mine(part.entity)
+    return !entityOf(part.entity)?.global || loads.has(part.entity) || (part.at?.length ?? 1) <= 1
+  }
+  const found = texts.length || pictures.length
+    ? cmsSourceFind(node.els as Part[], texts, { own, text: shown as (n: Part) => string, visible: (n) => visible(n as Element), picture, related, values, allow, global: (name) => !!entityOf(name)?.global, prefer: loads })
+    : { parts: new Map(), cards: [], own: [] }
+  if (foundCache.size > 60) foundCache.clear()
+  foundCache.set(node.key, { at, found })
+  return found
+}
+
+/** The selected entry's card, when it is in this block and the page shows it. */
+function selectedCard(node: BNode | null): CmsSourceCard<Part> | null {
+  if (!node || !entry || entry.key !== node.key) return null
+  return foundIn(node).cards.find((c) => c.entity === entry!.entity && c.id === entry!.id && c.els.every((el) => el.isConnected)) ?? null
+}
+
+/** The box (viewport px) around a card's elements, or around the one piece of it that is meant. */
+function cardRect(card: CmsSourceCard<Part>, piece: Node | null = null): DOMRect {
+  const els = piece && card.els.length > 1 ? card.els.filter((el) => el === piece) : card.els
+  const rects = (els.length ? els : card.els).map((el) => (el.nodeType === 3 ? el.parentElement! : el as HTMLElement).getBoundingClientRect()).filter((r) => r.width || r.height)
+  if (!rects.length) return new DOMRect()
+  const left = Math.min(...rects.map((r) => r.left))
+  const top = Math.min(...rects.map((r) => r.top))
+  return new DOMRect(left, top, Math.max(...rects.map((r) => r.right)) - left, Math.max(...rects.map((r) => r.bottom)) - top)
+}
+
+const entityOf = (name: string): CmsBuilderEntity | undefined => (Object.hasOwn(entities, name) ? entities[name] : undefined)
+/** "Oznámení · Dovolená od 21. do 31. prosince"; a global: its name. */
+function cardLabel(entity: string, id: string): string {
+  const info = entityOf(entity)
+  if (!info) return ''
+  if (info.global) return info.label
+  return `${info.label} · ${cmsSourceTitle(allRecords().get(entity)?.entries.get(id) ?? {}, info, words?.untitled ?? '')}`
+}
+
+/** The selected entry's outline and toolbar, and the card the pointer is over with its name. */
+function drawCards(current: BNode | null, host: DOMRect, sticky: number) {
+  if (!ui) return
+  ui.card.hidden = ui.cardChip.hidden = ui.cardBox.hidden = ui.cardBar.hidden = ui.cardMenu.hidden = true
+  if (!current || drag || typingEl()) return
+  const chosen = selectedCard(current)
+  const pad = 5 * k()
+  const padded = (r: DOMRect) => new DOMRect(r.left - pad, r.top - pad, r.width + pad * 2, r.height + pad * 2)
+  if (chosen) {
+    const rect = padded(cardRect(chosen, entry?.piece ?? null))
+    place(ui.cardBox, host, rect)
+    const info = entityOf(chosen.entity)
+    ui.cardEdit.hidden = info?.edit === false
+    ui.cardOpen.textContent = (words?.openIn ?? '{name}').replace('{name}', info?.label ?? chosen.entity)
+    // While the admin's box stands at one of its values, the toolbar steps aside.
+    if (boxed) return
+    leastHiddenAt(ui.cardBar, current, host, rect, BAR_HEIGHT, sticky, true)
+    if (entryMenu) {
+      ui.cardMenu.hidden = false
+      const bar = ui.cardBar.getBoundingClientRect()
+      ui.cardMenu.style.left = `${inPage(bar.right - ui.cardMenu.offsetWidth * k(), ui.cardMenu.offsetWidth * k()) - host.left}px`
+      // Under the toolbar, or above it when the sheet would cover it.
+      const menuHeight = ui.cardMenu.offsetHeight * k()
+      const under = bar.bottom + 4 * k()
+      ui.cardMenu.style.top = `${(inset > 0 && under + menuHeight > seenBottom(sticky) ? Math.max(sticky, bar.top - 4 * k() - menuHeight) : under) - host.top}px`
+    }
+  }
+  if (!cardHover || cardHover.key !== current.key || (chosen && chosen.entity === cardHover.entity && chosen.id === cardHover.id && entry?.piece === cardHover.piece)) return
+  const card = foundIn(current).cards.find((c) => c.entity === cardHover!.entity && c.id === cardHover!.id)
+  if (!card) return
+  const rect = padded(cardRect(card, cardHover.piece))
+  place(ui.card, host, rect)
+  ui.cardChip.textContent = cardLabel(card.entity, card.id)
+  leastHiddenAt(ui.cardChip, current, host, rect, 20, sticky)
+}
+
+/**
+ * Since 3c: while a card section is selected and none of its blocks, the card under the pointer names what each
+ * of its blocks shows (a field, its own text, or why it shows nothing, in the warning colour). Not while a text
+ * is typed, something is dragged or a box stands over a value.
+ */
+function drawCardChips(current: BNode | null, host: DOMRect) {
+  if (!ui) return
+  const card = current && !current.parent ? cardOf(current) : null
+  const quiet = !card || drag || press || holding || !!typingEl() || !!boxed || hoverCard?.section !== current!.id
+  const li = quiet ? null : liAt(current!, hoverCard!.key)
+  const leaves = li ? nodes.filter((n) => n.parent && inLi(n, li) && !!card!.blocks[n.id]?.chip && !card!.blocks[n.id]!.group) : []
+  pool(ui.marks, leaves.length, () => make('div', 'chip mini', ui!.root))
+  leaves.forEach((n, i) => {
+    const b = card!.blocks[n.id]!
+    const el = ui!.marks[i]!
+    el.textContent = b.chip
+    el.classList.toggle('warn', !!b.warn)
+    const r = rectOf(n)
+    // Clear of the "+" places, which stand at the right end of a stacked card's gaps.
+    const at = cardChipAt({ left: r.left, top: r.top, width: Math.max(0, r.width - 26 * k()), height: r.height }, el.offsetWidth * k(), 18 * k(), k())
+    el.style.left = `${at.left - host.left}px`
+    el.style.top = `${at.top - host.top}px`
+  })
+}
+
+/**
+ * A card's toolbar or name where it hides the least of the block's text: above the card, inside its top edge
+ * (left or right) when it is tall enough, or below it, kept on the screen (as a block's toolbar is placed).
+ */
+function leastHiddenAt(el: HTMLElement, node: BNode, host: DOMRect, rect: DOMRect, height: number, sticky: number, card = false, under = false) {
+  el.hidden = false
+  const w = el.offsetWidth * k()
+  const h = height * k()
+  const gap = 6 * k()
+  const width = document.documentElement.clientWidth
+  const clampX = (x: number) => Math.min(Math.max(x, 4 * k()), Math.max(4 * k(), width - w - 4 * k()))
+  // What stands around a text being typed never stands in it (`under`: and prefers the place under it).
+  const tall = !under && rect.height >= h * 2 + gap * 2
+  const places: { left: number; top: number }[] = [
+    ...(under ? [{ left: clampX(rect.left), top: rect.bottom + gap }] : []),
+    { left: clampX(rect.left), top: rect.top - h - gap },
+    ...(tall ? [{ left: clampX(rect.left + gap), top: rect.top + gap }, { left: clampX(rect.right - w - gap), top: rect.top + gap }] : []),
+    { left: clampX(rect.left), top: rect.bottom + gap },
+    // Since 2g, a card's toolbar: also at the right end above and below it, and beside it.
+    ...(card ? [
+      { left: clampX(rect.right - w), top: rect.top - h - gap }, { left: clampX(rect.right - w), top: rect.bottom + gap },
+      { left: clampX(rect.right + gap), top: rect.top }, { left: clampX(rect.left - w - gap), top: rect.top },
+    ] : []),
+  ]
+  const text = textAround(node)
+  const doc = (b: Box): Box => ({ left: b.left - scrollX, top: b.top - scrollY, right: b.right - scrollX, bottom: b.bottom - scrollY })
+  // A card's toolbar may stand over the card's own text sooner than over the block's heading above it.
+  const inCard = (b: Box) => card && b.left >= rect.left - 1 && b.right <= rect.right + 1 && b.top >= rect.top - 1 && b.bottom <= rect.bottom + 1
+  const covers = [...text.own.map(doc).map((box) => ({ box, weight: inCard(box) ? 2 : 4 })), ...text.other.map((b) => ({ box: doc(b), weight: card ? 2 : 1 }))]
+  const boxes = places.map((p) => ({ left: p.left, top: p.top, right: p.left + w, bottom: p.top + h }))
+  const best = places[leastHidden(boxes, covers, { left: 0, top: sticky, right: width, bottom: seenBottom(sticky) })]!
+  el.style.left = `${best.left - host.left}px`
+  el.style.top = `${best.top - host.top}px`
+}
+
+/** Tell the admin where the selected block's content comes from, when that changed. */
+function sendSources(current: BNode | null) {
+  if (!current || drag || holding || typingEl()) return
+  const at = `${current.key}\n${domVersion}\n${cmsSourceChanges.version}\n${entitiesVersion}`
+  if (at === sourcesAt) return
+  sourcesAt = at
+  const known = cmsSourcesLoadedBy(cmsBuilderInstances.get(`${current.list}\n${current.id}`)).filter((e) => e !== self?.entity)
+  const sources = cmsSourcesOf(foundIn(current), known, allRecords(), entities, words?.untitled ?? '', Date.now(), drawsNothing(current))
+  const said = `${current.key}\n${JSON.stringify(sources)}`
+  if (said === sourcesSent) return
+  sourcesSent = said
+  send({ type: 'cms:builder:sources', id: current.id, path: current.path, sources })
+}
+
+/** A block whose component draws nothing now: only <CmsBlocks>' placeholder stands for it. */
+const drawsNothing = (node: BNode) => node.els.every((el) => el.hasAttribute('data-cms-blank'))
+
+/** The piece of a card in several pieces that holds a node; `null` for a card of one element. */
+const pieceOf = (card: CmsSourceCard<Part>, target: Node | null): Node | null => (card.els.length > 1 && target ? card.els.find((el) => el.contains(target)) ?? null : null)
+
+/** Let go of the entry selected inside the block (the block stays selected). */
+function clearEntry() {
+  if (!entry) return
+  entry = null
+  entryMenu = false
+  schedule()
+}
+
+function selectEntry(node: BNode, card: CmsSourceCard<Part>, target: Node | null = null) {
+  entry = { key: node.key, entity: card.entity, id: card.id, piece: pieceOf(card, target) }
+  entryMenu = false
+  setCardHint(null)
+  schedule()
+}
+
+/** Edit an entry beside the page (`field` in view), or open it in its own section. */
+function editEntry(entity: string, id: string, field?: string, open = false) {
+  const info = entityOf(entity)
+  if (!info || (!open && info.edit === false)) return
+  send({ type: 'cms:builder:entry', entity, id, ...(field ? { field } : {}), ...(open ? { open: true } : {}) })
+}
+
+/** The pointer is a pointer over an entry's card in the selected block. */
+function setCardHint(el: HTMLElement | null) {
+  if (cardHinted === el) return
+  cardHinted?.removeAttribute('data-cms-card-hint')
+  cardHinted = el
+  el?.setAttribute('data-cms-card-hint', '')
+}
+
+/** The entry's card under the pointer, in the selected block (not in a block inside it). */
+function cardAt(current: BNode | null, target: Node): CmsSourceCard<Part> | null {
+  if (!current || nodeOf(target)?.key !== current.key) return null
+  return cmsSourceCardAt(foundIn(current), target as Part)
+}
+
+/**
+ * For the measuring script: per block, every visible text and what it resolves to (a field of the block,
+ * of an entry, of a global, or nothing, with its kind), and the block's sources. Reads only.
+ */
+function textsCoverage() {
+  nodes = scan()
+  const all = sourceFields().texts.map((f) => f.norm)
+  return nodes.map((node) => {
+    const { texts } = matchable(node)
+    const found = foundIn(node)
+    const pieces = cmsTextsReport(node.els as Part[], texts, found, entities, { text: shown as (n: Part) => string, visible: (n) => visible(n as Element), values: [...texts.map((f) => f.norm), ...all] })
+    const known = cmsSourcesLoadedBy(cmsBuilderInstances.get(`${node.list}\n${node.id}`)).filter((e) => e !== self?.entity)
+    return { path: node.path, type: node.type, pieces: pieces.map((p) => ({ res: p.res, ...(p.rest ? { rest: p.rest } : {}), ...(p.by ? { by: p.by } : {}), ...(p.of ? { of: p.of, at: p.at } : {}), text: p.text.slice(0, 60) })), sources: cmsSourcesOf(found, known, allRecords(), entities, words?.untitled ?? '', Date.now(), drawsNothing(node)) }
+  })
+}
+
+function stop(e: Event) {
+  if (e.composedPath().includes(ui!.host)) return
+  e.preventDefault()
+  e.stopImmediatePropagation()
+}
+
+// ---- toolbar actions
+
+function selectedNode() {
+  nodes = scan()
+  return nodeAt(selected)
+}
+
+/** Move the selected block one place back (-1) or on (1) within its list. */
+function step(direction: -1 | 1) {
+  const node = selectedNode()
+  if (!node || holding) return
+  const items = siblingsOf(node)
+  const neighbour = items[items.indexOf(node) + direction]
+  if (!neighbour) return
+  const at = node.parent ? { in: node.parent.path } : {}
+  send({ type: 'cms:builder:move', id: node.id, path: node.path, place: direction < 0 ? { before: neighbour.id, ...at } : { after: neighbour.id, ...at } })
+}
+
+function act(type: 'cms:builder:duplicate' | 'cms:builder:remove') {
+  const node = selectedNode()
+  if (!node || holding) return
+  send({ type, id: node.id, path: node.path })
+  // Nothing is selected after a delete: the toolbar never stays on the block around it.
+  if (type === 'cms:builder:remove') choose(null)
+}
+
+function key(name: CmsBuilderKey | string, alt: boolean): boolean {
+  if (name === 'Escape') {
+    if (boxed) {
+      closeBox(true)
+      return true
+    }
+    if (entry && !press) {
+      // An entry selected inside the block: back to the block.
+      entry = null
+      entryMenu = false
+      schedule()
+      return true
+    }
+    if (press) {
+      // The button is still down: its release makes a click on the page, which is not one of the person's.
+      window.addEventListener('pointerup', () => { calledOff = performance.now() }, { once: true, capture: true })
+      cancelDrag()
+    }
+    else if (selected !== null) {
+      const node = selectedNode()
+      choose(node?.parent ? node.parent.path : null)
+    }
+    else return false
+    return true
+  }
+  if (!alt || !selected || typingEl()) return false
+  if (name === 'ArrowUp' || name === 'ArrowLeft') step(-1)
+  else if (name === 'ArrowDown' || name === 'ArrowRight') step(1)
+  else return false
+  return true
+}
+
+/** Ctrl/⌘ Z (undo), Ctrl/⌘ ⇧ Z and Ctrl Y (redo), pressed in the page outside a text field: the admin keeps the history. */
+function historyKey(e: KeyboardEvent): 'undo' | 'redo' | null {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey) return null
+  const name = e.key.toLowerCase()
+  const action = name === 'z' ? (e.shiftKey ? 'redo' : 'undo') : name === 'y' && e.ctrlKey && !e.metaKey ? 'redo' : null
+  if (!action) return null
+  const target = e.composedPath()[0]
+  if (target instanceof Element && target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return null
+  return action
+}
+
+function onKey(e: KeyboardEvent) {
+  const action = historyKey(e)
+  if (action) {
+    e.preventDefault()
+    if (!drag && !press) send({ type: 'cms:builder:history', action })
+    return
+  }
+  if (key(e.key, e.altKey) && e.key !== 'Escape') e.preventDefault()
+}
+
+// ---- drag to reorder, and to another list
+
+function startPress(e: PointerEvent) {
+  const node = selectedNode()
+  if (!node || holding || e.button !== 0 || typingEl() || startsOutside()) return
+  e.preventDefault()
+  press = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, node }
+  ui!.handle.setPointerCapture(e.pointerId)
+  window.addEventListener('pointermove', movePress)
+  window.addEventListener('pointerup', endPress)
+  window.addEventListener('pointercancel', cancelDrag)
+}
+
+function movePress(e: PointerEvent) {
+  if (!press || e.pointerId !== press.pointerId) return
+  if (!drag) {
+    if (Math.hypot(e.clientX - press.startX, e.clientY - press.startY) <= DRAG_START * k()) return
+    beginDrag(press.node, press.startX, press.startY)
+  }
+  drag!.lastX = e.clientX
+  drag!.lastY = e.clientY
+  updateDrag()
+}
+
+/** A list as it stands now: its blocks' boxes, its direction and its places. A card section's list is the card's (`li`): its area is the card. */
+function geoOf(container: BNode | null, items: BNode[], li: HTMLElement | null = null): ListGeo {
+  const boxes = items.map(boxOf)
+  const axis = axisOfList(items, boxes, container)
+  const card = li && container && !container.parent && cardOf(container) ? li.getBoundingClientRect() : null
+  return {
+    container, path: container?.path ?? [], items, boxes, axis, single: oneLine(boxes, axis), slots: slotsOf(boxes, axis),
+    area: card ? { left: card.left + scrollX, top: card.top + scrollY, right: card.right + scrollX, bottom: card.bottom + scrollY } : container ? boxOf(container) : null,
+    depth: container?.path.length ?? 0,
+  }
+}
+
+/** The other lists a block may be dragged into: inside a section, the lists that take its type (the same definition) and have room. */
+function candidatesFor(node: BNode): ListGeo[] {
+  const kind = kindOf(node)
+  if (!node.parent || !kind) return []
+  const inside = (n: BNode) => n.path.length >= node.path.length && node.path.every((id, i) => n.path[i] === id)
+  // A block of a card's design moves within the card it was taken from (the card's list and its groups); all cards follow.
+  const li = liOfNode(node)
+  const here = (n: BNode) => !li || (n.parent ? inLi(n, li) : n === sectionOf(node))
+  return nodes.filter((n) => {
+    if (n === node.parent || inside(n) || !here(n)) return false
+    const list = listKindsOf(n)
+    const theirs = list?.types[node.type]
+    return !!list && !!theirs && theirs.sig === kind.sig && (list.max === null || childrenOf(n, li).length < list.max)
+  }).map((n) => geoOf(n, childrenOf(n, li), li))
+}
+
+function beginDrag(node: BNode, x: number, y: number) {
+  const items = siblingsOf(node)
+  const own = geoOf(node.parent, items, liOfNode(node))
+  const from = items.indexOf(node)
+  const gaps = own.boxes.slice(1).map((b, i) => (own.axis === 'x' ? b.left - own.boxes[i]!.right : b.top - own.boxes[i]!.bottom)).filter((g) => g >= 0)
+  const box = own.boxes[from]!
+  const styles = new Map(items.flatMap((n) => n.els).map((el) => [el, el.getAttribute('style')]))
+  drag = {
+    node, own, from, into: own, index: from, slot: null, candidates: candidatesFor(node), cells: !own.single && sameSizes(own.boxes), dwell: null,
+    step: (own.axis === 'x' ? box.right - box.left : box.bottom - box.top) + (gaps.length ? Math.min(...gaps) : 0),
+    // A block of the page's list moves up and down only, as the page's blocks stand; one inside a section follows the pointer.
+    free: !!node.parent,
+    startX: x, startY: y, startScroll: scrollY, lastX: x, lastY: y, styles,
+    shrink: node.parent ? Math.min(1, (280 * k()) / Math.max(1, box.right - box.left), (220 * k()) / Math.max(1, box.bottom - box.top)) : 1,
+  }
+  const motion = reduced() ? 'none' : `transform 200ms ${EASE}`
+  for (const n of items) for (const el of n.els) el.style.transition = n === node ? 'none' : motion
+  for (const el of node.els) {
+    el.style.boxShadow = '0 26px 50px -18px rgba(40,30,15,.42),0 0 0 1px rgba(40,30,15,.06)'
+    el.style.zIndex = '1000'
+    // Most blocks have no background of their own: lifted, they would show the others through them.
+    if (transparent(getComputedStyle(el).backgroundColor)) el.style.backgroundColor = backgroundBehind(el)
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative'
+    // Smaller around the point it was taken by.
+    if (drag.shrink < 1) {
+      const r = el.getBoundingClientRect()
+      el.style.transformOrigin = `${x - r.left}px ${y - r.top}px`
+    }
+  }
+  // A block carried smaller shrinks in 150 ms, not at once; then it follows the pointer without delay.
+  if (drag.shrink < 1 && !reduced()) {
+    const carried = drag
+    for (const el of node.els) el.style.transition = `transform 150ms ${EASE}`
+    setTimeout(() => { if (drag === carried) for (const el of node.els) el.style.transition = 'none' }, 160)
+  }
+  hover = null
+  plus = null
+  scrollLoop()
+}
+
+const transparent = (color: string) => color === 'transparent' || /^rgba\(.*,\s*0\)$/.test(color)
+
+/** The colour the page shows behind an element: the first ancestor with a background of its own. */
+function backgroundBehind(el: HTMLElement): string {
+  for (let at = el.parentElement; at; at = at.parentElement) {
+    const color = getComputedStyle(at).backgroundColor
+    if (!transparent(color)) return color
+  }
+  return '#fff'
+}
+
+const within = (b: Box, x: number, y: number) => x >= b.left && x <= b.right && y >= b.top && y <= b.bottom
+function updateDrag() {
+  const d = drag!
+  // The block follows the pointer, but never out of the page (which would make it scroll sideways).
+  const box = d.own.boxes[d.from]!
+  const dx = d.free ? Math.min(Math.max(d.lastX - d.startX, -box.left + scrollX), document.documentElement.clientWidth + scrollX - box.right) : 0
+  const dy = d.lastY - d.startY + scrollY - d.startScroll
+  for (const el of d.node.els) el.style.transform = `translate(${dx}px, ${dy}px)${d.shrink < 1 ? ` scale(${d.shrink})` : ''}`
+  const x = d.lastX + scrollX
+  const y = d.lastY + scrollY
+  // The deepest list under the pointer that takes the block (its own list among them); else its own list.
+  // A group (a list inside a section) takes it only in its inner area, or after the pointer stayed over
+  // it for a moment: near its edges the block lands before or after the group.
+  const under = [d.own, ...d.candidates].filter((c) => c.area && within(c.area, x, y)).sort((a, b) => b.depth - a.depth)
+  const group = under.find((c) => c !== d.own && c.depth > 1) ?? null
+  if (group !== d.dwell?.list) d.dwell = group ? { list: group, since: performance.now() } : null
+  const takes = (c: ListGeo) => c === d.own || c.depth <= 1 || within(innerArea(c.area!, 24 * k()), x, y) || (d.dwell?.list === c && performance.now() - d.dwell.since >= DWELL)
+  const over = under.find(takes)
+  d.into = over ?? d.own
+  if (d.into === d.own) {
+    d.slot = nearestSlot(d.own.slots, x, y)
+    d.index = d.slot ? targetAmongOthers(d.slot.index, d.from) : d.from
+  }
+  else {
+    d.slot = nearestSlot(d.into.slots, x, y)
+    d.index = d.slot?.index ?? 0
+  }
+  // In its own list of one line the others make room; in a grid they close the gap and open one at the
+  // target; anywhere else they stay and a line shows the place.
+  const home = d.into === d.own
+  if (home && d.cells) {
+    const shifts = cellShifts(d.own.boxes, d.from, d.index)
+    d.own.items.forEach((n, i) => {
+      if (n === d.node) return
+      const [sx, sy] = shifts[i]!
+      for (const el of n.els) el.style.transform = sx || sy ? `translate(${sx}px, ${sy}px)` : ''
+    })
+    schedule()
+    return
+  }
+  const shifting = home && d.own.single
+  const target = shifting ? d.index : d.from
+  d.own.items.forEach((n, i) => {
+    if (n === d.node) return
+    const shift = shiftFor(i, d.from, target, d.step)
+    for (const el of n.els) el.style.transform = shift ? (d.own.axis === 'x' ? `translateX(${shift}px)` : `translateY(${shift}px)`) : ''
+  })
+  schedule()
+}
+
+/** Scroll the page while the pointer is near the top or bottom of the viewport, so a block can be carried further. */
+function scrollLoop() {
+  if (!drag) return
+  // The bottom edge is the sheet's top, when one covers the frame.
+  const speed = edgeSpeed(drag.lastY, visibleBottom(innerHeight, inset * k(), 0), 60 * k(), 22 * k())
+  if (speed) {
+    window.scrollBy({ top: speed, behavior: 'instant' as ScrollBehavior })
+    updateDrag()
+  }
+  // Waiting over a group: it takes the block once the moment has passed, without the pointer moving.
+  else if (drag.dwell && drag.into !== drag.dwell.list && performance.now() - drag.dwell.since >= DWELL) updateDrag()
+  requestAnimationFrame(scrollLoop)
+}
+
+function endPress() {
+  const d = drag
+  releasePress()
+  if (!d) return
+  drag = null
+  const inside = d.node.parent ? { in: d.node.parent.path } : {}
+  if (d.into === d.own) {
+    const ids = d.own.items.map((n) => n.id)
+    const where = dropPlace(ids, d.from, d.index)
+    if (!where) return settleBack(d)
+    send({ type: 'cms:builder:move', id: d.node.id, path: d.node.path, place: { ...where, ...inside } as CmsBuilderPlace })
+    if (d.cells) {
+      const to = d.own.boxes[d.index]!
+      const fromBox = d.own.boxes[d.from]!
+      for (const el of d.node.els) {
+        el.style.transition = reduced() ? 'none' : `transform 200ms ${EASE}`
+        el.style.transform = `translate(${to.left - fromBox.left}px, ${to.top - fromBox.top}px)`
+      }
+    }
+    else if (d.own.single) {
+      // Carry the block to the place it lands on, then wait for the page to draw the new order.
+      const others = d.own.boxes.filter((_, i) => i !== d.from)
+      const x = d.own.axis === 'x'
+      const end = (b: Box) => (x ? b.right : b.bottom)
+      const start = (b: Box) => (x ? b.left : b.top)
+      const by = d.index > d.from ? end(others[d.index - 1]!) - end(d.own.boxes[d.from]!) : start(others[d.index]!) - start(d.own.boxes[d.from]!)
+      for (const el of d.node.els) {
+        el.style.transition = reduced() ? 'none' : `transform 200ms ${EASE}`
+        el.style.transform = x ? `translate(${by}px, 0px)` : `translate(0px, ${by}px)`
+      }
+    }
+    const expected = droppedOrder(ids, d.from, d.index).join()
+    settle(d, (done) => redrawn(() => {
+      const now = nodes.length ? scanSiblings(d.node) : []
+      return now.join() === expected
+    }, done))
+  }
+  else {
+    const ids = d.into.items.map((n) => n.id)
+    const place = placeInList(ids, d.index, d.into.path)
+    send({ type: 'cms:builder:move', id: d.node.id, path: d.node.path, place })
+    const path = [...d.into.path, d.node.id]
+    selected = path
+    settle(d, (done) => redrawn(() => scan().some((n) => samePath(n.path, path)), done))
+  }
+  schedule()
+}
+
+/** The ids of a block's list as the page draws them now. */
+function scanSiblings(node: BNode): string[] {
+  const fresh = scan()
+  const parentKey = node.parent?.key ?? null
+  return fresh.filter((n) => (n.parent?.key ?? null) === parentKey && n.list === node.list).map((n) => n.id)
+}
+
+/** Call `done` once the page has redrawn so that `ready()` holds. */
+function redrawn(ready: () => boolean, done: () => void): () => void {
+  const observer = new MutationObserver(() => { if (ready()) done() })
+  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-cms-block'] })
+  return () => observer.disconnect()
+}
+
+function cancelDrag() {
+  const d = drag
+  releasePress()
+  drag = null
+  if (d) settleBack(d)
+  schedule()
+}
+
+function releasePress() {
+  if (press && ui!.handle.hasPointerCapture(press.pointerId)) ui!.handle.releasePointerCapture(press.pointerId)
+  press = null
+  window.removeEventListener('pointermove', movePress)
+  window.removeEventListener('pointerup', endPress)
+  window.removeEventListener('pointercancel', cancelDrag)
+}
+
+/** Everything animates back to where it was, then the page's own styles are restored. */
+function settleBack(d: Drag) {
+  const moved = d.node.els.some((el) => el.style.transform !== 'translate(0px, 0px)' && el.style.transform !== '')
+  for (const el of d.node.els) {
+    el.style.transition = reduced() ? 'none' : `transform 200ms ${EASE}`
+    el.style.transform = 'translate(0px, 0px)'
+  }
+  for (const n of d.own.items) if (n !== d.node) for (const el of n.els) el.style.transform = ''
+  const first = d.node.els[0]!
+  settle(d, (done) => {
+    if (!moved || reduced()) { done(); return () => {} }
+    const ended = (e: TransitionEvent) => { if (e.target === first) done() }
+    first.addEventListener('transitionend', ended)
+    return () => first.removeEventListener('transitionend', ended)
+  })
+  schedule()
+}
+
+/** Hold the dragged block's look until `trigger` calls done (or a fallback), then give every inline style back exactly. */
+function settle(d: Drag, trigger: (done: () => void) => () => void) {
+  holding = true
+  let over = false
+  let cleanup = () => {}
+  const timer = setTimeout(() => done(), FALLBACK_MS)
+  function done() {
+    if (over) return
+    over = true
+    clearTimeout(timer)
+    cleanup()
+    for (const [el, style] of d.styles) {
+      if (style === null) el.removeAttribute('style')
+      else el.setAttribute('style', style)
+    }
+    holding = false
+    schedule()
+  }
+  cleanup = trigger(done)
+  if (over) cleanup()
+}
+
+// ---- the layer
+
+const ICONS = {
+  grip: '<circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/>',
+  up: '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+  down: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
+  left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  open: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+}
+const svg = (icon: string) => `<svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>`
+
+const STYLE = `
+:host{--k:1}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+.o{position:absolute;pointer-events:none;border-radius:calc(3px * var(--k))}
+.hover{outline:calc(1.5px * var(--k)) solid rgba(47,98,214,.5);outline-offset:calc(-1.5px * var(--k))}
+.hover.sub{outline:calc(1px * var(--k)) dashed rgba(47,98,214,.6);outline-offset:calc(-1px * var(--k))}
+.sel{outline:calc(2px * var(--k)) solid #2f62d6;outline-offset:calc(-2px * var(--k))}
+.sel.sub{outline:calc(1.5px * var(--k)) solid #6b93ea;outline-offset:calc(-1.5px * var(--k))}
+.ctx{outline:calc(1px * var(--k)) dashed rgba(47,98,214,.38);outline-offset:calc(-1px * var(--k))}
+.into{border-radius:calc(6px * var(--k));background:rgba(47,98,214,.07);outline:calc(2px * var(--k)) solid #2f62d6;outline-offset:calc(-2px * var(--k));transition:opacity 150ms ease-out}
+.from{border-radius:calc(6px * var(--k));background:repeating-linear-gradient(135deg,rgba(47,98,214,.07) 0 calc(6px * var(--k)),rgba(47,98,214,.02) calc(6px * var(--k)) calc(12px * var(--k)));outline:calc(1.5px * var(--k)) dashed rgba(47,98,214,.55);outline-offset:calc(-1.5px * var(--k))}
+.cell{border-radius:calc(6px * var(--k));background:rgba(47,98,214,.06);outline:calc(2px * var(--k)) dashed #2f62d6;outline-offset:calc(-2px * var(--k))}
+.chip,.bar,.add{transform-origin:0 0;transform:scale(var(--k))}
+.chip{position:absolute;z-index:1;pointer-events:none;background:#fff;color:#2f62d6;font:600 11px/20px system-ui,sans-serif;border-radius:6px;padding:0 7px;white-space:nowrap;box-shadow:0 0 0 1px rgba(47,98,214,.35),0 2px 6px rgba(0,0,0,.08)}
+.bar{position:absolute;z-index:2;pointer-events:auto;display:flex;align-items:center;gap:1px;height:30px;padding:0 3px;border-radius:9px;background:#1f1e1c;color:#f3f1ec;box-shadow:0 6px 18px -6px rgba(0,0,0,.4)}
+.name{font:600 11.5px/1 system-ui,sans-serif;padding:0 8px;white-space:nowrap}
+.rule{width:1px;height:16px;margin:0 3px;background:rgba(255,255,255,.2)}
+.tool{display:grid;place-items:center;width:26px;height:24px;padding:0;border:0;border-radius:6px;background:none;color:inherit;cursor:pointer;transition:background-color 150ms ease-out}
+.tool:hover:not(:disabled){background:rgba(255,255,255,.16)}
+.tool:disabled{opacity:.35;cursor:default}
+.tool:focus-visible,.add:focus-visible,.empty:focus-visible{outline:2px solid #8fb0f5;outline-offset:1px}
+.tool.grab{cursor:grab;touch-action:none}
+.tool.grab:active{cursor:grabbing}
+svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.line{position:absolute;pointer-events:none;border-top:calc(1.5px * var(--k)) dashed #2f62d6}
+.add{position:absolute;pointer-events:auto;display:grid;place-items:center;width:26px;height:26px;padding:0;border-radius:50%;border:1px solid rgba(47,98,214,.5);background:#fff;color:#2f62d6;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.14);transition:background-color 150ms ease-out,color 150ms ease-out,transform 150ms ease-out}
+.add.small{width:24px;height:24px}
+.add.small svg{width:13px;height:13px}
+.add:hover{background:#2f62d6;color:#fff;transform:scale(calc(var(--k) * 1.08))}
+.empty{position:absolute;pointer-events:auto;transform:translate(-50%,-50%) scale(var(--k));display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px 0 9px;border-radius:999px;border:1px solid rgba(47,98,214,.45);background:#fff;color:#2f62d6;font:600 12px/1 system-ui,sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.1);transition:background-color 150ms ease-out,color 150ms ease-out}
+.empty:hover{background:#2f62d6;color:#fff}
+.empty svg{width:14px;height:14px}
+.hint{border-radius:calc(3px * var(--k));outline:calc(1px * var(--k)) dotted rgba(47,98,214,.75);outline-offset:0}
+.typing{border-radius:calc(4px * var(--k));outline:calc(1.5px * var(--k)) solid rgba(47,98,214,.45);outline-offset:0;background:rgba(47,98,214,.04)}
+.boxed{border-radius:calc(4px * var(--k));outline:calc(1.5px * var(--k)) solid rgba(47,98,214,.6);outline-offset:0;background:rgba(47,98,214,.05)}
+.note{position:absolute;z-index:1;pointer-events:none;transform-origin:0 0;transform:scale(var(--k));display:flex;align-items:baseline;gap:7px;width:max-content;max-width:min(34rem,calc(100vw - 16px));padding:4px 9px;border-radius:7px;background:#fff;color:#5b5a56;font:500 11.5px/1.35 system-ui,sans-serif;box-shadow:0 0 0 1px rgba(47,98,214,.3),0 2px 8px rgba(0,0,0,.08)}
+.note b{flex:none;font-weight:600;color:#1f1e1c;white-space:nowrap}
+.note b::before{content:'';display:inline-block;width:6px;height:6px;margin:0 6px 1px 0;border-radius:50%;background:#2f62d6;vertical-align:middle}
+.sel.held{outline:calc(1.5px * var(--k)) dashed rgba(47,98,214,.55);outline-offset:calc(-1.5px * var(--k))}
+.card{border-radius:calc(8px * var(--k));outline:calc(1.5px * var(--k)) solid rgba(47,98,214,.45);outline-offset:0;background:rgba(47,98,214,.035);transition:opacity 150ms ease-out}
+.cardsel{border-radius:calc(8px * var(--k));outline:calc(2px * var(--k)) solid #2f62d6;outline-offset:0}
+.chip.entry{color:#1f1e1c;font-weight:500;max-width:min(30rem,calc(100vw - 16px));overflow:hidden;text-overflow:ellipsis}
+.chip.entry::before{content:'';display:inline-block;width:6px;height:6px;margin:0 6px 1px 0;border-radius:50%;background:#2f62d6;vertical-align:middle}
+.tool.wide{width:auto;gap:5px;padding:0 9px 0 7px;display:inline-flex;align-items:center;font:600 11.5px/1 system-ui,sans-serif;white-space:nowrap}
+.menu{position:absolute;z-index:3;pointer-events:auto;transform-origin:0 0;transform:scale(var(--k));min-width:180px;padding:4px;border-radius:9px;background:#fff;color:#1f1e1c;box-shadow:0 0 0 1px rgba(31,30,28,.1),0 10px 28px -8px rgba(0,0,0,.28)}
+.menu button{display:flex;align-items:center;gap:8px;width:100%;padding:7px 9px;border:0;border-radius:6px;background:none;color:inherit;font:500 12.5px/1.2 system-ui,sans-serif;text-align:left;white-space:nowrap;cursor:pointer}
+.menu button:hover,.menu button:focus-visible{background:rgba(47,98,214,.08);outline:none}
+.menu svg{width:14px;height:14px;flex:none;color:#5b5a56}
+.drop{position:absolute;pointer-events:none;border-radius:calc(3px * var(--k));background:#2f62d6;box-shadow:0 0 0 calc(2px * var(--k)) rgba(255,255,255,.75)}
+.rep{outline:calc(1.5px * var(--k)) dashed rgba(47,98,214,.7);outline-offset:calc(-1.5px * var(--k))}
+.glow{border-radius:calc(4px * var(--k));background:rgba(47,98,214,.14)}
+.chip.mini{height:18px;padding:0 6px;border-radius:5px;background:rgba(255,255,255,.96);color:#34508f;font:500 10.5px/18px system-ui,sans-serif;box-shadow:0 0 0 1px rgba(47,98,214,.28),0 1px 4px rgba(0,0,0,.08)}
+.chip.mini.warn{background:#fdf6e3;color:#86590a;box-shadow:0 0 0 1px #e6cf96,0 1px 4px rgba(0,0,0,.08)}
+.name i{font-style:normal;font-weight:500;opacity:.7}
+.name i.warn{color:#f0c36a;opacity:1}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+:host(.lull) :is(.bar,.add,.empty,.menu){pointer-events:none!important}
+@media (pointer:coarse){
+.tool,.menu button{position:relative}
+.tool{width:40px;height:28px}
+.tool::after,.add::after,.empty::after{content:'';position:absolute}
+.tool::after{inset:-6px 0}
+.add::after{inset:-8px}
+.empty::after{inset:-5px 0}
+.menu button{min-height:40px}
+}
+/* A page as narrow as a phone's, touched: the name would make the bar wider than the page (the sheet names the block). */
+@media (pointer:coarse) and (max-width:520px){.name,.name+.rule{display:none}}
+`
+
+function make<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, parent: Node, text?: string): HTMLElementTagNameMap[K] {
+  const el = document.createElement(tag)
+  el.className = className
+  if (text) el.textContent = text
+  parent.appendChild(el)
+  return el
+}
+
+function tool(parent: Node, icon: string, className: string): HTMLButtonElement {
+  const button = make('button', className, parent)
+  button.type = 'button'
+  button.innerHTML = svg(icon)
+  return button
+}
+
+function label(button: HTMLButtonElement, word: string | undefined) {
+  if (!word) return
+  button.setAttribute('aria-label', word)
+  button.title = word
+}
+
+function build(): Ui {
+  const host = document.createElement('div')
+  host.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;z-index:2147483000;pointer-events:none'
+  const root = host.attachShadow({ mode: 'open' })
+  make('style', '', root, STYLE)
+  const context = make('div', 'o ctx', root)
+  const hoverBox = make('div', 'o hover', root)
+  const box = make('div', 'o sel', root)
+  const from = make('div', 'o from', root)
+  const cell = make('div', 'o cell', root)
+  const into = make('div', 'o into', root)
+  const typing = make('div', 'o typing', root)
+  const boxedBox = make('div', 'o boxed', root)
+  const note = make('div', 'note', root)
+  const noteName = make('b', '', note)
+  const noteText = make('span', '', note)
+  const hintBox = make('div', 'o hint', root)
+  const drop = make('div', 'drop', root)
+  const line = make('div', 'line', root)
+  const chip = make('div', 'chip', root)
+  const bar = make('div', 'bar', root)
+  const handle = tool(bar, ICONS.grip, 'tool grab')
+  const name = make('span', 'name', bar)
+  make('span', 'rule', bar)
+  const prev = tool(bar, ICONS.up, 'tool')
+  const next = tool(bar, ICONS.down, 'tool')
+  const duplicate = tool(bar, ICONS.copy, 'tool')
+  const remove = tool(bar, ICONS.trash, 'tool')
+  // A block of a card's design (since 3c): the whole entry of the card it stands in.
+  const entryRule = make('span', 'rule', bar)
+  const entryTool = tool(bar, ICONS.pencil, 'tool')
+  const add = tool(root, ICONS.plus, 'add')
+  // An entry inside the selected block (since 2f): the card the pointer is over with its name, the selected
+  // one with "Edit" and "…" ("Open in its section").
+  const card = make('div', 'o card', root)
+  const cardBox = make('div', 'o cardsel', root)
+  const cardChip = make('div', 'chip entry', root)
+  const cardBar = make('div', 'bar', root)
+  const cardEdit = tool(cardBar, ICONS.pencil, 'tool wide')
+  const cardEditLabel = make('span', '', cardEdit)
+  const cardMore = tool(cardBar, ICONS.more, 'tool')
+  cardMore.setAttribute('aria-haspopup', 'menu')
+  const cardMenu = make('div', 'menu', root)
+  cardMenu.setAttribute('role', 'menu')
+  const cardOpenItem = make('button', '', cardMenu) as HTMLButtonElement
+  cardOpenItem.type = 'button'
+  cardOpenItem.setAttribute('role', 'menuitem')
+  cardOpenItem.innerHTML = svg(ICONS.open)
+  const cardOpen = make('span', '', cardOpenItem)
+  for (const el of [context, hoverBox, chip, box, into, from, cell, typing, boxedBox, note, hintBox, drop, line, bar, add, card, cardBox, cardChip, cardBar, cardMenu, entryRule, entryTool]) el.hidden = true
+  document.body.appendChild(host)
+  handle.addEventListener('pointerdown', startPress)
+  prev.addEventListener('click', () => step(-1))
+  next.addEventListener('click', () => step(1))
+  duplicate.addEventListener('click', () => act('cms:builder:duplicate'))
+  remove.addEventListener('click', () => act('cms:builder:remove'))
+  entryTool.addEventListener('click', () => {
+    const node = selectedNode()
+    const whose = node ? entryOfLi(liOfNode(node)) : null
+    if (whose) editEntry(whose.entity, whose.id)
+  })
+  add.addEventListener('click', () => { if (plus) send({ type: 'cms:builder:add', place: { after: plus.after } }) })
+  cardEdit.addEventListener('click', () => { if (entry) editEntry(entry.entity, entry.id) })
+  cardMore.addEventListener('click', () => {
+    entryMenu = !entryMenu
+    cardMore.setAttribute('aria-expanded', String(entryMenu))
+    schedule()
+    if (entryMenu) requestAnimationFrame(() => cardOpenItem.focus({ preventScroll: true }))
+  })
+  cardOpenItem.addEventListener('click', () => {
+    if (entry) editEntry(entry.entity, entry.id, undefined, true)
+    entryMenu = false
+    schedule()
+  })
+  return {
+    host, root, hover: hoverBox, chip, context, box, bar, name, prev, next, duplicate, remove, handle, line, add, drop, into, from, cell, typing, note, noteName, noteText, boxed: boxedBox, hint: hintBox,
+    card, cardChip, cardBox, cardBar, cardEdit, cardEditLabel, cardMore, cardMenu, cardOpen, adds: [], empties: [],
+    repeats: [], marks: [], entryRule, entry: entryTool,
+  }
+}
+
+/** The page's cursor over what a click edits (the element carries `data-cms-hint`, set by the overlay). */
+const HINT_STYLE = `
+[data-cms-hint="text"],[data-cms-hint="text"] *{cursor:text!important}
+[data-cms-hint="field"],[data-cms-hint="field"] *{cursor:pointer!important}
+[data-cms-card-hint],[data-cms-card-hint] *{cursor:pointer!important}
+`
+
+function start() {
+  ui = build()
+  setupTyping(send, schedule)
+  const style = document.createElement('style')
+  style.id = 'cms-builder-hint'
+  style.textContent = HINT_STYLE
+  document.head.appendChild(style)
+  changes.observe(document.body, { childList: true, subtree: true, characterData: true })
+  ;(window as unknown as { __cmsBuilderCoverage?: typeof coverage }).__cmsBuilderCoverage = coverage
+  ;(window as unknown as { __cmsBuilderTexts?: typeof textsCoverage }).__cmsBuilderTexts = textsCoverage
+  ;(window as unknown as { __cmsBuilderRecords?: () => number }).__cmsBuilderRecords = () => cmsSourceRecords.size
+  cmsSourceChanges.listeners.add(schedule)
+  cmsBuilderDraft.listeners.add(landed)
+  window.addEventListener('pointerdown', notePress, true)
+  ui.root.addEventListener('click', (e) => guardTools(e as MouseEvent), true)
+  window.addEventListener('mousedown', onMouseDown, true)
+  window.addEventListener('click', onClick, true)
+  window.addEventListener('dblclick', onDoubleClick, true)
+  window.addEventListener('submit', stop, true)
+  window.addEventListener('pointermove', track)
+  window.addEventListener('pointerdown', track)
+  window.addEventListener('keydown', onKey)
+  window.addEventListener('resize', () => {
+    keepInView = true
+    schedule()
+  })
+  // The admin's box follows the element it stands at while the page scrolls.
+  window.addEventListener('scroll', () => { if (boxed || performance.now() < followUntil) schedule() }, { passive: true })
+  document.documentElement.addEventListener('pointerleave', () => { hover = null; plus = null; hintTarget = null; setHint(null); cardHover = null; setCardHint(null); schedule() })
+  sizes.observe(document.documentElement)
+  new MutationObserver(() => {
+    textCache = null
+    for (const mark of cmsBuilderMarkers) mark()
+    schedule()
+  }).observe(document.body, { childList: true, subtree: true })
+}
+
+function setTexts(t: CmsBuilderTexts) {
+  words = t
+  ui!.cardEditLabel.textContent = t.edit ?? ''
+  label(ui!.cardMore, t.more)
+  label(ui!.handle, t.drag)
+  label(ui!.duplicate, t.duplicate)
+  label(ui!.remove, t.remove)
+  label(ui!.add, t.insertHere)
+}
+
+/** The sheet's height changed: the selected block, if the sheet now covers it, is brought into view above it. */
+function setInset(bottom: number) {
+  if (bottom === inset) return
+  inset = bottom
+  if (selected) coverCheck = 'bottom'
+}
+
+/** The admin's messages: switch the tool on (once), keep what it says about the selection, take a key pressed in the admin. */
+export function handleCmsBuilderMessage(message: CmsBuilderToPage) {
+  if (message.type === 'cms:builder:on') {
+    if (!ui) start()
+    labels = message.labels
+    kinds = message.lists ?? null
+    setTexts(message.texts)
+    selected = message.selectedPath ?? (message.selected === null ? null : [message.selected])
+    if (message.scale) scale = message.scale
+    setInset(message.bottom ?? 0)
+    if (message.entities) {
+      entities = message.entities
+      entitiesVersion++
+    }
+    if (message.self !== undefined) self = message.self
+    sourcesAt = sourcesSent = ''
+  }
+  else if (message.type === 'cms:builder:view') {
+    scale = message.scale
+    setInset(message.bottom ?? 0)
+  }
+  else if (message.type === 'cms:builder:pending') {
+    // What the editor holds of entries and globals: the preview's draft has it now, so the page loads its
+    // content anew (after the typing, when a text is being typed).
+    cmsBuilderPending.entries = new Map(message.entries.map((e) => [`${e.entity}\n${e.id}`, e.values]))
+    cmsBuilderPending.locked = new Set((message.locked ?? []).map((e) => `${e.entity}\n${e.id}`))
+    cmsBuilderPending.sheet = message.sheet ?? null
+    for (const listener of [...cmsBuilderPending.listeners]) listener()
+    if (cmsBuilderHold.count > 0) cmsBuilderHold.missed = true
+    else void cmsBuilderHold.refresh()
+    hintTarget = null
+  }
+  else if (message.type === 'cms:builder:box') {
+    closeBox(false)
+  }
+  else if (message.type === 'cms:builder:cards') {
+    cards = message.cards
+  }
+  else if (message.type === 'cms:builder:try') {
+    setTry(message.try)
+  }
+  else if (message.type === 'cms:builder:select') {
+    if (!ui) return
+    const path = message.id === null ? null : message.path ?? [message.id]
+    // Another block selected from the admin ends the typing (its text stays).
+    if (typingEl() && !samePath(path, selected)) endTyping()
+    if (!samePath(path, selected)) {
+      closeBox(true)
+      entry = null
+      entryMenu = false
+    }
+    if (!path || path[0] !== activeCard?.section) activeCard = null
+    selected = path
+    sourcesAt = sourcesSent = ''
+    hintTarget = null
+    if (hint?.kind === 'field') setHint(null)
+    scrollToSelected = message.scroll && message.id !== null
+    // Picked in the admin while a sheet covers the frame: the block follows into the room above it.
+    if (path && !scrollToSelected && inset > 0) coverCheck = 'pick'
+  }
+  else {
+    if (!ui) return
+    key(message.key, message.key !== 'Escape')
+  }
+  schedule()
+}
