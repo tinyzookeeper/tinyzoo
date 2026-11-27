@@ -14,6 +14,7 @@ import { type Dimension, type Filter, filtersQuery, parseFilters } from '../core
 import { PERIODS, type Period, isPeriod } from '../core/range'
 import { change } from '../core/rollup'
 import type { BarItem, ChartPoint } from '../app/types'
+import type { RobotReport } from '../core/robots'
 
 definePageMeta({ layout: 'admin' })
 const { t, locale, formatDateWith, languageName } = useCmsI18n()
@@ -75,6 +76,8 @@ interface Stats {
   mode: 'cookieless' | 'consent' | 'strict'
   /** Among visitors who allowed statistics (`mode: 'consent'` only). */
   consent: any | null
+  /** Pages robots loaded, by robot (null with filters, or when the site does not count robots). */
+  robots?: RobotReport | null
 }
 const query = computed(() => ({
   period: period.value,
@@ -391,6 +394,8 @@ const empty = computed(() => !!stats.value && stats.value.totals.pageviews === 0
               </section>
             </div>
 
+            <AnalyticsRobots v-if="stats.robots" :report="stats.robots" />
+
             <button type="button" class="an-more text-sm text-muted" @click="setView('detailed')">
               <span>{{ tx('moreDetails') }}</span>
               <UIcon name="i-lucide-arrow-right" class="size-4 shrink-0" aria-hidden="true" />
@@ -457,6 +462,8 @@ const empty = computed(() => !!stats.value && stats.value.totals.pageviews === 0
                 />
               </section>
             </div>
+
+            <AnalyticsRobots v-if="stats.robots" detailed :report="stats.robots" />
 
             <!-- mode 'consent': among visitors who agreed to cookies, with their share of the visits -->
             <AnalyticsConsentReport v-if="stats.consent" :report="stats.consent" :keep-raw-days="stats.keepRawDays" />

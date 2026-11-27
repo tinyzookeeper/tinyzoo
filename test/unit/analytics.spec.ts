@@ -9,6 +9,7 @@ import { addDays, eachDay, isDay, resolveRange, seriesKeys, splitByCutoff } from
 import { addTotals, change, emptyTotals, headline, rollupDay, type RollupRow, type RollupView } from '../../packages/cms/analytics/core/rollup'
 import { assignSessions, SESSION_GAP_MS, type SessionTail, type ViewDraft } from '../../packages/cms/analytics/core/sessions'
 import { cleanUtm, groupOfHost, referrerHost, sourceOf } from '../../packages/cms/analytics/core/source'
+import { parseRobotKey, robotKey, robotOf, robotReport } from '../../packages/cms/analytics/core/robots'
 import { isRobot, parseUserAgent } from '../../packages/cms/analytics/core/ua'
 import { localDay, newSalt, saltFor, visitorHash } from '../../packages/cms/analytics/core/visitor'
 import { ANALYTICS_MESSAGES } from '../../packages/cms/analytics/messages'
@@ -99,6 +100,52 @@ describe('user agents', () => {
       'UptimeRobot/2.0',
       '',
     ]) expect(isRobot(ua), ua).toBe(true)
+  })
+})
+
+describe('robots by name', () => {
+  it('tells AI assistants, AI crawlers, search engines and other robots apart, and a person from all of them', () => {
+    const cases: [string, string | null][] = [
+      ['Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot', 'assistant:ChatGPT'],
+      ['Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-User/1.0; +Claude-User@anthropic.com)', 'assistant:Claude'],
+      ['Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Perplexity-User/1.0; +https://perplexity.ai/perplexity-user)', 'assistant:Perplexity'],
+      ['Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)', 'ai:Anthropic'],
+      ['Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot', 'ai:OpenAI'],
+      ['Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)', 'ai:Perplexity'],
+      ['CCBot/2.0 (https://commoncrawl.org/faq/)', 'ai:Common Crawl'],
+      ['Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)', 'search:Google'],
+      ['Mozilla/5.0 (compatible; SeznamBot/4.0; +https://o-seznam.cz/napoveda/vyhledavani/en/seznambot-crawler/)', 'search:Seznam'],
+      ['Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)', 'search:Bing'],
+      ['facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)', 'other:Facebook'],
+      ['WhatsApp/2.23.20.0', 'other:WhatsApp'],
+      ['curl/8.7.1', 'other:Other'],
+      ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/142.0.0.0 Safari/537.36', 'other:Other'],
+      ['', 'other:Other'],
+      ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', null],
+      ['Mozilla/5.0 (iPhone; CPU iPhone OS 19_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/19.1 Mobile/15E148 Safari/604.1', null],
+    ]
+    for (const [ua, want] of cases) {
+      const r = robotOf(ua)
+      expect(r ? robotKey(r) : null, ua).toBe(want)
+    }
+  })
+  it('reads its rows back into a report: groups, then robots by pages', () => {
+    expect(parseRobotKey('assistant:Claude')).toEqual({ group: 'assistant', name: 'Claude' })
+    expect(parseRobotKey('weird:Thing')).toBeNull()
+    expect(parseRobotKey('nothing')).toBeNull()
+    const report = robotReport([
+      { value: 'assistant:Claude', pageviews: 3 },
+      { value: 'assistant:ChatGPT', pageviews: 5 },
+      { value: 'search:Google', pageviews: 40 },
+      { value: 'assistant:Claude', pageviews: 2 },
+      { value: 'later:Unknown', pageviews: 9 },
+    ])
+    expect(report.groups).toEqual({ assistant: 10, ai: 0, search: 40, other: 0 })
+    expect(report.items).toEqual([
+      { group: 'search', name: 'Google', pages: 40 },
+      { group: 'assistant', name: 'ChatGPT', pages: 5 },
+      { group: 'assistant', name: 'Claude', pages: 5 },
+    ])
   })
 })
 

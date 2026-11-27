@@ -3,7 +3,7 @@ import { addDays, isPeriod, resolveRange } from '../core/range'
 import { headline } from '../core/rollup'
 import { requireAnalyticsReader, serverAllowsCollecting, settingsAllowCollecting, siteTimeZone, today } from './context'
 import { consentReportOf } from './consentReport'
-import { listOf, seriesOf, totalsOf, type Window } from './queries'
+import { listOf, robotsOf, seriesOf, totalsOf, type Window } from './queries'
 
 // GET /api/cms/_p/analytics/stats?period=7d&compare=1&f.source=Google — everything the
 // Analytics page shows for a period: the headline numbers (and the period before), the chart,
@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
   const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hourCycle: 'h23' }).format(new Date()))
   const untilHour = range.bucket === 'hour' && range.to === day ? hour : undefined
 
-  const [totals, series, previousTotals, previousSeries, lists, settingsOn, consent] = await Promise.all([
+  const [totals, series, previousTotals, previousSeries, lists, settingsOn, consent, robots] = await Promise.all([
     totalsOf(db, now),
     seriesOf(db, now, range.bucket, untilHour),
     compare ? totalsOf(db, before) : null,
@@ -35,6 +35,8 @@ export default defineEventHandler(async (event) => {
     settingsAllowCollecting(),
     // Among the visitors who allowed statistics: only with a cookie banner in `consent` mode.
     opts.mode === 'consent' ? consentReportOf(db, now) : null,
+    // Who else read the website: robots are counted by name per day, so no filter applies to them.
+    opts.countRobots && !filters.length ? robotsOf(db, range) : null,
   ])
   const serverOn = serverAllowsCollecting()
 
@@ -54,5 +56,6 @@ export default defineEventHandler(async (event) => {
     previousSeries,
     lists: Object.fromEntries(lists),
     consent,
+    robots,
   }
 })

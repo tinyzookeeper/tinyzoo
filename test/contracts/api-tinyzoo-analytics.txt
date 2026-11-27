@@ -44,6 +44,7 @@ export interface AnalyticsOptions {
     geoipFile?: string;
     timeZone?: string;
     excludePaths?: string[];
+    countRobots?: boolean;
 }
 
 export interface AnalyticsRollupDay {

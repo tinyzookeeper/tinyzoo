@@ -51,6 +51,12 @@ export interface AnalyticsOptions {
   timeZone?: string
   /** Paths never counted, besides the admin and the API: `['/shop/checkout']` leaves that page and everything under it out. */
   excludePaths?: string[]
+  /**
+   * Count the pages robots load, by robot: AI assistants opening a page for a person (ChatGPT,
+   * Claude…), AI crawlers, search engines and others. Only one number per day and robot is kept,
+   * never the request. They are never in the visitor numbers either way. Default: true.
+   */
+  countRobots?: boolean
 }
 
 /** The options with their defaults, as the server reads them. @internal */
@@ -66,6 +72,7 @@ export interface ResolvedAnalyticsOptions {
   geoipFile: string | null
   timeZone: string | null
   excludePaths: string[]
+  countRobots: boolean
 }
 
 /**
@@ -102,6 +109,7 @@ export function resolveAnalyticsOptions(opts: AnalyticsOptions = {}): ResolvedAn
     geoipFile: opts.geoipFile || null,
     timeZone: opts.timeZone ?? null,
     excludePaths: [...(opts.excludePaths ?? [])],
+    countRobots: opts.countRobots ?? true,
   }
 }
 

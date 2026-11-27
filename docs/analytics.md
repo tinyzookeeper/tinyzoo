@@ -50,6 +50,7 @@ To take it out again, remove it from `plugins`. The next `tinyzoo generate` offe
 - **The chart.** Visitors by hour for one day, by day for longer periods, with the period before dashed.
 - **Three numbers said the way a person would**: how long people stay, about how many pages a visit looks at, and how many in 10 leave after one page. Each says whether it changed. Hovering shows the usual term and value (average time, views per visit, bounce rate).
 - **Four questions**: What do they read? How do they find you? What do they use? Where are they from?
+- **Who else reads your website?** How many times AI assistants opened your pages for people who asked them, and the pages search engines, AI crawlers and other robots loaded ([Robots and AI](#robots-and-ai)).
 
 **Detailed** has the usual terms, for people who know them from other tools:
 
@@ -70,6 +71,7 @@ To take it out again, remove it from `plugins`. The next `tinyzoo generate` offe
   - **Countries**, with their flags.
   - **Devices** (phone, tablet, computer), browsers and systems.
   - **The language version** that was read, and the browser's own language.
+- **Robots and AI**: the same four groups as in Simple, and every robot by name ([Robots and AI](#robots-and-ai)).
 
 A click on any row shows only the visits it stands for: "Source: Google", then "Country: Slovakia". The filters apply to every number on the page. They live in the address, so a filtered view can be sent to someone.
 
@@ -114,7 +116,7 @@ A **visit** is one visitor's page views with gaps under 30 minutes. A visit belo
 - The admin (`/admin` and below) and the API.
 - People signed in to the admin, while they look at their own website. The Visitors page says so beside "On the website now": to see yourself counted, open the website in a private window.
 - The admin's preview.
-- Robots and scripts. They are recognised by their user agent. A robot that runs no JavaScript never runs the script either.
+- Robots and scripts. They are recognised by their user agent. A robot that runs no JavaScript never runs the script either. Their pages are counted apart, by robot ([Robots and AI](#robots-and-ai)).
 - Pages the site leaves out with `excludePaths`.
 - Browsers that ask not to be tracked, if the site asks for that with `respectDoNotTrack`.
 
@@ -143,6 +145,24 @@ analyticsPlugin({
 | `countryHeaders` | Cloudflare's, Vercel's and CloudFront's | The request headers the CDN in front of the site puts the visitor's country in |
 | `geoipFile` | `NUXT_CMS_ANALYTICS_GEOIP_FILE` | A country database file, see [Countries](#countries) |
 | `timeZone` | the admin's (`cms.admin.timeZone`) | The time zone days are counted in |
+| `countRobots` | `true` | Counts the pages AI assistants, search engines, AI crawlers and other robots load, by robot, see [Robots and AI](#robots-and-ai) |
+
+### Robots and AI
+
+Robots never run the script, so they are not in the visitor numbers. With `countRobots` (on unless the site switches it off) the server counts the pages they load instead: a page of the website (not the admin, not the API, not an error page) asked for by a robot's user agent adds one to that robot's number of the day. A person's page costs one look at its user agent and nothing more.
+
+They are told apart by the names their makers publish, in four groups:
+
+| Group | Who | Why they come |
+|---|---|---|
+| AI assistants | ChatGPT (`ChatGPT-User`), Claude (`Claude-User`), Perplexity (`Perplexity-User`), Mistral, DuckDuckGo's assistant, Meta AI | Somebody asked the assistant about the page, and it opened it for them |
+| Search engines | Google, Bing, Seznam, Apple, DuckDuckGo, Yandex, Baidu, Yahoo | To show the pages in search results |
+| AI crawlers | OpenAI (`GPTBot`, `OAI-SearchBot`), Anthropic (`ClaudeBot`, `Claude-SearchBot`), Perplexity, Common Crawl, ByteDance, Meta, Amazon, Cohere, Diffbot | To learn from the pages, or to answer from them later |
+| Other robots | Link previews (Facebook, WhatsApp, LinkedIn, X, Slack, Discord, Telegram), SEO tools (Ahrefs, Semrush, Majestic, Moz), Lighthouse, and any other robot or script, as "Other" | Previews, audits, monitoring, scraping |
+
+Only the robot's name and the day are kept: one row per day and robot in `analytics_daily` (dimension `robot`, value `assistant:Claude`, the count in `pageviews`). Never the page, the address or the user agent. Numbers wait a few seconds in memory and are then added, so today's are there at once. Filters do not apply to them: with a filter set, the report leaves them out.
+
+A user agent can be anything its sender likes, so these are the robots that say who they are. An AI assistant that drives a person's own browser (an agent mode or a browser extension) looks like the person and is counted as a visitor.
 
 ### Older periods
 
@@ -277,7 +297,7 @@ The plugin's tables are made by the site's own migration (`tinyzoo generate`):
 | Table | What it holds | Kept |
 |---|---|---|
 | `analytics_events` | One row per page view, with what is listed under [Privacy](#privacy). `consent_id` holds the visitor's consent id in the `consent` mode, when they allowed statistics; it is empty otherwise, and emptied when they take it back | `keepRawDays` |
-| `analytics_daily` | Totals per day, dimension and value: visitors, visits, pageviews, bounces, time. The dimension `total` (value `''`) is the day as a whole | always |
+| `analytics_daily` | Totals per day, dimension and value: visitors, visits, pageviews, bounces, time. The dimension `total` (value `''`) is the day as a whole. The dimension `robot` holds the pages each robot loaded that day, in `pageviews` | always |
 | `analytics_settings` | The "Counting visits" settings (on or off) | always |
 | `cms_state`, key `analytics:salt` | The day's salt | one day |
 
