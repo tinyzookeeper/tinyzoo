@@ -918,6 +918,7 @@ export default {
     fieldUnfit: 'Feld {name} passt hier nicht',
     emptyCard: 'Die Karte ist leer. Fügen Sie ein Feld oder einen Block hinzu.',
     sampleCard: 'Beispielkarte: dieser Typ hat noch keine Einträge',
+    editEntry: 'Eintrag bearbeiten',
   },
   builderSources: {
     title: 'Inhalt von anderswo',

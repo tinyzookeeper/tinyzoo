@@ -920,6 +920,7 @@ export default {
     fieldUnfit: 'Field {name} does not fit here',
     emptyCard: 'The card is empty. Add a field or a block to it.',
     sampleCard: 'Sample card: this type has no entries yet',
+    editEntry: 'Edit the entry',
   },
   builderSources: {
     title: 'Content from elsewhere',

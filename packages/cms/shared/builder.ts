@@ -60,6 +60,8 @@ export interface CmsBuilderTexts {
   fieldMissing?: string
   fieldUnfit?: string
   emptyCard?: string
+  /** Since 3c: the toolbar action that opens the whole entry of the card that was clicked. */
+  editEntry?: string
   sampleCard?: string
 }
 
@@ -94,6 +96,45 @@ export interface CmsBuilderField {
 export interface CmsBuilderListKinds {
   types: Record<string, CmsBuilderKind>
   max: number | null
+}
+
+/** Since 3c: what the editor says about one block of a card's design, in the admin's language. */
+export interface CmsBuilderCardBlock {
+  /** The block type's name ("Text"). */
+  label: string
+  /** What it shows: "← Cena", "→ Stránka kurzu", the own text in quotes, "Nenapojeno"; for a group "2 bloky" / its empty word. */
+  shows: string
+  /** The short chip on a card's block: the same as `shows`, but "Vlastní text" (the admin's word) for an own text; '' for a group. */
+  chip: string
+  /** It shows nothing on the website (no field, a field gone, a field that does not fit). */
+  warn?: boolean
+  /** The field of the entry it shows (`slug`: the entry's page); absent for an own text, nothing, a group. */
+  field?: string
+  /** That field's kind (a CustomFieldKind string). */
+  kind?: string
+  /** The key of the block's own text field (`cardRefOf(def).own`: a heading's `text`, a button's `label`). */
+  own?: string
+  /** The key of the block's reference field (`cardRefOf(def).key`, `field` in the kit). */
+  ref?: string
+  /** A group (a row or a column of the card). */
+  group?: boolean
+}
+/** Since 3c: a section that shows a type's entries with a card of the owner's own. */
+export interface CmsBuilderCard {
+  /** The type's name (its entity/collection, e.g. custom_course): the page's cards carry it as data-kit-card-collection. */
+  entity: string
+  /** The type's name in the admin's language ("Kurzy"). */
+  label: string
+  /** The card's blocks at both levels (groups too), by block id. */
+  blocks: Record<string, CmsBuilderCardBlock>
+}
+/** Since 3c: a field tried on a card's block while the panel points at a row: the block at `path` is drawn with `key` = `value` in every card. */
+export interface CmsBuilderTry {
+  path: CmsBuilderPath
+  key: string
+  value: string
+  /** The row was chosen, not only pointed at: the page keeps showing `value` until its own data has it, and the values come in with a short stagger. */
+  chosen?: boolean
 }
 
 /** A key the admin passes on to the page while the page has no focus: Escape, and Alt with an arrow. */
@@ -133,12 +174,17 @@ export type CmsBuilderToPage =
   }
   /** Since 2g: the admin closed the box it drew over a value (Escape, a click elsewhere in the admin). */
   | { type: 'cms:builder:box'; open: false }
+  /** Since 3c: what the editor says about each card section's blocks (key: the section's block id). */
+  | { type: 'cms:builder:cards'; cards: Record<string, CmsBuilderCard> }
+  /** Since 3c: a field tried on a card's block (`null`: the try ended). */
+  | { type: 'cms:builder:try'; try: CmsBuilderTry | null }
 
 /** From the page to the admin. `path`, when given, names a block inside another one; its last id is `id`. */
 export type CmsBuilderToAdmin =
   /** The page listens (sent once per load, in the preview only, whether the tool is on or not): the admin answers with `cms:builder:on`. */
   | { type: 'cms:builder:ready' }
-  | { type: 'cms:builder:select'; id: string | null; path?: CmsBuilderPath }
+  /** `card` (since 3c): the entry of the card the person clicked in a card section. */
+  | { type: 'cms:builder:select'; id: string | null; path?: CmsBuilderPath; card?: { entity: string; id: string } }
   | { type: 'cms:builder:move'; id: string; place: CmsBuilderPlace; path?: CmsBuilderPath }
   | { type: 'cms:builder:duplicate'; id: string; path?: CmsBuilderPath }
   | { type: 'cms:builder:remove'; id: string; path?: CmsBuilderPath }
@@ -209,7 +255,7 @@ export function cmsBuilderPathOf(message: { id: string; path?: CmsBuilderPath })
 }
 
 const TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['drag', 'moveUp', 'moveDown', 'duplicate', 'remove', 'insertHere']
-const MORE_TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['moveLeft', 'moveRight', 'addBlock', 'blank', 'edit', 'more', 'openIn', 'untitled', 'shared', 'chooseField', 'fieldMissing', 'fieldUnfit', 'emptyCard', 'sampleCard']
+const MORE_TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['moveLeft', 'moveRight', 'addBlock', 'blank', 'edit', 'more', 'openIn', 'untitled', 'shared', 'chooseField', 'fieldMissing', 'fieldUnfit', 'emptyCard', 'sampleCard', 'editEntry']
 const KEYS: CmsBuilderKey[] = ['Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
 const isScale = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x >= 0.1 && x <= 4
 
@@ -230,6 +276,28 @@ function isCmsBuilderFields(x: unknown, depth: number): x is Record<string, CmsB
     && (f.max === undefined || (typeof f.max === 'number' && Number.isInteger(f.max) && f.max > 0))
     && (f.items === undefined || isCmsBuilderFields(f.items, depth - 1))
     && (f.label === undefined || (typeof f.label === 'string' && f.label.length <= 200)))
+}
+
+const isText = (x: unknown): x is string => typeof x === 'string' && x.length <= 200
+
+function isCmsBuilderCardBlock(x: unknown): x is CmsBuilderCardBlock {
+  return isObject(x) && isText(x.label) && isText(x.shows) && isText(x.chip)
+    && (x.warn === undefined || typeof x.warn === 'boolean')
+    && (x.group === undefined || typeof x.group === 'boolean')
+    && (['field', 'kind', 'own', 'ref'] as const).every((k) => x[k] === undefined || isCmsFieldName(x[k]))
+}
+
+/** Since 3c: the cards of the page's card sections. */
+export function isCmsBuilderCards(x: unknown): x is Record<string, CmsBuilderCard> {
+  if (!isObject(x)) return false
+  const sections = Object.entries(x)
+  return sections.length <= 50 && sections.every(([id, c]) => isId(id) && isObject(c) && isCmsFieldName(c.entity) && isText(c.label) && isObject(c.blocks)
+    && Object.keys(c.blocks).length <= 200 && Object.entries(c.blocks).every(([bid, b]) => isId(bid) && isCmsBuilderCardBlock(b)))
+}
+
+/** Since 3c: a field tried on a card's block. */
+export function isCmsBuilderTry(x: unknown): x is CmsBuilderTry {
+  return isObject(x) && isCmsBuilderPath(x.path) && isCmsFieldName(x.key) && isText(x.value) && (x.chosen === undefined || typeof x.chosen === 'boolean')
 }
 
 /** A message the page may act on. Anything else (another tool's message, a wrong shape) is not one. */
@@ -258,6 +326,8 @@ export function isCmsBuilderToPage(x: unknown): x is CmsBuilderToPage {
       && (x.sheet === undefined || (isObject(x.sheet) && isCmsFieldName(x.sheet.entity) && (x.sheet.id === null || isId(x.sheet.id))))
   }
   if (x.type === 'cms:builder:box') return x.open === false
+  if (x.type === 'cms:builder:cards') return isCmsBuilderCards(x.cards)
+  if (x.type === 'cms:builder:try') return x.try === null || isCmsBuilderTry(x.try)
   return false
 }
 
@@ -311,7 +381,8 @@ export function isCmsBuilderToAdmin(x: unknown): x is CmsBuilderToAdmin {
   if (!isObject(x)) return false
   switch (x.type) {
     case 'cms:builder:ready': return true
-    case 'cms:builder:select': return (x.id === null && x.path === undefined) || (isId(x.id) && pathOk(x))
+    case 'cms:builder:select': return ((x.id === null && x.path === undefined) || (isId(x.id) && pathOk(x)))
+      && (x.card === undefined || (isObject(x.card) && isCmsFieldName(x.card.entity) && isId(x.card.id)))
     case 'cms:builder:move': return isId(x.id) && isCmsBuilderPlace(x.place) && pathOk(x)
     case 'cms:builder:duplicate':
     case 'cms:builder:remove': return isId(x.id) && pathOk(x)

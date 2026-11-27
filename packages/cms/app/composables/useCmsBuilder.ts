@@ -146,9 +146,10 @@ export interface CmsBuilder {
   cardEntry: ShallowRef<{ section: string; entity: string; id: string } | null>
   /**
    * Since 3c: a field the panel of a card's block points at (hover or focus of a row), for the page to try it
-   * on the card; null when nothing is pointed at. Nothing reads it yet.
+   * on the card; null when nothing is pointed at. The preview panel sends it to the page (`cms:builder:try`).
+   * `field` is '' for the own text; `chosen`: the row was clicked, not only pointed at.
    */
-  cardTry: ShallowRef<{ path: CmsBuilderPath; field: string } | null>
+  cardTry: ShallowRef<{ path: CmsBuilderPath; field: string; chosen?: boolean } | null>
   /** Since 2g: the changes to entries and globals made in the page, waiting for the editor's save. */
   pending: CmsBuilderPendingStore
   /** Since 2g: the values the page asked a box for (their own controls, drawn over the preview at `rect`, the page's pixels). */
@@ -199,7 +200,7 @@ function createBridge(deps: CmsBuilderDeps): CmsBuilder {
   const entities = shallowRef<Record<string, CmsBuilderEntity>>({})
   const entryRequest = shallowRef<{ entity: string; id: string | null; field: string | null; at: number } | null>(null)
   const cardEntry = shallowRef<{ section: string; entity: string; id: string } | null>(null)
-  const cardTry = shallowRef<{ path: CmsBuilderPath; field: string } | null>(null)
+  const cardTry = shallowRef<{ path: CmsBuilderPath; field: string; chosen?: boolean } | null>(null)
   const entriesChanged = ref(0)
   // A card clicked in one section says nothing about another's.
   watch(() => selectedPath.value?.[0] ?? null, () => { cardEntry.value = null; cardTry.value = null }, { flush: 'sync' })
@@ -336,6 +337,8 @@ function createBridge(deps: CmsBuilderDeps): CmsBuilder {
         const path = message.id === null ? null : cmsBuilderPathOf({ id: message.id, path: message.path })
         selectedPath.value = path
         if (path) owner(path[0])?.reveal(path)
+        // The watcher on the section cleared the card of the one before; the page names the card clicked now.
+        if (path && message.card) cardEntry.value = { section: path[0]!, entity: message.card.entity, id: message.card.id }
         return
       }
       if (message.type === 'cms:builder:history') {

@@ -401,6 +401,19 @@ describe('the options a design gives the admin (part 3c)', () => {
     expect(customTypeFieldRef({ takes: ['picture'] }).meta?.ref).toEqual({ takes: ['picture'] })
   })
 
+  it('keeps the heading key and refuses one that is not a plain text field of the block', () => {
+    expect(customTypeCard({ heading: 'heading' }).meta?.card).toEqual({ heading: 'heading' })
+    expect(refused(() => customTypeCard({ heading: '1x' }))).toMatch(/heading/)
+    const ok = defineBlock({ label: 'List', fields: { heading: f.text(), source: customTypeCard({ starter, groups, heading: 'heading' }), items: f.blocks({ text, button, group: row }) } })
+    expect(() => definePages({ blocks: { ok } })).not.toThrow()
+    const gone = defineBlock({ label: 'List', fields: { source: customTypeCard({ heading: 'title' }), items: f.blocks({ text, button }) } })
+    expect(refused(() => definePages({ blocks: { gone } }))).toMatch(/heading names "title", which the block does not have/)
+    const link = defineBlock({ label: 'List', fields: { title: f.text({ format: 'link' }), source: customTypeCard({ heading: 'title' }), items: f.blocks({ text, button }) } })
+    expect(refused(() => definePages({ blocks: { link } }))).toMatch(/not a plain text field/)
+    const pick = defineBlock({ label: 'List', fields: { title: f.select({ options: ['a', 'b'] }), source: customTypeCard({ heading: 'title' }), items: f.blocks({ text, button }) } })
+    expect(refused(() => definePages({ blocks: { pick } }))).toMatch(/not a plain text field/)
+  })
+
   it('refuses options of a wrong shape when the field is made', () => {
     expect(refused(() => customTypeCard({ starter: [{ block: '', from: 'title' }] as any }))).toMatch(/starter\[0\]/)
     expect(refused(() => customTypeCard({ starter: [{ block: 'text', from: [] }] as any }))).toMatch(/'title' or a list of kinds/)

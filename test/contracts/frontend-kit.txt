@@ -128,6 +128,10 @@ returns: a value (see the signature)
 export function useCmsEditingWords(): ComputedRef<CmsEditingWords>
 returns: a value (see the signature)
 
+// useCmsEditingTry (app/composables/useCmsEditingTry.ts): The field an editor tries on a block of a card in the admin's panel, to draw it in every card at once (experimental); null on the live site.
+export function useCmsEditingTry(): ComputedRef<CmsEditingTry | null>
+returns: a value (see the signature)
+
 // cmsField (app/composables/cmsField.ts): Marks an element as showing one field of its block, for typing in the page in the preview (experimental): `v-bind="cmsField('heading')"`, or with an item's id; nothing on the live site.
 export function cmsField(field: string, item?: string | null): Record<string, string>
 returns: a value (see the signature)

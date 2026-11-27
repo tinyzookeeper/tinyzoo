@@ -977,6 +977,7 @@ export default {
     fieldUnfit: 'Pole {name} se sem nehodí',
     emptyCard: 'Karta je prázdná. Přidejte do ní pole nebo blok.',
     sampleCard: 'Ukázková karta: tento typ zatím nemá žádné záznamy',
+    editEntry: 'Upravit záznam',
   },
   builderSources: {
     title: 'Obsah odjinud',

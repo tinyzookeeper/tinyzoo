@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  cardApplyNext, cardBindingFieldOf, cardBlockForField, cardEmptyChoices, cardPickerFields, cardSectionBlock, cardEntryTitle, cardExampleRow, cardItemsOf, cardKindsList, cardRowFields, cardUsedElsewhere, cardBlockState, cardDropUnbound, cardExample, cardGroupBlock, cardHiddenFields, cardLeaves,
+  cardBlockWords, cardPageCards, type CardWords, cardApplyNext, cardBindingFieldOf, cardBlockForField, cardEmptyChoices, cardPickerFields, cardSectionBlock, cardEntryTitle, cardExampleRow, cardItemsOf, cardKindsList, cardRowFields, cardUsedElsewhere, cardBlockState, cardDropUnbound, cardExample, cardGroupBlock, cardHiddenFields, cardLeaves,
   cardGroupCount, cardItemsIn, cardNextValues, cardOptionsOf, cardQuote, cardRedesign, cardRepeatCount, cardRowSummary, cardSectionUnbound, cardTypeChange, cardRefOf, cardRemap, cardStarter, cardUnbound, cardUsedFields, cardValue,
   type CardOptions, type CardType,
 } from '../../packages/cms/shared/builder-card'
@@ -567,6 +567,20 @@ describe('the picker of a card', () => {
     expect(cardSectionBlock(pageDefs, 'nope', 'Kurzy', kurzy, 'cs')).toBeNull()
   })
 
+  it('puts the type\'s name in the heading the design names, when the block has that field', () => {
+    const withHeading = (key: string): BlockKindDef => ({
+      fields: [plain('heading'), { key: 'source', type: 'binding', meta: { binding: 'card', card: { ...STARTER, heading: key } } }, { key: 'items', type: 'blocks', meta: { blocks: listDefs } }],
+    })
+    const b = cardSectionBlock({ section: withHeading('heading') }, 'section', 'Kurzy', kurzy, 'cs', 'Kurzy na jaře')!
+    expect(b.heading).toBe('Kurzy na jaře')
+    // no heading given, a key that is not a field, or a design without one: nothing is set
+    expect(cardSectionBlock({ section: withHeading('heading') }, 'section', 'Kurzy', kurzy, 'cs')!.heading ?? null).toBeNull()
+    expect(cardSectionBlock({ section: withHeading('nope') }, 'section', 'Kurzy', kurzy, 'cs', 'X')!.nope ?? null).toBeNull()
+    expect(cardSectionBlock(pageDefs, 'section', 'Kurzy', kurzy, 'cs', 'X')!.heading ?? null).toBeNull()
+    expect(cardOptionsOf(withHeading('heading')).heading).toBe('heading')
+    expect(cardOptionsOf(section).heading).toBeUndefined()
+  })
+
   it('lists the fields a list takes with the block each brings, the page last', () => {
     const rows = cardPickerFields(listDefs, STARTER, kurzy)
     expect(rows.map((r) => r.key)).toEqual(['name', 'description', 'date', 'price', 'photo', 'signup', 'slug'])
@@ -714,5 +728,89 @@ describe('cardExampleRow: the fullest entry when no card was clicked', () => {
     expect(cardExampleRow(rows, { entity: 'custom_course', section: 's', fields: ['name', 'description', 'price'], sources: [{ entity: 'custom_course', entries: [{ id: 'c' }, { id: 'b' }] }] })?.id).toBe('c')
     expect(cardExampleRow(rows, { entity: 'custom_course', section: 's', fields: ['name'], cardEntry: { section: 's', entity: 'custom_course', id: 'a' } })?.id).toBe('a')
     expect(cardExampleRow(rows, { entity: 'custom_course', section: 's' })?.id).toBe('a')
+  })
+})
+
+describe('what the page says about a card\'s blocks', () => {
+  const words: CardWords = {
+    unbound: 'Nenapojeno',
+    noPages: 'Typ nemá stránky',
+    missing: (n) => `Pole ${n} chybí`,
+    unfit: (n) => `Pole ${n} se sem nehodí`,
+    own: 'Vlastní text',
+    groupBlocks: (n) => `${n} bloky`,
+    groupEmpty: 'Prázdná',
+  }
+
+  it('says in words what a block shows', () => {
+    expect(cardBlockWords({ state: 'field', key: 'price', kind: 'number', label: 'Cena' }, 'cs', words)).toEqual({ shows: '← Cena', chip: '← Cena', warn: false, tone: 'field' })
+    expect(cardBlockWords({ state: 'page', key: 'slug', label: 'Stránka' }, 'cs', words)).toMatchObject({ shows: '→ Stránka', warn: false, tone: 'field' })
+    expect(cardBlockWords({ state: 'own', text: 'Vítejte' }, 'cs', words)).toEqual({ shows: '„Vítejte“', chip: 'Vlastní text', warn: false, tone: 'own' })
+    expect(cardBlockWords({ state: 'own', text: 'Hi' }, 'en', words).shows).toBe('“Hi”')
+    expect(cardBlockWords({ state: 'unbound' }, 'cs', words)).toMatchObject({ shows: 'Nenapojeno', warn: true, tone: 'warn' })
+    expect(cardBlockWords({ state: 'missing', key: 'gone' }, 'cs', words)).toMatchObject({ shows: 'Pole gone chybí', warn: true })
+    expect(cardBlockWords({ state: 'missing', key: 'slug' }, 'cs', words).shows).toBe('Typ nemá stránky')
+    expect(cardBlockWords({ state: 'unfit', key: 'price', kind: 'number', label: 'Cena' }, 'cs', words)).toMatchObject({ shows: 'Pole Cena se sem nehodí', warn: true })
+    expect(cardBlockWords({ state: 'group' }, 'cs', words, 2)).toEqual({ shows: '2 bloky', chip: '', warn: false, tone: 'muted' })
+    expect(cardBlockWords({ state: 'group' }, 'cs', words).shows).toBe('Prázdná')
+    expect(cardBlockWords({ state: 'other' }, 'cs', words)).toEqual({ shows: '', chip: '', warn: false, tone: 'muted' })
+  })
+
+  const pageDefs: BlockDefs = { text: { fields: [plain('text')] }, section }
+  const opts = (type: CardType | null) => ({
+    type: (name: string) => (type && type.name === name ? type : null),
+    typeLabel: (name: string) => (type && name === 'Kurzy' ? 'Kurzy (cs)' : ''),
+    blockLabel: (def: BlockKindDef, t: string) => `L:${t}`,
+    words,
+    lang: 'cs',
+  })
+  const design = [
+    { id: 'pic', type: 'picture', field: 'photo' },
+    { id: 'h', type: 'heading', field: 'name', text: '' },
+    { id: 'n', type: 'text', field: 'price' },
+    { id: 'b', type: 'button', field: 'slug', label: 'Víc' },
+    { id: 'u', type: 'text', field: '' , text: '' },
+    { id: 'o', type: 'text', field: '', text: 'Vítejte' },
+    { id: 'g', type: 'group', arrangement: 'row', items: [{ id: 'g1', type: 'heading', field: 'name' }, { id: 'g2', type: 'text', field: 'gone' }] },
+  ]
+  const page = [
+    { id: 's1', type: 'section', source: { type: 'Kurzy' }, items: design },
+    { id: 's2', type: 'section', source: {}, items: design },
+    { id: 's3', type: 'text', text: 'x' },
+  ]
+
+  it('lists the blocks of each card section at both levels', () => {
+    const cards = cardPageCards(page, pageDefs, opts(kurzy))
+    expect(Object.keys(cards)).toEqual(['s1'])
+    expect(cards.s1).toMatchObject({ entity: 'Kurzy', label: 'Kurzy (cs)' })
+    const b = cards.s1!.blocks
+    expect(Object.keys(b)).toEqual(['pic', 'h', 'n', 'b', 'u', 'o', 'g', 'g1', 'g2'])
+    expect(b.pic).toEqual({ label: 'L:picture', shows: '← Fotka', chip: '← Fotka', field: 'photo', kind: 'picture', ref: 'field' })
+    expect(b.h).toEqual({ label: 'L:heading', shows: '← Název', chip: '← Název', field: 'name', kind: 'text', own: 'text', ref: 'field' })
+    // a number in a text block
+    expect(b.n).toMatchObject({ shows: '← Cena', field: 'price', kind: 'number', own: 'text' })
+    expect(b.b).toEqual({ label: 'L:button', shows: '→ Stránka', chip: '→ Stránka', field: 'slug', kind: 'page', ref: 'field' })
+    expect(b.u).toMatchObject({ shows: 'Nenapojeno', chip: 'Nenapojeno', warn: true })
+    expect(b.u!.field).toBeUndefined()
+    expect(b.o).toMatchObject({ shows: '„Vítejte“', chip: 'Vlastní text' })
+    expect(b.o!.warn).toBeUndefined()
+    expect(b.g).toEqual({ label: 'L:group', shows: '2 bloky', chip: '', group: true })
+    expect(b.g1).toMatchObject({ field: 'name' })
+    expect(b.g2).toMatchObject({ shows: 'Pole gone chybí', warn: true })
+  })
+
+  it('says missing for every bound block when the type is gone, and leaves out what holds no card', () => {
+    const cards = cardPageCards(page, pageDefs, opts(null))
+    expect(cards.s1!.label).toBe('Kurzy')
+    expect(cards.s1!.blocks.pic).toMatchObject({ shows: 'Pole photo chybí', warn: true })
+    expect(cards.s1!.blocks.b).toMatchObject({ shows: 'Typ nemá stránky', warn: true })
+    expect(cards.s1!.blocks.o!.chip).toBe('Vlastní text')
+    expect(cardPageCards([{ id: 'x', type: 'text', text: 'a' }], pageDefs, opts(kurzy))).toEqual({})
+  })
+
+  it('never throws on rubbish', () => {
+    expect(cardPageCards(null, pageDefs, opts(kurzy))).toEqual({})
+    expect(cardPageCards([null, 3, { type: 'section' }, { id: 'a', type: 'section', source: { type: 'Kurzy' }, items: [null, { id: 1 }, { id: 'z', type: 'nope' }] }], pageDefs, opts(kurzy))).toEqual({ a: { entity: 'Kurzy', label: 'Kurzy (cs)', blocks: {} } })
+    expect(cardPageCards(page, null as any, opts(kurzy))).toEqual({})
   })
 })

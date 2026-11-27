@@ -70,7 +70,7 @@ const typeRows = computed(() => {
 })
 function chooseType(name: string) {
   const found = cmsCardTypeOf(graph.value, name, tl, t('fieldRef.page'))
-  const block = found && props.sections ? cardSectionBlock(props.defs, props.sections.defType, name, found.type, props.lang) : null
+  const block = found && props.sections ? cardSectionBlock(props.defs, props.sections.defType, name, found.type, props.lang, found.meta.label) : null
   if (block && found) emit('insert', block, found.meta.label)
 }
 

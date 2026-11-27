@@ -122,6 +122,11 @@ export interface CustomCardOptions {
   starter?: readonly CustomCardStep[]
   /** The groups offered when a person adds to the card. */
   groups?: readonly CustomCardGroup[]
+  /**
+   * The key of the section block's own plain text field (not a setting, not a link) that takes the
+   * type's name when the section is added from the type in the admin (*Your content*).
+   */
+  heading?: string
 }
 
 /**
@@ -155,7 +160,7 @@ function cardValues(where: string, values: unknown): Record<string, CustomCardVa
 
 function cardOptions(o: CustomCardOptions | undefined): Record<string, unknown> | undefined {
   if (o === undefined) return undefined
-  if (!isRec(o)) throw new Error('customTypeCard() takes { starter, groups }.')
+  if (!isRec(o)) throw new Error('customTypeCard() takes { starter, groups, heading }.')
   const card: Record<string, unknown> = {}
   if (o.starter !== undefined) {
     if (!Array.isArray(o.starter)) throw new Error('customTypeCard({ starter }) is a list of steps: { block, from, set }.')
@@ -184,6 +189,10 @@ function cardOptions(o: CustomCardOptions | undefined): Record<string, unknown> 
       const next = cardValues(`${at}.next`, g.next)
       return { block: g.block, label, ...(g.icon ? { icon: g.icon } : {}), ...(set ? { set } : {}), ...(next ? { next } : {}) }
     })
+  }
+  if (o.heading !== undefined) {
+    if (typeof o.heading !== 'string' || !NAME.test(o.heading)) throw new Error('customTypeCard({ heading }) is the key of the block\'s own text field that takes the type\'s name.')
+    card.heading = o.heading
   }
   return { card }
 }

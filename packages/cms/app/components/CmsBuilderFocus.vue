@@ -25,7 +25,8 @@ function showTop(el: HTMLElement) {
   if (!panel) return
   const page = el === document.scrollingElement || el === document.documentElement
   const top = panel.getBoundingClientRect().top - (page ? 0 : el.getBoundingClientRect().top) + el.scrollTop - 24
-  el.scrollTop = Math.max(0, top)
+  // Instant: it also ends a smooth scroll the form started (a row brought into view as the panel opened).
+  el.scrollTo({ top: Math.max(0, top), behavior: 'instant' })
 }
 let listScroll: number | null = null
 // The element that scrolls is found while the form is still there: a short panel may not scroll it at all.

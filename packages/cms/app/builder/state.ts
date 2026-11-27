@@ -32,6 +32,10 @@ export const cmsBuilderWords = shallowRef<{ names: Record<string, string>; blank
 /** Since 3b: the admin's words for a card's placeholders (`fieldMissing` and `fieldUnfit` hold `{name}`); `''` for a word the admin did not send. */
 export interface CmsBuilderCardTexts { chooseField: string; fieldMissing: string; fieldUnfit: string; emptyCard: string; sampleCard: string }
 
+/** Since 3c: a field tried on a block of a card's design (a list with a card of the owner's own): block `block` of section `section` drawn with `key` = `value` in every card; null: as the content holds it. Set by the overlay from the admin's `cms:builder:try`. */
+export interface CmsEditingTry { section: string; block: string; key: string; value: string }
+export const cmsBuilderTry = shallowRef<CmsEditingTry | null>(null)
+
 /**
  * The form's values as the admin last sent them (`cms:preview`), and who wants to hear of the next ones:
  * a text typed in the page starts from the field's own value, and waits for its value to come back.

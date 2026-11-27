@@ -80,7 +80,10 @@ export async function useCustomBlock(block: () => Record<string, any>, kind: 'en
 export async function useCustomCard(block: () => Record<string, any>, custom: Awaited<ReturnType<typeof useCustomTypes>>, editing: Ref<boolean>) {
   const route = useRoute()
   const fetcher = useRequestFetch()
-  const plan = computed(() => cardListPlan(block(), custom.types.value, custom.lang))
+  // A field tried on a block in the admin's panel (useCmsEditingTry()): drawn in every card, nothing else changes.
+  // (Called before any await; the request depends on the binding only, which trying never touches.)
+  const tried = useCmsEditingTry()
+  const plan = computed(() => cardListPlan(cardTried(block(), editing.value ? tried.value : null), custom.types.value, custom.lang))
   // A draft is previewed with ?preview, as for useCustomBlock.
   const query = 'preview' in route.query ? { preview: '' } : {}
   const warn = (why: string) => { if (import.meta.dev) console.warn(`[${block()?.type ?? 'section_list'}] block ${block()?.id ?? ''} draws nothing: ${why}`) }

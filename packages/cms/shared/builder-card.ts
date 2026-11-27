@@ -6,6 +6,7 @@
 // change returns a new value. Rubbish in (a missing list, a block with no definition) gives an empty
 // or neutral answer, never a throw.
 import type { CustomFieldKind } from '../src/custom-kinds'
+import type { CmsBuilderCard, CmsBuilderCardBlock } from './builder'
 import { blankBlock, blockListField, type Block, type BlockDefs, type BlockFieldDef, type BlockKindDef } from './block-tree'
 
 /** One field of the type a card shows, as the admin reads it (the type's order; the entry's page is kind 'page', key 'slug'). */
@@ -15,7 +16,7 @@ export interface CardType { name: string; titleField: string; fields: CardTypeFi
 export type CardValue = string | number | boolean | null | Record<string, string>
 export interface CardStep { block: string; from: 'title' | CustomFieldKind[]; set?: Record<string, CardValue> }
 export interface CardGroupDef { block: string; label: unknown; icon?: string; set?: Record<string, CardValue>; next?: Record<string, CardValue> }
-export interface CardOptions { starter: CardStep[]; groups: CardGroupDef[] }
+export interface CardOptions { starter: CardStep[]; groups: CardGroupDef[]; heading?: string }
 export interface CardRef { key: string; takes: CustomFieldKind[]; own: string | null; only: Partial<Record<CustomFieldKind, string[]>> }
 export type CardBlockState =
   | { state: 'field'; key: string; kind: CustomFieldKind; label: string }
@@ -72,6 +73,7 @@ export function cardOptionsOf(def: BlockKindDef | undefined | null): CardOptions
     const next = values(g.next)
     out.groups.push({ block: g.block, label: g.label, ...(typeof g.icon === 'string' ? { icon: g.icon } : {}), ...(set ? { set } : {}), ...(next ? { next } : {}) })
   }
+  if (filled(card.heading)) out.heading = card.heading
   return out
 }
 
@@ -472,14 +474,16 @@ export function cardRowFields(type: CardType | null | undefined, takes: readonly
 // ── the picker of a card (part 3d) ──
 
 /** The block a section of the card's type is made of when a type is chosen for it: bound to the type, with the starter card in its list. `null` when the def has no card binding or no list for the card. */
-export function cardSectionBlock(defs: BlockDefs, defType: string, typeName: string, type: CardType, lang: string): Block | null {
+export function cardSectionBlock(defs: BlockDefs, defType: string, typeName: string, type: CardType, lang: string, heading?: string): Block | null {
   const def = defOf(defsOf(defs), defType)
   const binding = cardBindingFieldOf(def)
   const list = blockListField(def)
   if (!def || !binding || !list) return null
   const block = blankBlock(defsOf(defs), defType)
   block[binding.key] = { type: typeName }
-  block[list.key] = cardStarter(defsOf(list.meta?.blocks), cardOptionsOf(def), type, lang)
+  const options = cardOptionsOf(def)
+  block[list.key] = cardStarter(defsOf(list.meta?.blocks), options, type, lang)
+  if (options.heading && filled(heading) && (def.fields ?? []).some((f) => f.key === options.heading)) block[options.heading] = heading
   return block
 }
 
@@ -616,4 +620,94 @@ export function cardRedesign(section: unknown, def: BlockKindDef | undefined | n
 export function cardSectionUnbound(section: unknown, def: BlockKindDef | undefined | null, type: CardType | null): string[] {
   const held = cardItemsIn(section, def)
   return held ? cardUnbound(held.items, held.listDefs, type) : []
+}
+
+// ── what the page says about a card's blocks (part 3c, the tools in the page) ──
+
+/** The admin's words for what a block of a card shows (the same as the panel's rows). */
+export interface CardWords {
+  unbound: string
+  noPages: string
+  missing: (name: string) => string
+  unfit: (name: string) => string
+  own: string
+  groupBlocks: (count: number) => string
+  groupEmpty: string
+}
+
+/** What one block shows in words, for the panel's row and the page's chip; `tone` is the row's colour. */
+export function cardBlockWords(state: CardBlockState, lang: string, words: CardWords, groupCount = 0): { shows: string; chip: string; warn: boolean; tone: 'field' | 'own' | 'warn' | 'muted' } {
+  switch (state.state) {
+    case 'field': { const t = `← ${state.label}`; return { shows: t, chip: t, warn: false, tone: 'field' } }
+    case 'page': { const t = `→ ${state.label}`; return { shows: t, chip: t, warn: false, tone: 'field' } }
+    case 'own': { const t = cardRowSummary(state, lang).text; return { shows: t, chip: words.own, warn: false, tone: 'own' } }
+    case 'unbound': return { shows: words.unbound, chip: words.unbound, warn: true, tone: 'warn' }
+    case 'missing': { const t = state.key === 'slug' ? words.noPages : words.missing(state.key); return { shows: t, chip: t, warn: true, tone: 'warn' } }
+    case 'unfit': { const t = words.unfit(state.label || state.key); return { shows: t, chip: t, warn: true, tone: 'warn' } }
+    case 'group': return { shows: groupCount ? words.groupBlocks(groupCount) : words.groupEmpty, chip: '', warn: false, tone: 'muted' }
+    default: return { shows: '', chip: '', warn: false, tone: 'muted' }
+  }
+}
+
+type PageBlock = CmsBuilderCardBlock
+type PageCard = CmsBuilderCard
+
+/**
+ * The card sections of a page's blocks, as the page needs them (`cms:builder:cards`): per section id the
+ * type it shows and, for every block of its card at both levels, what it shows. Sections with no type
+ * and blocks that hold no card are left out; rubbish gives less, never a throw.
+ */
+export function cardPageCards(
+  items: unknown,
+  defs: BlockDefs,
+  o: {
+    type: (name: string) => CardType | null
+    typeLabel: (name: string) => string
+    blockLabel: (def: BlockKindDef, type: string) => string
+    words: CardWords
+    lang: string
+  },
+): Record<string, PageCard> {
+  const out: Record<string, PageCard> = {}
+  try {
+    for (const section of listOf(items)) {
+      if (!isRec(section) || !filled(section.id)) continue
+      const def = defOf(defsOf(defs), section.type)
+      const binding = cardBindingFieldOf(def)
+      if (!def || !binding) continue
+      const bound = section[binding.key]
+      const name = isRec(bound) && filled(bound.type) ? bound.type : ''
+      if (!name) continue
+      const held = cardItemsIn(section, def)
+      if (!held) continue
+      const type = o.type(name)
+      const blocks: Record<string, PageBlock> = {}
+      const add = (b: unknown, ds: BlockDefs) => {
+        if (!isRec(b) || !filled(b.id)) return null
+        const bd = defOf(ds, b.type)
+        if (!bd) return null
+        const ref = cardRefOf(bd)
+        const state = cardBlockState(b, bd, type)
+        const group = state.state === 'group'
+        const w = cardBlockWords(state, o.lang, o.words, group ? cardGroupCount(b, bd) : 0)
+        const entry: PageBlock = { label: o.blockLabel(bd, String(b.type)), shows: w.shows, chip: w.chip }
+        if (w.warn) entry.warn = true
+        if (state.state === 'field') { entry.field = state.key; entry.kind = state.kind }
+        else if (state.state === 'page') { entry.field = 'slug'; entry.kind = 'page' }
+        if (ref?.own) entry.own = ref.own
+        if (ref) entry.ref = ref.key
+        if (group) entry.group = true
+        blocks[b.id] = entry
+        return bd
+      }
+      for (const b of held.items) {
+        const bd = add(b, held.listDefs)
+        const inner = bd && isRec(b) ? blockListField(bd) : null
+        if (inner && isRec(b)) for (const c of listOf(b[inner.key])) add(c, defsOf(inner.meta?.blocks))
+      }
+      out[section.id] = { entity: name, label: o.typeLabel(name) || name, blocks }
+    }
+  }
+  catch { /* rubbish gives less, never a throw */ }
+  return out
 }

@@ -34,6 +34,49 @@ describe('builder messages to the page', () => {
   })
 })
 
+describe('builder messages of a card (3c)', () => {
+  const block = { label: 'Text', shows: '← Cena', chip: '← Cena', field: 'price', kind: 'number', own: 'text', ref: 'field' }
+  const cards = { s1: { entity: 'custom_course', label: 'Kurzy', blocks: { b1: block, g: { label: 'Group', shows: '2 bloky', chip: '', group: true }, w: { label: 'Text', shows: 'Nenapojeno', chip: 'Nenapojeno', warn: true } } } }
+  it('accepts the cards and a try', () => {
+    expect(isCmsBuilderToPage({ type: 'cms:builder:cards', cards })).toBe(true)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:cards', cards: {} })).toBe(true)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:try', try: null })).toBe(true)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:try', try: { path: ['s1', 'b1'], key: 'field', value: 'price' } })).toBe(true)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:try', try: { path: ['s1'], key: 'field', value: '', chosen: true } })).toBe(true)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:cards', cards: { s1: { ...cards.s1, blocks: { b: { ...block, field: 'slug' } } } } })).toBe(true)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:on', labels: {}, texts: { ...texts, editEntry: 'Edit' }, selected: null })).toBe(true)
+  })
+  it('refuses malformed ones', () => {
+    const cardsOf = (c: unknown) => ({ type: 'cms:builder:cards', cards: c })
+    expect(isCmsBuilderToPage({ type: 'cms:builder:cards' })).toBe(false)
+    expect(isCmsBuilderToPage(cardsOf([]))).toBe(false)
+    expect(isCmsBuilderToPage(cardsOf({ s1: { ...cards.s1, entity: 'not a name' } }))).toBe(false)
+    expect(isCmsBuilderToPage(cardsOf({ s1: { ...cards.s1, label: 'x'.repeat(201) } }))).toBe(false)
+    expect(isCmsBuilderToPage(cardsOf({ s1: { ...cards.s1, blocks: { b: { ...block, shows: 1 } } } }))).toBe(false)
+    expect(isCmsBuilderToPage(cardsOf({ s1: { ...cards.s1, blocks: { b: { label: 'a', shows: 'b' } } } }))).toBe(false)
+    expect(isCmsBuilderToPage(cardsOf({ s1: { ...cards.s1, blocks: { b: { ...block, ref: 'a b' } } } }))).toBe(false)
+    expect(isCmsBuilderToPage(cardsOf({ s1: { ...cards.s1, blocks: { b: { ...block, warn: 'yes' } } } }))).toBe(false)
+    expect(isCmsBuilderToPage(cardsOf({ '': cards.s1 }))).toBe(false)
+    expect(isCmsBuilderToPage(cardsOf(Object.fromEntries(Array.from({ length: 51 }, (_, i) => [`s${i}`, cards.s1]))))).toBe(false)
+    expect(isCmsBuilderToPage(cardsOf({ s1: { ...cards.s1, blocks: Object.fromEntries(Array.from({ length: 201 }, (_, i) => [`b${i}`, block])) } }))).toBe(false)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:try' })).toBe(false)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:try', try: { path: [], key: 'field', value: 'x' } })).toBe(false)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:try', try: { path: ['s'], key: 'a b', value: 'x' } })).toBe(false)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:try', try: { path: ['s'], key: 'field', value: 3 } })).toBe(false)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:try', try: { path: ['s'], key: 'field', value: 'x'.repeat(201) } })).toBe(false)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:try', try: { path: ['s'], key: 'field', value: 'x', chosen: 'y' } })).toBe(false)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:on', labels: {}, texts: { ...texts, editEntry: 1 }, selected: null })).toBe(false)
+  })
+  it('takes the card a click was in, on a selection', () => {
+    expect(isCmsBuilderToAdmin({ type: 'cms:builder:select', id: 'b', path: ['s', 'b'], card: { entity: 'custom_course', id: 'e1' } })).toBe(true)
+    expect(isCmsBuilderToAdmin({ type: 'cms:builder:select', id: 'b', card: { entity: 'custom_course', id: 'e1' } })).toBe(true)
+    expect(isCmsBuilderToAdmin({ type: 'cms:builder:select', id: 'b', card: { entity: 'no name', id: 'e1' } })).toBe(false)
+    expect(isCmsBuilderToAdmin({ type: 'cms:builder:select', id: 'b', card: { entity: 'custom_course', id: '' } })).toBe(false)
+    expect(isCmsBuilderToAdmin({ type: 'cms:builder:select', id: 'b', card: 'x' })).toBe(false)
+    expect(isCmsBuilderToAdmin({ type: 'cms:builder:select', id: null, card: { entity: 'a', id: 'b' } })).toBe(true)
+  })
+})
+
 describe('builder messages to the admin', () => {
   it('accepts each message of the page', () => {
     expect(isCmsBuilderToAdmin({ type: 'cms:builder:ready' })).toBe(true)

@@ -697,6 +697,7 @@ export interface CustomCardGroup {
 export interface CustomCardOptions {
     starter?: readonly CustomCardStep[];
     groups?: readonly CustomCardGroup[];
+    heading?: string;
 }
 
 export interface CustomCardStep {

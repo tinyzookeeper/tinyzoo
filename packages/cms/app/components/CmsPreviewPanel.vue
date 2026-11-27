@@ -14,11 +14,14 @@
 // page names (CmsBuilderValueBox): it knows where the frame is and how much smaller it draws the page.
 import { cmsBuilderFit, isCmsBuilderToAdmin, type CmsBuilderKey, type CmsBuilderToPage } from '../../shared/builder'
 import { cmsBuilderEntities } from '../../shared/builder-sources'
+import { kindsAlong } from '../../shared/block-tree'
+import { cardPageCards, cardRefOf, type CardWords } from '../../shared/builder-card'
+import { cmsCardTypeOf } from '../utils/cmsCardType'
 import type { Ref } from 'vue'
 
 const props = defineProps<{ url: string; entity: string; id: string; locale: string | null; data: Record<string, any>; version: string | null; sheet?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
-const { t, locale: adminLanguage, entityLabel, fieldLabel } = useCmsI18n()
+const { t, tl, locale: adminLanguage, entityLabel, fieldLabel } = useCmsI18n()
 const builder = useCmsBuilder()
 // A page this person may only read has no save: nothing of an entry is changed from its preview either.
 const pageReadOnly = inject<Ref<boolean> | null>('cmsReadOnly', null)
@@ -137,6 +140,69 @@ const path = computed(() => {
   }
 })
 
+// ── the card sections (since 3c): what each block of a card shows, for the page's chips ──
+// The lists read the form's values; their blocks are replaced, never changed inside, but a deep watch on the
+// data bumps `formTick` too, so nothing is missed.
+const formTick = ref(0)
+watch(() => props.data, () => { formTick.value++ }, { deep: true })
+const cardWords = computed((): CardWords => ({
+  unbound: t('card.rowUnbound'),
+  noPages: t('card.rowNoPages'),
+  missing: (name) => t('card.rowMissing', { name }),
+  unfit: (name) => t('card.rowUnfit', { name }),
+  own: t('card.own'),
+  groupBlocks: (count) => t('card.groupBlocks', { count }),
+  groupEmpty: t('card.groupEmpty'),
+}))
+const pageCards = computed(() => {
+  void formTick.value
+  const bridge = builder.value
+  if (!bridge) return {}
+  const found = new Map<string, ReturnType<typeof cmsCardTypeOf>>()
+  const typeOf = (name: string) => {
+    if (!found.has(name)) found.set(name, cmsCardTypeOf(graph.value, name, tl, t('fieldRef.page')))
+    return found.get(name)!
+  }
+  const out: Record<string, any> = {}
+  for (const list of bridge.lists.value) {
+    const { items, defs } = list.root()
+    Object.assign(out, cardPageCards(items, defs, {
+      type: (name) => typeOf(name)?.type ?? null,
+      typeLabel: (name) => typeOf(name)?.meta.label ?? name,
+      blockLabel: (def, type) => tl(def.label as any, type),
+      words: cardWords.value,
+      lang: adminLanguage.value,
+    }))
+  }
+  return out
+})
+let lastCards = ''
+function sendCards(force = false) {
+  const json = JSON.stringify(pageCards.value)
+  if (!force && json === lastCards) return
+  lastCards = json
+  sendToPage({ type: 'cms:builder:cards', cards: JSON.parse(json) })
+}
+
+// ── a field tried on a card's block (since 3c) ──
+// A try that ends is sent a moment later, and not at all when another came in meanwhile: moving between two rows never shows the real value in between.
+let tryEnd: ReturnType<typeof setTimeout> | null = null
+function sendTry(pointed: { path: string[]; field: string; chosen?: boolean } | null) {
+  if (tryEnd) clearTimeout(tryEnd)
+  tryEnd = null
+  if (!loaded) return
+  if (!pointed) {
+    tryEnd = setTimeout(() => { tryEnd = null; sendToPage({ type: 'cms:builder:try', try: null }) }, 120)
+    return
+  }
+  const bridge = builder.value
+  const list = bridge?.lists.value.find((l) => l.ids().includes(pointed.path[0]!))
+  const def = list ? kindsAlong(list.root(), [...pointed.path]).at(-1)?.def : undefined
+  const ref = cardRefOf(def)
+  if (!ref) return
+  sendToPage({ type: 'cms:builder:try', try: { path: [...pointed.path], key: ref.key, value: pointed.field, ...(pointed.chosen ? { chosen: true } : {}) } })
+}
+
 let timer: ReturnType<typeof setTimeout> | null = null
 let last = ''
 let sending: Promise<unknown> = Promise.resolve()
@@ -181,6 +247,7 @@ function sendOn() {
       shared: t('builderPending.shared'),
       chooseField: t('builderCard.chooseField'), fieldMissing: t('builderCard.fieldMissing', { name: '{name}' }),
       fieldUnfit: t('builderCard.fieldUnfit', { name: '{name}' }), emptyCard: t('builderCard.emptyCard'), sampleCard: t('builderCard.sampleCard'),
+      editEntry: t('builderCard.editEntry'),
     },
     selected: bridge.selected.value,
     selectedPath: bridge.selectedPath.value,
@@ -189,6 +256,9 @@ function sendOn() {
     entities: JSON.parse(JSON.stringify(entities)),
     self: { entity: props.entity, id: props.id },
   })
+  // The card sections' blocks, and no field tried on (a page that loaded anew has none).
+  sendCards(true)
+  sendToPage({ type: 'cms:builder:try', try: null })
   // The entries and globals changed in the page that still wait: the page hears of them again after it loaded anew.
   if (bridge.pending.count.value) bridge.pending.tell()
 }
@@ -270,8 +340,14 @@ watch(builder, (bridge, _old, onCleanup) => {
   // The bridge came after the frame loaded: tell the page now.
   if (loaded || frameComplete()) sendOn()
   const stop = watch([bridge.kinds, adminLanguage, graph], () => sendOn(), { deep: true })
+  const stopCards = watch(pageCards, () => { if (loaded) sendCards() })
+  const stopTry = watch(() => bridge.cardTry.value, (pointed) => sendTry(pointed ? { path: [...pointed.path], field: pointed.field, ...(pointed.chosen ? { chosen: true } : {}) } : null))
   onCleanup(() => {
     stop()
+    stopCards()
+    stopTry()
+    if (tryEnd) clearTimeout(tryEnd)
+    tryEnd = null
     detach()
     window.removeEventListener('resize', moved)
     window.removeEventListener('scroll', moved, true)

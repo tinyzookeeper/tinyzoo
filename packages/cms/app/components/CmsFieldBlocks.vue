@@ -6,7 +6,7 @@ import { cmsBindingRead, cmsBindingTypes } from '../utils/cmsBinding'
 import { cmsCardBindingOf, cmsRefFields, type CmsCardBlock, type CmsCardBlockOf } from '../utils/cmsFieldRef'
 import { cmsCardTypeOf } from '../utils/cmsCardType'
 import {
-  cardBindingFieldOf, cardBlockState, cardGroupCount, cardHiddenFields, cardOptionsOf, cardRefOf, cardRowSummary, type CardOptions,
+  cardBindingFieldOf, cardBlockState, cardBlockWords, cardGroupCount, cardHiddenFields, cardOptionsOf, cardRefOf, type CardOptions, type CardWords,
 } from '../../shared/builder-card'
 import type { CmsCardOwner } from '../composables/useCmsCardEdit'
 import {
@@ -219,8 +219,11 @@ function builderCollapse() {
 function scrollRow(id: string) {
   void nextTick(() => {
     const row = [...(root.value?.querySelectorAll<HTMLElement>('[data-cms-block-row]') ?? [])].find((el) => el.dataset.cmsBlockRow === id)
+    // The selected block's panel takes the list's place (the editor in the preview): a smooth scroll to a row
+    // nobody sees would end after the panel was shown from its top, and leave it scrolled down.
+    if (!row || row.offsetParent === null || builderRef.value?.focused.value) return
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
-    row?.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' })
+    row.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' })
   })
 }
 function builderReveal(path: CmsBuilderPath) {
@@ -622,22 +625,22 @@ const isCardSection = (b: any) => builderOn.value && takesPart && !!cardBindingF
 /** The card's blocks of a section that show nothing on the website. */
 const sectionUnbound = (b: any): number => (isCardSection(b) ? cardEdit.unboundOf(b, defs.value[b?.type]).length : 0)
 /** What a block of a card says it shows (this list is a card's or a group's): its text, its look and whether it shows nothing; null elsewhere. */
+const cardWords = computed((): CardWords => ({
+  unbound: t('card.rowUnbound'),
+  noPages: t('card.rowNoPages'),
+  missing: (name) => t('card.rowMissing', { name }),
+  unfit: (name) => t('card.rowUnfit', { name }),
+  own: t('card.own'),
+  groupBlocks: (count) => t('card.groupBlocks', { count }),
+  groupEmpty: t('card.groupEmpty'),
+}))
 function cardRow(b: any, kinds: Record<string, any> = defs.value): { text: string; cls: string; warn: boolean } | null {
   if (!cardPlace.value) return null
-  const sum = cardRowSummary(cardBlockState(b, kinds[b?.type], cardTypeNow.value), locale.value)
-  switch (sum.kind) {
-    case 'field': return { text: `\u2190 ${sum.text}`, cls: 'text-primary', warn: false }
-    case 'page': return { text: `\u2192 ${sum.text}`, cls: 'text-primary', warn: false }
-    case 'own': return { text: sum.text, cls: 'text-muted', warn: false }
-    case 'unbound': return { text: t('card.rowUnbound'), cls: 'text-warning font-medium', warn: true }
-    case 'missing': return { text: sum.text === 'slug' ? t('card.rowNoPages') : t('card.rowMissing', { name: sum.text }), cls: 'text-warning font-medium', warn: true }
-    case 'unfit': return { text: t('card.rowUnfit', { name: sum.text }), cls: 'text-warning font-medium', warn: true }
-    case 'group': {
-      const n = cardGroupCount(b, kinds[b?.type])
-      return { text: n ? t('card.groupBlocks', { count: n }) : t('card.groupEmpty'), cls: 'text-muted', warn: false }
-    }
-    default: return null
-  }
+  const state = cardBlockState(b, kinds[b?.type], cardTypeNow.value)
+  if (state.state === 'other') return null
+  const w = cardBlockWords(state, locale.value, cardWords.value, state.state === 'group' ? cardGroupCount(b, kinds[b?.type]) : 0)
+  const cls = w.tone === 'warn' ? 'text-warning font-medium' : w.tone === 'field' ? 'text-primary' : 'text-muted'
+  return { text: w.shows, cls, warn: w.warn }
 }
 /** In the focus panel the blocks of a group stand right under its row, smaller and indented, so the whole card is seen at once. */
 function groupKids(b: any): { id: string; icon: string; label: string; row: ReturnType<typeof cardRow> }[] {

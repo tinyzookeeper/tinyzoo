@@ -4,7 +4,7 @@ import type { CustomFieldKind } from 'tinyzoo'
 import type { CustomType, CustomTypeField } from '../../templates/kit/app/utils/customTypes'
 import {
   CARD_GROUP_MAX, CARD_MAX, CARD_TAKES, cardDate, cardEntries, cardFieldKind, cardHref, cardItems, cardLinkOf, cardListClasses, cardListPlan, cardMailto,
-  cardMedia, cardNumber, cardPageHref, cardRich, cardSource, cardText, type CardBlockType, type CardListPlan,
+  cardMedia, cardNumber, cardPageHref, cardRich, cardSource, cardText, cardTried, type CardBlockType, type CardListPlan,
 } from '../../templates/kit/app/utils/card'
 
 // What the kit reads from a list with a card of the owner's own, before it draws it
@@ -678,5 +678,61 @@ describe('drawing never fails', () => {
     expect(p.ok).toBe(true)
     if (p.ok) for (const editing of [false, true]) expect(() => cardEntries(p, [{ a: 'x', b: 'y', c: 1, slug: 's' }, {}], { lang: 'cs', editing })).not.toThrow()
     expect(() => cardSource('button', 'slug', odd, 'cs')).not.toThrow()
+  })
+})
+
+describe('trying a field on a block', () => {
+  const section = () => ({
+    id: 's1', type: 'section_list', source: { type: 'custom_course' },
+    items: [heading({ field: 'name' }), group([text({ id: 'gt', field: 'name' }), button({ id: 'gb', field: 'site', label: 'Více' })]), picture({ field: 'cover' })],
+  })
+  const t = (block: string, key = 'price', value = 'price') => ({ section: 's1', block, key, value })
+
+  it('tries a block of the first level, and nothing else is copied', () => {
+    const s = section() as any
+    const out = cardTried(s, t('h', 'field')) as any
+    expect(out).not.toBe(s)
+    expect(out.items[0]).toEqual({ id: 'h', type: 'heading', field: 'price' })
+    expect(s.items[0].field).toBe('name')
+    expect(out.items[1]).toBe(s.items[1])
+    expect(out.items[2]).toBe(s.items[2])
+    expect(out.source).toBe(s.source)
+  })
+
+  it('tries a block inside a group', () => {
+    const s = section() as any
+    const out = cardTried(s, t('gt', 'field')) as any
+    expect(out.items[1]).not.toBe(s.items[1])
+    expect(out.items[1].items[0].field).toBe('price')
+    expect(out.items[1].items[1]).toBe(s.items[1].items[1])
+    expect(out.items[0]).toBe(s.items[0])
+    expect(s.items[1].items[0].field).toBe('name')
+  })
+
+  it('gives the same section back for another section, an unknown block or nothing tried', () => {
+    const s = section()
+    expect(cardTried(s, { ...t('h'), section: 'other' })).toBe(s)
+    expect(cardTried(s, t('nope'))).toBe(s)
+    expect(cardTried(s, null)).toBe(s)
+    expect(cardTried(s, undefined)).toBe(s)
+  })
+
+  it('never throws on rubbish', () => {
+    for (const b of [null, undefined, 'x', 5, [], {}, { id: 's1' }, { id: 's1', items: 'x' }, { id: 's1', items: [null, 5, 'x', { id: 'g', items: 'x' }] }]) {
+      expect(() => cardTried(b, t('h'))).not.toThrow()
+      expect(cardTried(b, t('h'))).toBe(b)
+    }
+    expect(() => cardTried(section(), 'x' as any)).not.toThrow()
+    expect(() => cardTried(section(), { section: 's1' } as any)).not.toThrow()
+  })
+
+  it('makes the plan take the tried field for that block, with the same request', () => {
+    const s = section()
+    const base = cardListPlan({ ...s, items: [text({ id: 't', field: 'name' })] }, types, 'cs')
+    const tried = cardListPlan(cardTried({ ...s, items: [text({ id: 't', field: 'name' })] }, t('t', 'field')), types, 'cs')
+    if (!base.ok || !tried.ok) throw new Error('no plan')
+    expect(base.design[0]).toMatchObject({ source: { from: 'field', key: 'name' } })
+    expect(tried.design[0]).toMatchObject({ source: { from: 'field', key: 'price' } })
+    expect(tried.request).toEqual(base.request)
   })
 })

@@ -230,6 +230,32 @@ export function cardListPlan(block: unknown, types: CustomType[] | null | undefi
   }
 }
 
+/**
+ * "Trying a field on" (the editor in the preview): the section `block` with block `tried.block` of its card
+ * drawn showing the field `tried.key` as its reference, with `tried.value` as its value. A copy of the
+ * section holding a copy of that one block (nothing else is copied: the others keep their identity); the
+ * section itself when `tried` names another section or a block it does not hold, or is nothing. The
+ * binding is never touched, so the request for the entries stays the same. Never throws.
+ */
+export function cardTried(block: unknown, tried: { section: string; block: string; key: string; value: string } | null | undefined): unknown {
+  if (!isRec(block) || !isRec(tried) || typeof tried.block !== 'string' || typeof tried.key !== 'string') return block
+  if (typeof block.id !== 'string' || block.id !== tried.section || !Array.isArray(block.items)) return block
+  const swap = (list: unknown[]): unknown[] | null => {
+    for (let i = 0; i < list.length; i++) {
+      const item = list[i]
+      if (!isRec(item)) continue
+      if (item.id === tried.block) return list.map((x, j) => (j === i ? { ...item, [tried.key]: tried.value } : x))
+      if (Array.isArray(item.items)) {
+        const inner = swap(item.items)
+        if (inner) return list.map((x, j) => (j === i ? { ...item, items: inner } : x))
+      }
+    }
+    return null
+  }
+  const items = swap(block.items)
+  return items ? { ...block, items } : block
+}
+
 // ── values, by the field's kind ──
 
 const LOCALES: Record<string, string> = { cs: 'cs-CZ', en: 'en-GB', de: 'de-DE' }

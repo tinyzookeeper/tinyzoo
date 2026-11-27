@@ -125,14 +125,22 @@ function point(key: string | null) {
   b.cardTry.value = key && path ? { path: [...path], field: key } : null
 }
 onBeforeUnmount(() => point(null))
+/** A row was chosen: the page keeps showing the field until its own data has it. */
+function choseRow(field: string) {
+  const b = builder.value
+  const path = here.value?.path
+  if (b && path) b.cardTry.value = { path: [...path], field, chosen: true }
+}
 function pick(key: string) {
   if (props.readOnly) return
   model.value = key
+  choseRow(key)
 }
 /** The own text: no field named; the text's input (it shows now) takes the keyboard. */
 function pickOwn() {
   if (props.readOnly) return
   model.value = ''
+  choseRow('')
   const prefix = cmsFieldIdPrefix(props.id, props.field?.key)
   if (!prefix || !ownKey.value) return
   const id = `cms-field-${prefix}${ownKey.value}`

@@ -172,7 +172,7 @@ function checkTopBlockRefs(trail: string[], def: BlockDef) {
  * (the block's first `f.blocks()`) and fields of those blocks.
  */
 function checkCardOptions(trail: string[], def: BlockDef) {
-  const opts = (def.fields[trail[trail.length - 1]!] as FieldDescriptor | undefined)?.meta?.card as { starter?: any[]; groups?: any[] } | undefined
+  const opts = (def.fields[trail[trail.length - 1]!] as FieldDescriptor | undefined)?.meta?.card as { starter?: any[]; groups?: any[]; heading?: string } | undefined
   if (!opts) return
   const list = (Object.values(def.fields) as FieldDescriptor[]).find((f) => f.type === 'blocks' && !f.meta?.list)
   const where = trail.join(' › ')
@@ -185,6 +185,11 @@ function checkCardOptions(trail: string[], def: BlockDef) {
   }
   opts.starter?.forEach((step, i) => check(`starter[${i}]`, step.block, step.set))
   opts.groups?.forEach((g, i) => check(`groups[${i}]`, g.block, g.set, g.next))
+  if (opts.heading !== undefined) {
+    const field = def.fields[opts.heading] as FieldDescriptor | undefined
+    if (!field) throw new Error(`${where}: heading names "${opts.heading}", which the block does not have.`)
+    if (field.type !== 'text' || field.meta?.format || field.meta?.setting) throw new Error(`${where}: heading names "${opts.heading}", which is not a plain text field of the block.`)
+  }
 }
 
 /** A reference's `own` and `only` name fields of its own block. */

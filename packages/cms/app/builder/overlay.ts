@@ -42,9 +42,19 @@
 // admin for a box with those controls, drawn over the preview at the element (`cms:builder:value`); the
 // page keeps telling where the element is (`cms:builder:anchor`). Which values an element shows is found
 // from their forms (shared/builder-values.ts). What cannot be changed here selects the card, as before.
-import { cmsBuilderFieldInfo, cmsBuilderFieldValue, cmsFieldOf, type CmsBuilderField, type CmsBuilderKey, type CmsBuilderKind, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace, type CmsBuilderTexts, type CmsBuilderToAdmin, type CmsBuilderToPage, type CmsBuilderValueAlso } from '../../shared/builder'
+//
+// Since 3c (second half) a section that shows a type's entries with a card of the owner's own (the admin says
+// which: `cms:builder:cards`) is one design drawn once per entry: each card holds the same blocks, with the
+// same ids. A click selects the design, never an entry: the clicked card is where the tools stand (the
+// outline solid there, dashed in every other card, the toolbar, the "+" places, a drag), and the admin hears
+// which entry it shows. The entry stays reachable: a double click on a value changes it exactly (the card
+// names the entry, the block its field: no guessing), and the block's toolbar opens the whole entry. While
+// the section is selected the card under the pointer names what each of its blocks shows; while the panel
+// points at a field (`cms:builder:try`) every card draws it in that block (useCmsEditingTry() in the kit).
+import { cmsBuilderFieldInfo, cmsBuilderFieldValue, cmsFieldOf, type CmsBuilderCard, type CmsBuilderField, type CmsBuilderKey, type CmsBuilderKind, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace, type CmsBuilderTexts, type CmsBuilderToAdmin, type CmsBuilderToPage, type CmsBuilderTry, type CmsBuilderValueAlso } from '../../shared/builder'
+import { cardBlockName, cardChipAt, cardNameLine, cardPageKey, cardSectionName, cardStagger, cardTryLanded, cardValueEdit, cardValuePart } from '../../shared/builder-card-page'
 import {
-  cmsMatchAt, cmsMatchChain, cmsMatchElements, cmsMatchFields, cmsMatchPictureOf, cmsMatchPictures, cmsMatchReport, cmsMatchShown, cmsMatchUnmarked, cmsSrcsetUrls,
+  cmsMatchAt, cmsMatchChain, cmsMatchElements, cmsMatchFields, cmsMatchPictureOf, cmsMatchPictures, cmsMatchReport, cmsMatchShown, cmsMatchUnmarked, cmsMatchValue, cmsSrcsetUrls,
   type CmsMatchField, type CmsMatchPicture,
 } from '../../shared/builder-match'
 import {
@@ -53,7 +63,7 @@ import {
 } from '../../shared/builder-sources'
 import { cmsValueAt, cmsValueIndex, type CmsValueIndex, type CmsValuePath } from '../../shared/builder-values'
 import { cmsSourceChanges, cmsSourceRecords, cmsSourcesLoadedBy } from './sources'
-import { cmsBuilderBlocks, cmsBuilderHold, cmsBuilderInstances, cmsBuilderMarkers, cmsBuilderPending } from './state'
+import { cmsBuilderBlocks, cmsBuilderDraft, cmsBuilderHold, cmsBuilderInstances, cmsBuilderMarkers, cmsBuilderPending, cmsBuilderTry } from './state'
 import { endTyping, setupTyping, startTyping, typingEl } from './typing'
 import {
   addSlots, axisOf, cellShifts, dropPlace, droppedOrder, edgeSpeed, innerArea, leastHidden, nearestBoundary, nearestSlot, oneLine, placeInList, sameSizes, selectDepth,
@@ -122,6 +132,15 @@ let boxed: { key: string; entity: string; id: string; values: CmsValuePath[]; al
 /** What the admin last heard about the selected block's sources. */
 let sourcesSent = ''
 let sourcesAt = ''
+/** Since 3c: what the admin says about each card section's blocks, by the section's id. */
+let cards: Record<string, CmsBuilderCard> = {}
+/** Since 3c: the card the person clicked in a card section (its entry's id, else its place): the tools stand in it. */
+let activeCard: { section: string; key: string } | null = null
+/** Since 3c: the card under the pointer, in a card section. */
+let hoverCard: { section: string; key: string } | null = null
+/** Since 3c: the field tried on a block of a card's design; a chosen one stays until the page draws it itself (`landing`: it does now). */
+let tried: (CmsBuilderTry & { landing?: boolean }) | null = null
+let triedTimer: ReturnType<typeof setTimeout> | undefined
 
 /** A marked block on the page: its elements (one, or a fragment's), its parent block and its path. */
 interface BNode {
@@ -171,6 +190,11 @@ interface Ui {
   cardOpen: HTMLElement
   adds: HTMLButtonElement[]
   empties: HTMLButtonElement[]
+  /** Since 3c: the selected block of a card's design in every other card (dashed), the chips on the card under the pointer, the entry's action. */
+  repeats: HTMLElement[]
+  marks: HTMLElement[]
+  entryRule: HTMLElement
+  entry: HTMLButtonElement
 }
 
 /** A list as the drag found it: its container (`null`: the page's own list), its blocks and their boxes in the document. */
@@ -251,23 +275,164 @@ function nodeOf(target: Node | null): BNode | null {
   return nodeOfEl.get(el) ?? null
 }
 
-/** The block at a path, else the deepest block along it that the page draws (a list the page draws without marks). */
+/**
+ * The block at a path, else the deepest block along it that the page draws (a list the page draws without
+ * marks). A block of a card's design stands once per card: the one in the card the tools stand in.
+ */
 function nodeAt(path: CmsBuilderPath | null): BNode | null {
   if (!path) return null
   for (let n = path.length; n > 0; n--) {
     const key = path.slice(0, n).join('/')
-    const found = nodes.find((x) => x.key === key)
-    if (found) return found
+    const found = nodes.filter((x) => x.key === key)
+    if (!found.length) continue
+    if (found.length > 1) {
+      const section = sectionOf(found[0]!)
+      const li = cardOf(section) ? cardIn(section) : null
+      const mine = li ? found.find((x) => inLi(x, li)) : undefined
+      if (mine) return mine
+    }
+    return found[0]!
   }
   return null
 }
 
 const chainOf = (node: BNode): BNode[] => (node.parent ? [...chainOf(node.parent), node] : [node])
+const sectionOf = (node: BNode): BNode => chainOf(node)[0]!
 const siblingsOf = (node: BNode) => nodes.filter((n) => n.parent === node.parent && n.list === node.list)
-/** The blocks of a container's list (its first list, as the admin counts it). */
-function childrenOf(container: BNode | null): BNode[] {
-  const all = nodes.filter((n) => n.parent === container)
+/**
+ * The blocks of a container's list (its first list, as the admin counts it). A card section's list is its
+ * card's: the one in `within`, else the card the tools stand in (or the one under the pointer, or the first).
+ */
+function childrenOf(container: BNode | null, within?: HTMLElement | null): BNode[] {
+  let all = nodes.filter((n) => n.parent === container)
+  if (container && !container.parent && cardOf(container)) {
+    const li = within ?? cardIn(container, { hovered: true, first: true })
+    all = li ? all.filter((n) => inLi(n, li)) : []
+  }
   return all.filter((n) => n.list === all[0]?.list)
+}
+
+// ---- a card bound to a content type (since 3c, second half)
+
+const CARD = 'li[data-kit-card]'
+/** What the admin says about a card section (a block of the page's list), or null. */
+const cardOf = (section: BNode | null | undefined): CmsBuilderCard | null => (section && !section.parent && Object.hasOwn(cards, section.id) ? cards[section.id]! : null)
+/** The card (an `li` the kit marks while editing) a node is in, inside a card section's own element. */
+function cardLiOf(target: Node | null, section: BNode): HTMLElement | null {
+  const el = (target instanceof Element ? target : target?.parentElement)?.closest<HTMLElement>(CARD) ?? null
+  return el && section.els.some((root) => root.contains(el)) ? el : null
+}
+const liKey = (li: HTMLElement) => cardPageKey(li.dataset.kitCardEntry, li.dataset.kitCard)
+function liAt(section: BNode, key: string | null | undefined): HTMLElement | null {
+  if (!key) return null
+  for (const root of section.els) for (const li of root.querySelectorAll<HTMLElement>(CARD)) if (liKey(li) === key) return li
+  return null
+}
+/** The card the tools stand in, in a card section: the clicked one; else (`hovered`) the one under the pointer; else (`first`) the first. */
+function cardIn(section: BNode, o: { hovered?: boolean; first?: boolean } = {}): HTMLElement | null {
+  if (activeCard?.section === section.id) {
+    const li = liAt(section, activeCard.key)
+    if (li) return li
+  }
+  if (o.hovered && hoverCard?.section === section.id) {
+    const li = liAt(section, hoverCard.key)
+    if (li) return li
+  }
+  return o.first ? section.els[0]?.querySelector<HTMLElement>(CARD) ?? null : null
+}
+const inLi = (n: BNode, li: HTMLElement) => n.els.some((el) => li.contains(el))
+/** The card a block of a card's design stands in; null for the section itself and outside card sections. */
+function liOfNode(node: BNode): HTMLElement | null {
+  if (!node.parent) return null
+  const section = sectionOf(node)
+  return cardOf(section) ? cardLiOf(node.els[0] ?? null, section) : null
+}
+/** How many cards of entries a section draws. */
+const cardCount = (section: BNode) => section.els.reduce((n, el) => n + el.querySelectorAll(`${CARD}[data-kit-card-entry]`).length, 0)
+/** The entry a card shows (its type and id); null for the sample card and the empty card. */
+function entryOfLi(li: HTMLElement | null): { entity: string; id: string } | null {
+  const entity = li?.dataset.kitCardCollection
+  const id = li?.dataset.kitCardEntry
+  return entity && id ? { entity, id } : null
+}
+/** The clicked card's entry, for the admin (its panel takes its examples from it), when `path` is in that card's section. */
+function clickedEntry(path: CmsBuilderPath | null): { entity: string; id: string } | null {
+  if (!path || !activeCard || activeCard.section !== path[0]) return null
+  const section = nodes.find((n) => !n.parent && n.id === path[0])
+  return section ? entryOfLi(liAt(section, activeCard.key)) : null
+}
+/** What a block's chip and toolbar say: a card section's type and its repeats, a card block's name and what it shows. */
+function namesOf(node: BNode): { label: string; shows: string; warn: boolean } {
+  const card = cardOf(sectionOf(node))
+  if (card && !node.parent) return { ...cardSectionName(card.label || nameOf(node), cardCount(node)), warn: false }
+  if (card) return cardBlockName(card.blocks[node.id], nameOf(node))
+  return { label: nameOf(node), shows: '', warn: false }
+}
+function setName(el: HTMLElement, name: { label: string; shows: string; warn: boolean }) {
+  el.textContent = name.label
+  if (!name.shows) return
+  const shows = document.createElement('i')
+  shows.textContent = name.shows
+  if (name.warn) shows.className = 'warn'
+  el.append(' ', shows)
+}
+
+/**
+ * A field tried on a block of a card's design (the admin's panel points at a row of *Obsah bere z*): every card
+ * draws it at once (the kit reads useCmsEditingTry()), with no step of the history and nothing sent to the
+ * server. `null` ends it, unless the field was chosen: then the page keeps drawing it until its own content has
+ * it (the admin's draft names it, and the page has loaded anew), so the old value never shows in between.
+ */
+function setTry(next: CmsBuilderTry | null) {
+  if (!next) {
+    if (tried?.chosen) return
+    tried = null
+    cmsBuilderTry.value = null
+    return
+  }
+  clearTimeout(triedTimer)
+  tried = { ...next }
+  cmsBuilderTry.value = { section: next.path[0]!, block: next.path[next.path.length - 1]!, key: next.key, value: next.value }
+  if (!next.chosen) return
+  stagger(next.path)
+  const chosen = tried
+  // Never longer than a few seconds, whatever the draft says.
+  triedTimer = setTimeout(() => endTry(chosen), 6000)
+  landed(cmsBuilderDraft.data)
+}
+
+function endTry(which: CmsBuilderTry) {
+  if (tried !== which) return
+  tried = null
+  cmsBuilderTry.value = null
+}
+
+/** The admin's draft came: once it holds the chosen field, the page shows its own content again after it has loaded it anew. */
+function landed(data: unknown) {
+  const t = tried
+  if (!t?.chosen || t.landing || !cardTryLanded(cmsBuilderFieldValue(data, t.path, t.key), t)) return
+  t.landing = true
+  clearTimeout(triedTimer)
+  triedTimer = setTimeout(() => endTry(t), 1500)
+}
+
+/** The values a chosen field brings come in card by card: each block of the design fades up in turn, with a soft glow. None with reduced motion. */
+function stagger(path: CmsBuilderPath) {
+  if (reduced() || !ui) return
+  const key = path.join('/')
+  // After the kit has drawn the field (Vue draws on its next tick).
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (!ui) return
+    nodes = scan()
+    const host = ui.host.getBoundingClientRect()
+    nodes.filter((n) => n.key === key).forEach((n, i) => {
+      const delay = cardStagger(i, false)
+      for (const el of n.els) el.animate([{ opacity: 0.25, transform: `translateY(${4 * k()}px)` }, { opacity: 1, transform: 'none' }], { duration: 220, delay, easing: EASE, fill: 'backwards' })
+      const glow = make('div', 'o glow', ui!.root)
+      place(glow, host, rectOf(n))
+      glow.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, delay: delay + 120, easing: 'ease-out', fill: 'both' }).finished.then(() => glow.remove(), () => glow.remove())
+    })
+  }))
 }
 
 /** What a block is, from the admin's kinds along its path. */
@@ -377,6 +542,7 @@ function render() {
   drawTyping(host, sticky)
   drawHint(host, sticky)
   drawCards(current, host, sticky)
+  drawCardChips(current, host)
   drawBoxed(current, host)
   sendSources(current)
   if (current && keepInView && !scrollToSelected && !drag) {
@@ -402,6 +568,10 @@ const ARROWS = { y: ['up', 'down'], x: ['left', 'right'] } as const
 function drawSelection(current: BNode | null, host: DOMRect, sticky: number) {
   if (!ui) return
   ui.box.hidden = ui.bar.hidden = ui.context.hidden = true
+  // A block of a card's design: solid in the card the tools stand in, dashed in every other card.
+  const repeats = current?.parent && !drag && liOfNode(current) ? nodes.filter((n) => n !== current && n.key === current.key) : []
+  pool(ui.repeats, repeats.length, () => make('div', 'o rep', ui!.root))
+  repeats.forEach((n, i) => place(ui!.repeats[i]!, host, rectOf(n)))
   if (!current) return
   const rect = rectOf(current)
   place(ui.box, host, rect)
@@ -420,7 +590,15 @@ function drawSelection(current: BNode | null, host: DOMRect, sticky: number) {
   ui.next.innerHTML = svg(ICONS[on])
   label(ui.prev, axis === 'x' ? words?.moveLeft ?? words?.moveUp : words?.moveUp)
   label(ui.next, axis === 'x' ? words?.moveRight ?? words?.moveDown : words?.moveDown)
-  ui.name.textContent = nameOf(current)
+  setName(ui.name, namesOf(current))
+  // A block of a card: one quiet action opens the whole entry of the card it stands in.
+  const whose = entryOfLi(liOfNode(current))
+  const editable = !!whose && entityOf(whose.entity)?.edit !== false && !!words?.editEntry
+  ui.entry.hidden = ui.entryRule.hidden = !editable
+  if (editable) {
+    const title = cmsSourceTitle(allRecords().get(whose!.entity)?.entries.get(whose!.id) ?? {}, entityOf(whose!.entity), '')
+    label(ui.entry, title ? `${words!.editEntry} · ${title}` : words!.editEntry)
+  }
   ui.prev.disabled = at <= 0
   ui.next.disabled = at >= list.length - 1
   // The first block of the page's list keeps its toolbar inside its top edge (the site's header is above it).
@@ -502,7 +680,7 @@ function drawHover(current: BNode | null, host: DOMRect, sticky: number) {
   const rect = rectOf(next)
   place(ui.hover, host, rect)
   ui.hover.classList.toggle('sub', !!next.parent)
-  ui.chip.textContent = nameOf(next)
+  ui.chip.textContent = cardNameLine(namesOf(next))
   const list = siblingsOf(next)
   above(ui.chip, host, rect, 20, !next.parent && list[0] === next, sticky)
 }
@@ -526,11 +704,16 @@ function drawPlus(host: DOMRect) {
 function addContext(current: BNode | null): { container: BNode, items: BNode[] } | null {
   if (!current) return null
   const own = listKindsOf(current)
+  // A card section: only in the clicked card, or the one under the pointer; not in every repeat.
+  if (own && !current.parent && cardOf(current)) {
+    const li = cardIn(current, { hovered: true })
+    return li ? { container: current, items: childrenOf(current, li) } : null
+  }
   if (own) return { container: current, items: childrenOf(current) }
   return current.parent ? { container: current.parent, items: siblingsOf(current) } : null
 }
 
-function pool(list: HTMLButtonElement[], count: number, make: () => HTMLButtonElement) {
+function pool<T extends HTMLElement>(list: T[], count: number, make: () => T) {
   while (list.length < count) list.push(make())
   list.forEach((b, i) => { b.hidden = i >= count })
 }
@@ -564,7 +747,12 @@ function drawAdds(current: BNode | null, host: DOMRect) {
 /** In every block whose list is empty (a new layout, a new group): "Add a block", which adds at the end of that list. */
 function drawEmpties(host: DOMRect) {
   if (!ui) return
-  const empty = drag || typingEl() ? [] : nodes.filter((n) => listKindsOf(n) && !nodes.some((c) => c.parent === n))
+  // A group of a card's design is empty in every card: it offers "Add" once, in the card the tools stand in.
+  const once = (n: BNode) => {
+    const li = liOfNode(n)
+    return !li || li === cardIn(sectionOf(n), { hovered: true, first: true })
+  }
+  const empty = drag || typingEl() ? [] : nodes.filter((n) => listKindsOf(n) && !nodes.some((c) => c.parent === n) && once(n))
   pool(ui.empties, empty.length, () => {
     const b = make('button', 'empty', ui!.root) as HTMLButtonElement
     b.type = 'button'
@@ -580,7 +768,9 @@ function drawEmpties(host: DOMRect) {
     const b = ui!.empties[i]!
     ;(b as any).__path = n.path
     b.innerHTML = `${svg(ICONS.plus)}<span>${escapeHtml(words?.addBlock ?? words?.insertHere ?? '+')}</span>`
-    const r = rectOf(n)
+    // An empty card: in the middle of the card, not of the whole section.
+    const blank = !n.parent && cardOf(n) ? n.els[0]?.querySelector<HTMLElement>(`${CARD}[data-kit-card-empty]`) : null
+    const r = blank ? blank.getBoundingClientRect() : rectOf(n)
     b.style.left = `${r.left + r.width / 2 - host.left}px`
     b.style.top = `${r.top + r.height / 2 - host.top}px`
   })
@@ -749,12 +939,16 @@ function track(e: PointerEvent) {
   const target = e.composedPath()[0] as Node
   hover = nodeOf(target)
   plus = plusNear(e.clientX, e.clientY)
+  // The card under the pointer, in a card section (since 3c).
+  const section = hover ? sectionOf(hover) : null
+  const li = section && cardOf(section) ? cardLiOf(target, section) : null
+  hoverCard = li ? { section: section!.id, key: liKey(li) } : null
   if (target !== hintTarget || e.type === 'pointerdown') {
     hintTarget = target
     setHint(drag || typingEl() ? null : hintAt(target, e.clientX, e.clientY))
-    // An entry's card in the selected block: its outline and name, and a pointer.
+    // An entry's card in the selected block: its outline and name, and a pointer. (Not in a card section: a click there selects the design.)
     const current = nodeAt(selected)
-    const card = drag || typingEl() || (hint && hint.kind === 'text' && !hint.entry) ? null : cardAt(current, target)
+    const card = drag || typingEl() || (hint && hint.kind === 'text' && !hint.entry) || (section && cardOf(section)) ? null : cardAt(current, target)
     cardHover = card && current ? { key: current.key, entity: card.entity, id: card.id, piece: pieceOf(card, target) } : null
     const first = card?.els[0]
     // Over the selected card the pointer says what a click does there (a text cursor, or nothing new).
@@ -770,7 +964,11 @@ function track(e: PointerEvent) {
  */
 function hintAt(target: Node, x: number, y: number): typeof hint {
   const hit = fieldAt(target, x, y)
-  if (!hit) return entryHintAt(target, x, y)
+  if (!hit) {
+    // In a card section a value is the card's entry's, changed by a double click (no hint of 2g's here).
+    const at = nodeOf(target)
+    return at && cardOf(sectionOf(at)) ? null : entryHintAt(target, x, y)
+  }
   if (hit.kind === 'text') return { el: hit.el, node: hit.node, range: hit.range, kind: 'text', label: '' }
   const current = nodeAt(selected)
   if (!current || current.key !== hit.owner.key) return null
@@ -811,6 +1009,8 @@ function plusNear(x: number, y: number) {
 
 function choose(path: CmsBuilderPath | null) {
   selected = path
+  // The clicked card belongs to its section: another section (or none) lets go of it.
+  if (!path || path[0] !== activeCard?.section) activeCard = null
   closeBox(true)
   entry = null
   entryMenu = false
@@ -818,7 +1018,8 @@ function choose(path: CmsBuilderPath | null) {
   // What the pointer's hint says depends on the selection: asked again at the next move.
   hintTarget = null
   if (hint?.kind === 'field') setHint(null)
-  send(path ? { type: 'cms:builder:select', id: path[path.length - 1]!, path } : { type: 'cms:builder:select', id: null })
+  const card = clickedEntry(path)
+  send(path ? { type: 'cms:builder:select', id: path[path.length - 1]!, path, ...(card ? { card } : {}) } : { type: 'cms:builder:select', id: null })
   schedule()
 }
 
@@ -842,6 +1043,7 @@ function onClick(e: MouseEvent) {
   nodes = scan()
   const node = nodeOf(target)
   if (!node) return choose(null)
+  if (cardOf(sectionOf(node))) return cardClick(target, node, e.clientX, e.clientY)
   const chain = chainOf(node)
   const current = nodeAt(selected)
   const next = chain[selectDepth(chain.map((n) => n.id), current?.path ?? null)]!
@@ -925,6 +1127,11 @@ function onMouseDown(e: MouseEvent) {
   if (!document.hasFocus()) window.focus()
   if (e.detail !== 2) return
   nodes = scan()
+  const pressed = nodeOf(target)
+  if (pressed && cardOf(sectionOf(pressed))) {
+    if (cardPress(target, pressed, e.clientX, e.clientY)) swallow = performance.now()
+    return
+  }
   const hit = fieldAt(target, e.clientX, e.clientY)
   if (!hit && entryPress(target, e.clientX, e.clientY)) {
     swallow = performance.now()
@@ -961,6 +1168,105 @@ function entryPress(target: Node, x: number, y: number): boolean {
     if (card) selectEntry(node, card, at.el)
     editEntry(at.part.entity, at.part.id, at.part.field)
   }
+  return true
+}
+
+// ---- a card section: a click selects the design, a double click changes the entry's value (since 3c)
+
+/**
+ * A click in a card section. Levels as in a layout (the section, a block of the card or a group, a block in
+ * a group), in the card that was clicked, which the tools stand in from now on; the admin hears its entry.
+ * The selected block's own text (a heading's, a button's label, the words around a number) is typed: every
+ * card follows. A click on the selected picture block brings what it shows into view in the panel. Never 2f's
+ * card of an entry, never 2g's box on one click: those are a double click here.
+ */
+function cardClick(target: Node, node: BNode, x: number, y: number) {
+  const section = sectionOf(node)
+  const li = cardLiOf(target, section)
+  const was = activeCard?.key
+  if (li) activeCard = { section: section.id, key: liKey(li) }
+  const chain = chainOf(node)
+  const current = nodeAt(selected)
+  const next = chain[selectDepth(chain.map((n) => n.id), current?.path ?? null)]!
+  const told = () => {
+    // The selection stays, the card changed: the admin's examples follow it.
+    const card = activeCard?.key !== was && selected?.[0] === section.id ? clickedEntry(selected) : null
+    if (card && selected) send({ type: 'cms:builder:select', id: selected[selected.length - 1]!, path: selected, card })
+  }
+  const hit = fieldAt(target, x, y)
+  if (hit?.kind === 'text' && current && hit.owner.key === current.key) {
+    told()
+    begin(hit, x, y)
+    return
+  }
+  const info = cardOf(section)!.blocks[node.id]
+  if (current && node.key === current.key && info?.kind === 'picture' && info.ref) {
+    told()
+    send({ type: 'cms:builder:field', id: node.id, path: node.path, field: info.ref })
+    schedule()
+    return
+  }
+  choose(next.path)
+}
+
+/**
+ * The second press of a double click in a card section: the block of the design under the pointer is selected
+ * in that card, and the value it shows of that card's entry is changed exactly (the card names the entry, the
+ * block its field): a plain text typed where it stands, a number, a date, a choice, a rich text or a link in
+ * 2g's box, a picture (or a file, the entry's page) in the entry's own form beside the page. The block's own
+ * text is typed as the block's field. False: nothing of a card under the pointer.
+ */
+function cardPress(target: Node, node: BNode, x: number, y: number): boolean {
+  const section = sectionOf(node)
+  const card = cardOf(section)!
+  const li = cardLiOf(target, section)
+  if (!li) return false
+  activeCard = { section: section.id, key: liKey(li) }
+  const leaf = [...chainOf(node)].reverse().find((n) => n.parent && card.blocks[n.id] && !card.blocks[n.id]!.group)
+  if (!leaf) return false
+  const hit = fieldAt(target, x, y)
+  if (!samePath(selected, leaf.path)) choose(leaf.path)
+  if (hit?.kind === 'text' && hit.owner.key === leaf.key) {
+    begin(hit, x, y)
+    return true
+  }
+  const edit = cardValueEdit(card.blocks[leaf.id])
+  const whose = entryOfLi(li)
+  if (!edit || !whose) return true
+  if (edit.how === 'entry') {
+    editEntry(whose.entity, whose.id, edit.field ?? undefined)
+    return true
+  }
+  const part: CmsSourcePart = edit.how === 'value'
+    ? { entity: whose.entity, id: whose.id, field: edit.field, kind: 'value', values: [[edit.field]] }
+    : { entity: whose.entity, id: whose.id, field: edit.field, kind: edit.how }
+  const change = entryEdit(part)
+  // Not here (a field this person may not change, one the page knows nothing of): the whole entry, as 2g does.
+  if (!change) {
+    editEntry(whose.entity, whose.id, edit.field)
+    return true
+  }
+  const el = change.how === 'type' && typeof change.raw === 'string' ? cardValuePart(partsOf(leaf).map((n) => ({ node: n, text: shown(n) })), cmsMatchValue(change.raw)) : null
+  if (el) {
+    setHint(null)
+    closeBox(true)
+    startTyping({
+      el, drawn: change.raw, path: leaf.path, field: part.field, item: null, lines: change.info.text === 'lines', max: change.info.max, x, y,
+      entry: { entity: part.entity, id: part.id, at: change.values[0]! },
+    })
+    typingOf = { entity: part.entity, id: part.id }
+    startedAt = performance.now()
+    schedule()
+    return true
+  }
+  // A text the page shows another way (with words around it), and every other value: the box, at the block.
+  endTyping()
+  setHint(null)
+  const r = (leaf.els[0] ?? li).getBoundingClientRect()
+  const rect = { left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) }
+  boxed = { key: leaf.key, entity: part.entity, id: part.id, values: change.values, node: leaf.els[0] ?? li, sent: JSON.stringify(rect) }
+  send({ type: 'cms:builder:value', entity: part.entity, id: part.id, values: change.values, rect })
+  schedule()
   return true
 }
 
@@ -1339,6 +1645,31 @@ function drawCards(current: BNode | null, host: DOMRect, sticky: number) {
 }
 
 /**
+ * Since 3c: while a card section is selected and none of its blocks, the card under the pointer names what each
+ * of its blocks shows (a field, its own text, or why it shows nothing, in the warning colour). Not while a text
+ * is typed, something is dragged or a box stands over a value.
+ */
+function drawCardChips(current: BNode | null, host: DOMRect) {
+  if (!ui) return
+  const card = current && !current.parent ? cardOf(current) : null
+  const quiet = !card || drag || press || holding || !!typingEl() || !!boxed || hoverCard?.section !== current!.id
+  const li = quiet ? null : liAt(current!, hoverCard!.key)
+  const leaves = li ? nodes.filter((n) => n.parent && inLi(n, li) && !!card!.blocks[n.id]?.chip && !card!.blocks[n.id]!.group) : []
+  pool(ui.marks, leaves.length, () => make('div', 'chip mini', ui!.root))
+  leaves.forEach((n, i) => {
+    const b = card!.blocks[n.id]!
+    const el = ui!.marks[i]!
+    el.textContent = b.chip
+    el.classList.toggle('warn', !!b.warn)
+    const r = rectOf(n)
+    // Clear of the "+" places, which stand at the right end of a stacked card's gaps.
+    const at = cardChipAt({ left: r.left, top: r.top, width: Math.max(0, r.width - 26 * k()), height: r.height }, el.offsetWidth * k(), 18 * k(), k())
+    el.style.left = `${at.left - host.left}px`
+    el.style.top = `${at.top - host.top}px`
+  })
+}
+
+/**
  * A card's toolbar or name where it hides the least of the block's text: above the card, inside its top edge
  * (left or right) when it is tall enough, or below it, kept on the screen (as a block's toolbar is placed).
  */
@@ -1554,13 +1885,15 @@ function movePress(e: PointerEvent) {
   updateDrag()
 }
 
-/** A list as it stands now: its blocks' boxes, its direction and its places. */
-function geoOf(container: BNode | null, items: BNode[]): ListGeo {
+/** A list as it stands now: its blocks' boxes, its direction and its places. A card section's list is the card's (`li`): its area is the card. */
+function geoOf(container: BNode | null, items: BNode[], li: HTMLElement | null = null): ListGeo {
   const boxes = items.map(boxOf)
   const axis = axisOfList(items, boxes, container)
+  const card = li && container && !container.parent && cardOf(container) ? li.getBoundingClientRect() : null
   return {
     container, path: container?.path ?? [], items, boxes, axis, single: oneLine(boxes, axis), slots: slotsOf(boxes, axis),
-    area: container ? boxOf(container) : null, depth: container?.path.length ?? 0,
+    area: card ? { left: card.left + scrollX, top: card.top + scrollY, right: card.right + scrollX, bottom: card.bottom + scrollY } : container ? boxOf(container) : null,
+    depth: container?.path.length ?? 0,
   }
 }
 
@@ -1569,17 +1902,20 @@ function candidatesFor(node: BNode): ListGeo[] {
   const kind = kindOf(node)
   if (!node.parent || !kind) return []
   const inside = (n: BNode) => n.path.length >= node.path.length && node.path.every((id, i) => n.path[i] === id)
+  // A block of a card's design moves within the card it was taken from (the card's list and its groups); all cards follow.
+  const li = liOfNode(node)
+  const here = (n: BNode) => !li || (n.parent ? inLi(n, li) : n === sectionOf(node))
   return nodes.filter((n) => {
-    if (n === node.parent || inside(n)) return false
+    if (n === node.parent || inside(n) || !here(n)) return false
     const list = listKindsOf(n)
     const theirs = list?.types[node.type]
-    return !!list && !!theirs && theirs.sig === kind.sig && (list.max === null || childrenOf(n).length < list.max)
-  }).map((n) => geoOf(n, childrenOf(n)))
+    return !!list && !!theirs && theirs.sig === kind.sig && (list.max === null || childrenOf(n, li).length < list.max)
+  }).map((n) => geoOf(n, childrenOf(n, li), li))
 }
 
 function beginDrag(node: BNode, x: number, y: number) {
   const items = siblingsOf(node)
-  const own = geoOf(node.parent, items)
+  const own = geoOf(node.parent, items, liOfNode(node))
   const from = items.indexOf(node)
   const gaps = own.boxes.slice(1).map((b, i) => (own.axis === 'x' ? b.left - own.boxes[i]!.right : b.top - own.boxes[i]!.bottom)).filter((g) => g >= 0)
   const box = own.boxes[from]!
@@ -1876,6 +2212,12 @@ svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .menu button:hover,.menu button:focus-visible{background:rgba(47,98,214,.08);outline:none}
 .menu svg{width:14px;height:14px;flex:none;color:#5b5a56}
 .drop{position:absolute;pointer-events:none;border-radius:calc(3px * var(--k));background:#2f62d6;box-shadow:0 0 0 calc(2px * var(--k)) rgba(255,255,255,.75)}
+.rep{outline:calc(1.5px * var(--k)) dashed rgba(47,98,214,.7);outline-offset:calc(-1.5px * var(--k))}
+.glow{border-radius:calc(4px * var(--k));background:rgba(47,98,214,.14)}
+.chip.mini{height:18px;padding:0 6px;border-radius:5px;background:rgba(255,255,255,.96);color:#34508f;font:500 10.5px/18px system-ui,sans-serif;box-shadow:0 0 0 1px rgba(47,98,214,.28),0 1px 4px rgba(0,0,0,.08)}
+.chip.mini.warn{background:#fdf6e3;color:#86590a;box-shadow:0 0 0 1px #e6cf96,0 1px 4px rgba(0,0,0,.08)}
+.name i{font-style:normal;font-weight:500;opacity:.7}
+.name i.warn{color:#f0c36a;opacity:1}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 `
 
@@ -1928,6 +2270,9 @@ function build(): Ui {
   const next = tool(bar, ICONS.down, 'tool')
   const duplicate = tool(bar, ICONS.copy, 'tool')
   const remove = tool(bar, ICONS.trash, 'tool')
+  // A block of a card's design (since 3c): the whole entry of the card it stands in.
+  const entryRule = make('span', 'rule', bar)
+  const entryTool = tool(bar, ICONS.pencil, 'tool')
   const add = tool(root, ICONS.plus, 'add')
   // An entry inside the selected block (since 2f): the card the pointer is over with its name, the selected
   // one with "Edit" and "…" ("Open in its section").
@@ -1946,13 +2291,18 @@ function build(): Ui {
   cardOpenItem.setAttribute('role', 'menuitem')
   cardOpenItem.innerHTML = svg(ICONS.open)
   const cardOpen = make('span', '', cardOpenItem)
-  for (const el of [context, hoverBox, chip, box, into, from, cell, typing, boxedBox, note, hintBox, drop, line, bar, add, card, cardBox, cardChip, cardBar, cardMenu]) el.hidden = true
+  for (const el of [context, hoverBox, chip, box, into, from, cell, typing, boxedBox, note, hintBox, drop, line, bar, add, card, cardBox, cardChip, cardBar, cardMenu, entryRule, entryTool]) el.hidden = true
   document.body.appendChild(host)
   handle.addEventListener('pointerdown', startPress)
   prev.addEventListener('click', () => step(-1))
   next.addEventListener('click', () => step(1))
   duplicate.addEventListener('click', () => act('cms:builder:duplicate'))
   remove.addEventListener('click', () => act('cms:builder:remove'))
+  entryTool.addEventListener('click', () => {
+    const node = selectedNode()
+    const whose = node ? entryOfLi(liOfNode(node)) : null
+    if (whose) editEntry(whose.entity, whose.id)
+  })
   add.addEventListener('click', () => { if (plus) send({ type: 'cms:builder:add', place: { after: plus.after } }) })
   cardEdit.addEventListener('click', () => { if (entry) editEntry(entry.entity, entry.id) })
   cardMore.addEventListener('click', () => {
@@ -1969,6 +2319,7 @@ function build(): Ui {
   return {
     host, root, hover: hoverBox, chip, context, box, bar, name, prev, next, duplicate, remove, handle, line, add, drop, into, from, cell, typing, note, noteName, noteText, boxed: boxedBox, hint: hintBox,
     card, cardChip, cardBox, cardBar, cardEdit, cardEditLabel, cardMore, cardMenu, cardOpen, adds: [], empties: [],
+    repeats: [], marks: [], entryRule, entry: entryTool,
   }
 }
 
@@ -1991,6 +2342,7 @@ function start() {
   ;(window as unknown as { __cmsBuilderTexts?: typeof textsCoverage }).__cmsBuilderTexts = textsCoverage
   ;(window as unknown as { __cmsBuilderRecords?: () => number }).__cmsBuilderRecords = () => cmsSourceRecords.size
   cmsSourceChanges.listeners.add(schedule)
+  cmsBuilderDraft.listeners.add(landed)
   window.addEventListener('mousedown', onMouseDown, true)
   window.addEventListener('click', onClick, true)
   window.addEventListener('dblclick', onDoubleClick, true)
@@ -2056,6 +2408,12 @@ export function handleCmsBuilderMessage(message: CmsBuilderToPage) {
   else if (message.type === 'cms:builder:box') {
     closeBox(false)
   }
+  else if (message.type === 'cms:builder:cards') {
+    cards = message.cards
+  }
+  else if (message.type === 'cms:builder:try') {
+    setTry(message.try)
+  }
   else if (message.type === 'cms:builder:select') {
     if (!ui) return
     const path = message.id === null ? null : message.path ?? [message.id]
@@ -2066,6 +2424,7 @@ export function handleCmsBuilderMessage(message: CmsBuilderToPage) {
       entry = null
       entryMenu = false
     }
+    if (!path || path[0] !== activeCard?.section) activeCard = null
     selected = path
     sourcesAt = sourcesSent = ''
     hintTarget = null

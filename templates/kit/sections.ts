@@ -562,7 +562,7 @@ export function kitSections() {
       fields: {
         heading: heading(),
         text: shortText(),
-        source: customTypeCard(CARD_STARTER).label({ en: 'What it shows', cs: 'Co zobrazuje', de: 'Was er zeigt' }),
+        source: customTypeCard({ ...CARD_STARTER, heading: 'heading' }).label({ en: 'What it shows', cs: 'Co zobrazuje', de: 'Was er zeigt' }),
         items: f.blocks({
           ...cardBlocks(),
           group: defineBlock({
