@@ -18,6 +18,8 @@ export interface CmsBuilderRect { left: number; top: number; width: number; heig
 
 /** Since 2g: an entry's (or a global's) fields changed in the page and not saved yet, as the admin holds them. */
 export interface CmsBuilderPending { entity: string; id: string; values: Record<string, unknown> }
+/** Since 2g: values of another entry of the same collection that an element shows beside the first one's (a day's hours from its first row's start to its last row's end). */
+export interface CmsBuilderValueAlso { id: string; values: CmsValuePath[] }
 
 /** A block by the ids from the page's list down to it: `[sectionId]`, `[sectionId, groupId, itemId]`. */
 export type CmsBuilderPath = string[]
@@ -164,12 +166,13 @@ export type CmsBuilderToAdmin =
    * choice, a rich text, or several values one element shows together) were clicked: the admin draws a box
    * with their own controls over the preview at `rect`.
    */
-  | { type: 'cms:builder:value'; entity: string; id: string; values: CmsValuePath[]; rect: CmsBuilderRect }
+  | { type: 'cms:builder:value'; entity: string; id: string; values: CmsValuePath[]; rect: CmsBuilderRect; also?: CmsBuilderValueAlso[] }
   /** Since 2g: the element the box stands at moved (the page scrolled, was laid out anew); `null`: a press elsewhere in the page, the box closes. */
   | { type: 'cms:builder:anchor'; rect: CmsBuilderRect | null }
 
 const isObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
 const isId = (x: unknown): x is string => typeof x === 'string' && x.length > 0 && x.length <= 200
+const isValuePaths = (x: unknown): x is CmsValuePath[] => Array.isArray(x) && x.length >= 1 && x.length <= 4 && x.every((at) => isCmsValuePath(at) && isCmsFieldName(at[0]))
 /** The most ids in a path: deeper than any list the engine allows. */
 const PATH_MOST = 8
 
@@ -317,8 +320,9 @@ export function isCmsBuilderToAdmin(x: unknown): x is CmsBuilderToAdmin {
       && (x.open === undefined || typeof x.open === 'boolean')
     case 'cms:builder:entry-text': return isCmsFieldName(x.entity) && isId(x.id) && isCmsValuePath(x.at) && isCmsFieldName(x.at[0])
       && typeof x.value === 'string' && x.value.length <= TEXT_MOST && (x.end === undefined || typeof x.end === 'boolean')
-    case 'cms:builder:value': return isCmsFieldName(x.entity) && isId(x.id) && Array.isArray(x.values) && x.values.length >= 1 && x.values.length <= 4
-      && x.values.every((at) => isCmsValuePath(at) && isCmsFieldName(at[0])) && isCmsBuilderRect(x.rect)
+    case 'cms:builder:value': return isCmsFieldName(x.entity) && isId(x.id) && isValuePaths(x.values) && isCmsBuilderRect(x.rect)
+      && (x.also === undefined || (Array.isArray(x.also) && x.also.length >= 1 && x.also.length <= 3
+        && x.also.every((a) => !!a && typeof a === 'object' && isId((a as { id?: unknown }).id) && isValuePaths((a as { values?: unknown }).values))))
     case 'cms:builder:anchor': return x.rect === null || isCmsBuilderRect(x.rect)
     default: return false
   }

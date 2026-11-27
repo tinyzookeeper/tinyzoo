@@ -18,7 +18,7 @@ import {
   cmsMatchElements, cmsMatchFieldsWith, cmsMatchPlacesInText, cmsMatchShown, cmsMatchSquash, cmsMatchValue, cmsRichPlain, isCmsRichDoc,
   type CmsMatchField, type CmsMatchNode,
 } from './builder-match'
-import { cmsFormKey, cmsValueForms, cmsValueMatch, cmsValueUnit, type CmsValueField, type CmsValueIndex, type CmsValuePath } from './builder-values'
+import { cmsFormKey, cmsValueForms, cmsValueJoint, cmsValueMatch, cmsValueUnit, type CmsValueField, type CmsValueIndex, type CmsValuePath } from './builder-values'
 
 // ── what the admin says about a collection or a global ──
 
@@ -322,6 +322,12 @@ export interface CmsSourcePart {
   values?: CmsValuePath[]
   /** Since 2g: the one value is a choice found by an option's name (`siblings`: of an item of a list with so many items). */
   choice?: { siblings?: number }
+  /**
+   * Since 2g: the element shows values of other entries of the same collection too, in the text's order after
+   * this entry's (a day's hours from the start of its first row to the end of its last). It is no part of
+   * any entry's card: its values are changed together, where it stands.
+   */
+  also?: { id: string; values: CmsValuePath[] }[]
 }
 
 /** An entry's picture field and the addresses of what it holds. */
@@ -529,6 +535,8 @@ export function cmsSourceFind<N extends CmsMatchNode>(
   const order = new Map<N, number>()
   /** For each text that could be an entry's: the entries it could be of, each with what it would be there. */
   const cands = new Map<N, Map<string, CmsSourcePart>>()
+  /** Since 2g: texts of their own that no one entry made: asked later whether several entries around them did. */
+  const loose: { el: N; text: string }[] = []
   const all = cmsMatchElements(roots, { texts: true, text })
   all.forEach((n, i) => order.set(n, i))
   const pieces = smallest(roots, text, visible, all)
@@ -565,7 +573,10 @@ export function cmsSourceFind<N extends CmsMatchNode>(
         if (allowed(part)) of.set(unitKey(part), part)
       }
     }
-    if (!of.size) continue
+    if (!of.size) {
+      if (options.values && (el.nodeType === 3 || !elementChildren(el).some((c) => !!text(c as N)))) loose.push({ el, text: t })
+      continue
+    }
     cands.set(el, of)
     if (of.size === 1) parts.set(el, [...of.values()][0]!)
   }
@@ -665,8 +676,47 @@ export function cmsSourceFind<N extends CmsMatchNode>(
     short.set(key, [...(short.get(key) ?? []), el])
   }
   for (const twice of short.values()) if (twice.length > 1) for (const el of twice) parts.delete(el)
+  // A text no one entry made, made of the values of several that stand around it (a day's hours written from
+  // the start of its first row to the end of its last): from the nearest element around it outwards, the
+  // entries found inside that element are asked. The first element where they can make the text decides:
+  // in one way, it shows those values; in more ways, nothing.
+  const joint = new Map<N, CmsSourcePart>()
+  if (loose.length && options.values) {
+    const found = [...parts]
+    for (const { el, text: t } of loose) {
+      for (let at = el.parentNode as N | null; at; at = at.parentNode as N | null) {
+        const units = new Set<string>()
+        for (const [p, part] of found) {
+          if (!contains(at, p)) continue
+          for (const v of part.values ?? [part.at ?? [part.field]]) units.add(cmsValueUnit(part.entity, part.id, v))
+        }
+        const made = units.size > 1 ? cmsValueJoint(t, options.values, units) : null
+        if (made === 'many') break
+        if (made) {
+          const groups: { id: string; values: CmsValuePath[] }[] = []
+          for (const f of made) {
+            const group = groups.find((g) => g.id === f.id)
+            if (group) group.values.push(f.at)
+            else groups.push({ id: f.id, values: [f.at] })
+          }
+          const first = groups[0]!
+          const part: CmsSourcePart = { entity: made[0]!.entity, id: first.id, field: first.values[0]![0]!, kind: 'value', values: first.values, ...(groups.length > 1 ? { also: groups.slice(1) } : {}) }
+          if (!options.allow || options.allow(part)) joint.set(el, part)
+          break
+        }
+        if (roots.includes(at)) break
+      }
+    }
+  }
+  // Values of one entry in several items of a list are a part of that entry like any other; values of several
+  // entries stand apart from every card.
+  const apart: N[] = []
+  for (const [el, part] of joint) {
+    parts.set(el, part)
+    if (part.also) apart.push(el.nodeType === 3 ? el.parentNode as N : el)
+  }
   // The cards, in the page's order of their first part.
-  const sorted = [...parts.entries()].sort((a, b) => (order.get(a[0]) ?? 0) - (order.get(b[0]) ?? 0))
+  const sorted = [...parts.entries()].filter(([, p]) => !p.also).sort((a, b) => (order.get(a[0]) ?? 0) - (order.get(b[0]) ?? 0))
   const byKey = new Map<string, { entity: string; id: string; els: N[] }>()
   for (const [el, part] of sorted) {
     const key = partKey(part)
@@ -678,7 +728,7 @@ export function cmsSourceFind<N extends CmsMatchNode>(
   const cards: CmsSourceCard<N>[] = []
   for (const [key, { entity, id, els }] of byKey) {
     const sameEntity = sorted.filter(([, p]) => p.entity === entity && partKey(p) !== key).map(([el]) => el)
-    const foreign = [...sorted.filter(([, p]) => partKey(p) !== key && (p.entity === entity || !options.related?.(entity, p.entity))).map(([el]) => el), ...own]
+    const foreign = [...sorted.filter(([, p]) => partKey(p) !== key && (p.entity === entity || !options.related?.(entity, p.entity))).map(([el]) => el), ...own, ...apart]
     let lca: N = els[0]!
     for (const el of els.slice(1)) while (!contains(lca, el) && lca.parentNode) lca = lca.parentNode as N
     // Inside the smallest element around its parts: entries of other collections, but for those put inside it through a relation.

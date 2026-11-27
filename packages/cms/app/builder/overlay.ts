@@ -42,7 +42,7 @@
 // admin for a box with those controls, drawn over the preview at the element (`cms:builder:value`); the
 // page keeps telling where the element is (`cms:builder:anchor`). Which values an element shows is found
 // from their forms (shared/builder-values.ts). What cannot be changed here selects the card, as before.
-import { cmsBuilderFieldInfo, cmsBuilderFieldValue, cmsFieldOf, type CmsBuilderField, type CmsBuilderKey, type CmsBuilderKind, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace, type CmsBuilderTexts, type CmsBuilderToAdmin, type CmsBuilderToPage } from '../../shared/builder'
+import { cmsBuilderFieldInfo, cmsBuilderFieldValue, cmsFieldOf, type CmsBuilderField, type CmsBuilderKey, type CmsBuilderKind, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace, type CmsBuilderTexts, type CmsBuilderToAdmin, type CmsBuilderToPage, type CmsBuilderValueAlso } from '../../shared/builder'
 import {
   cmsMatchAt, cmsMatchChain, cmsMatchElements, cmsMatchFields, cmsMatchPictureOf, cmsMatchPictures, cmsMatchReport, cmsMatchShown, cmsMatchUnmarked, cmsSrcsetUrls,
   type CmsMatchField, type CmsMatchPicture,
@@ -118,7 +118,7 @@ let typingOf: { entity: string; id: string } | null = null
  * Since 2g: the values the admin shows a box for, the element they stand in (found again when the page
  * draws it anew) and the box last told to the admin.
  */
-let boxed: { key: string; entity: string; id: string; values: CmsValuePath[]; node: HTMLElement | Text; sent: string } | null = null
+let boxed: { key: string; entity: string; id: string; values: CmsValuePath[]; also?: CmsBuilderValueAlso[]; node: HTMLElement | Text; sent: string } | null = null
 /** What the admin last heard about the selected block's sources. */
 let sourcesSent = ''
 let sourcesAt = ''
@@ -665,9 +665,9 @@ function drawBoxed(current: BNode | null, host: DOMRect) {
   if (!current || current.key !== boxed.key) return closeBox(true)
   if (!boxed.node.isConnected) {
     // The page drew it anew (its value changed): the same values of the same entry, found again.
-    const want = JSON.stringify(boxed.values)
+    const want = JSON.stringify([boxed.values, boxed.also ?? null])
     for (const [node, part] of foundIn(current).parts) {
-      if (part.entity !== boxed.entity || part.id !== boxed.id || JSON.stringify(part.kind === 'value' ? part.values : [part.at ?? [part.field]]) !== want) continue
+      if (part.entity !== boxed.entity || part.id !== boxed.id || JSON.stringify([part.kind === 'value' ? part.values : [part.at ?? [part.field]], part.also ?? null]) !== want) continue
       boxed.node = node
       break
     }
@@ -783,11 +783,15 @@ function hintAt(target: Node, x: number, y: number): typeof hint {
  */
 function entryHintAt(target: Node, x: number, y: number): typeof hint {
   const current = nodeAt(selected)
-  if (!current || !entry || entry.key !== current.key || nodeOf(target)?.key !== current.key) return null
+  if (!current || nodeOf(target)?.key !== current.key) return null
   const at = entryPartAt(current, target, x, y)
-  if (!at || at.part.entity !== entry.entity || at.part.id !== entry.id) return null
+  if (!at) return null
+  // A value (a time, a number, a choice, several values together) opens its controls on the first click in
+  // the selected block, whichever entry is selected in it; a text is typed in the selected entry.
   const edit = entryEdit(at.part)
   if (!edit) return null
+  const chosen = !!entry && entry.key === current.key && at.part.entity === entry.entity && at.part.id === entry.id
+  if (!chosen && !(at.part.kind === 'value' && edit.how === 'box')) return null
   const el = at.el.nodeType === 3 ? at.el.parentElement! : at.el as HTMLElement
   return { el, node: at.el, kind: edit.how === 'type' ? 'text' : 'field', label: edit.how === 'type' ? '' : edit.label, entry: true }
 }
@@ -857,10 +861,14 @@ function onClick(e: MouseEvent) {
     }
   }
   // A text or a value of the selected entry (since 2g): typed where it stands, or its control opens over it.
-  const part = current && entry && entry.key === current.key && node.key === current.key ? entryPartAt(current, target, e.clientX, e.clientY) : null
-  if (current && part && part.part.entity === entry!.entity && part.part.id === entry!.id) {
+  // A value (a time, a number, a choice, several values together) opens its controls on the first click in
+  // the selected block, whichever entry is selected: every time of a week answers a click the same way,
+  // whether one row made it or two (a day's hours from its first row to its last, in no card).
+  const part = current && node.key === current.key ? entryPartAt(current, target, e.clientX, e.clientY) : null
+  if (current && part) {
     const edit = entryEdit(part.part)
-    if (edit) {
+    const chosen = !!entry && entry.key === current.key && part.part.entity === entry.entity && part.part.id === entry.id
+    if (edit && (chosen || (part.part.kind === 'value' && edit.how === 'box'))) {
       if (edit.how === 'type') beginEntry(current, part, edit, e.clientX, e.clientY)
       else openBox(current, part, edit)
       return
@@ -977,6 +985,8 @@ interface EntryEdit {
   raw: unknown
   /** The fields' names. */
   label: string
+  /** Values of other entries the element shows too. */
+  also?: CmsBuilderValueAlso[]
 }
 
 /**
@@ -990,11 +1000,17 @@ function entryEdit(part: CmsSourcePart): EntryEdit | null {
   const row = allRecords().get(part.entity)?.entries.get(part.id)
   const values = part.kind === 'value' ? part.values ?? [] : [part.at ?? [part.field]]
   const fields = values.map((at) => cmsEntityFieldAt(info, row, at))
+  // Values of other entries shown with them: each must be one this person may change here.
+  for (const other of part.also ?? []) {
+    if (cmsBuilderPending.locked.has(`${part.entity}\n${other.id}`)) return null
+    const theirs = allRecords().get(part.entity)?.entries.get(other.id)
+    fields.push(...other.values.map((at) => cmsEntityFieldAt(info, theirs, at)))
+  }
   if (!values.length || fields.some((f) => !f || f.locked || !(f.kind === 'text' || f.kind === 'rich' || f.kind === 'value'))) return null
-  const label = fields.map((f) => f!.label ?? '').filter(Boolean).join(' · ')
+  const label = [...new Set(fields.map((f) => f!.label ?? '').filter(Boolean))].join(' · ')
   const first = fields[0]!
   if (part.kind === 'text' && first.text) return { how: 'type', values, info: first, raw: cmsValueAt(row, values[0]!), label }
-  return { how: 'box', values, info: first, raw: undefined, label }
+  return { how: 'box', values, info: first, raw: undefined, label, ...(part.also ? { also: part.also } : {}) }
 }
 
 /** The entry's card is selected with it (its block is the place around it). */
@@ -1021,11 +1037,13 @@ function beginEntry(node: BNode, hit: PartHit, edit: EntryEdit, x: number, y: nu
 function openBox(node: BNode, hit: PartHit, edit: EntryEdit) {
   endTyping()
   setHint(null)
-  withCard(node, hit)
+  // Values of several entries belong to no one card: the block stays selected, no entry in it.
+  if (edit.also) clearEntry()
+  else withCard(node, hit)
   const r = rectOfNode(hit.el)
   const rect = { left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) }
-  boxed = { key: node.key, entity: hit.part.entity, id: hit.part.id, values: edit.values, node: hit.el, sent: JSON.stringify(rect) }
-  send({ type: 'cms:builder:value', entity: hit.part.entity, id: hit.part.id, values: edit.values, rect })
+  boxed = { key: node.key, entity: hit.part.entity, id: hit.part.id, values: edit.values, ...(edit.also ? { also: edit.also } : {}), node: hit.el, sent: JSON.stringify(rect) }
+  send({ type: 'cms:builder:value', entity: hit.part.entity, id: hit.part.id, values: edit.values, rect, ...(edit.also ? { also: edit.also } : {}) })
   schedule()
 }
 
@@ -1374,6 +1392,14 @@ const drawsNothing = (node: BNode) => node.els.every((el) => el.hasAttribute('da
 
 /** The piece of a card in several pieces that holds a node; `null` for a card of one element. */
 const pieceOf = (card: CmsSourceCard<Part>, target: Node | null): Node | null => (card.els.length > 1 && target ? card.els.find((el) => el.contains(target)) ?? null : null)
+
+/** Let go of the entry selected inside the block (the block stays selected). */
+function clearEntry() {
+  if (!entry) return
+  entry = null
+  entryMenu = false
+  schedule()
+}
 
 function selectEntry(node: BNode, card: CmsSourceCard<Part>, target: Node | null = null) {
   entry = { key: node.key, entity: card.entity, id: card.id, piece: pieceOf(card, target) }

@@ -7,7 +7,7 @@ import {
   type CmsBuilderEntity, type CmsSourceRecord,
 } from '../../packages/cms/shared/builder-sources'
 import {
-  cmsFormKey, cmsValueAt, cmsValueForms, cmsValueIndex, cmsValueMatch, cmsValueSet, isCmsValuePath,
+  cmsFormKey, cmsValueAt, cmsValueForms, cmsValueIndex, cmsValueJoint, cmsValueMatch, cmsValueSet, cmsValueUnit, isCmsValuePath,
   type CmsValueField,
 } from '../../packages/cms/shared/builder-values'
 
@@ -271,10 +271,29 @@ describe('finding values in a block: the opening hours of a week', () => {
     expect(partOf(li(tuesday, 1).childNodes[1] as N)).toMatchObject({ id: 'tue2', field: 'note', kind: 'text' })
   })
 
+  it('finds the span of a day as the start of its first row and the end of its last, in no card', () => {
+    const span = monday.childNodes[1]!.childNodes[0] as N
+    expect(partOf(span)).toEqual({ entity: 'openingHour', id: 'mon1', field: 'from', kind: 'value', values: [['from']], also: [{ id: 'mon2', values: [['to']] }] })
+    // Tuesday's is Tuesday's rows: the rows around the text are asked, not the same hours of another day.
+    expect(partOf(tuesday.childNodes[1]!.childNodes[0] as N)).toMatchObject({ id: 'tue1', also: [{ id: 'tue2', values: [['to']] }] })
+    for (const card of found.cards) expect(card.els).not.toContain(span)
+  })
+
+  it('takes values of several rows only from the rows it is given, and only when one way makes the text', () => {
+    const index = cmsValueIndex(values)
+    const unit = (id: string) => cmsValueUnit('openingHour', id, ['from'])
+    expect(cmsValueJoint('7:00–11:00', index, new Set([unit('mon1'), unit('mon2')]))).toMatchObject([{ id: 'mon1', at: ['from'] }, { id: 'mon2', at: ['to'] }])
+    // The same hours of two days: two ways, so nothing is told.
+    expect(cmsValueJoint('7:00–11:00', index, new Set([unit('mon1'), unit('mon2'), unit('tue1'), unit('tue2')]))).toBe('many')
+    // One row alone is no such text, a word around the values neither.
+    expect(cmsValueJoint('7:00–8:00', index, new Set([unit('mon1'), unit('mon2')]))).toBeNull()
+    expect(cmsValueJoint('Dnes 7:00–11:00', index, new Set([unit('mon1'), unit('mon2')]))).toBeNull()
+    expect(cmsValueJoint('7:00–11:00', index, new Set([unit('fri1')]))).toBeNull()
+  })
+
   it('leaves alone what belongs to several rows or to none', () => {
-    // The day's name is the day of both of its rows; the span of the day is made of two rows.
+    // The day's name is the day of both of its rows.
     expect(partOf(monday.childNodes[0] as N)).toBeUndefined()
-    expect(partOf(monday.childNodes[1]!.childNodes[0] as N)).toBeUndefined()
     // A day of one row: its name and its span are that row's.
     expect(partOf(friday.childNodes[0] as N)).toEqual({ entity: 'openingHour', id: 'fri1', field: 'day', kind: 'value', values: [['day']], choice: {} })
     expect(partOf(friday.childNodes[1]!.childNodes[0] as N)).toMatchObject({ id: 'fri1', values: [['from'], ['to']] })
@@ -398,6 +417,10 @@ describe('the messages of 2g', () => {
     const rect = { left: 10, top: 20.5, width: 100, height: 24 }
     expect(isCmsBuilderToAdmin({ type: 'cms:builder:value', entity: 'openingHour', id: 'mon1', values: [['from'], ['to']], rect })).toBe(true)
     expect(isCmsBuilderToAdmin({ type: 'cms:builder:value', entity: 'openingHour', id: 'mon1', values: [], rect })).toBe(false)
+    // Values of another row of the same collection beside them.
+    expect(isCmsBuilderToAdmin({ type: 'cms:builder:value', entity: 'openingHour', id: 'mon1', values: [['from']], also: [{ id: 'mon2', values: [['to']] }], rect })).toBe(true)
+    expect(isCmsBuilderToAdmin({ type: 'cms:builder:value', entity: 'openingHour', id: 'mon1', values: [['from']], also: [], rect })).toBe(false)
+    expect(isCmsBuilderToAdmin({ type: 'cms:builder:value', entity: 'openingHour', id: 'mon1', values: [['from']], also: [{ id: 'mon2', values: [] }], rect })).toBe(false)
     expect(isCmsBuilderToAdmin({ type: 'cms:builder:value', entity: 'openingHour', id: 'mon1', values: [['from']], rect: { ...rect, width: -1 } })).toBe(false)
     expect(isCmsBuilderToAdmin({ type: 'cms:builder:value', entity: 'openingHour', id: 'mon1', values: [['from']], rect: { ...rect, left: Number.NaN } })).toBe(false)
     expect(isCmsBuilderToAdmin({ type: 'cms:builder:anchor', rect })).toBe(true)

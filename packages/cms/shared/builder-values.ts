@@ -284,3 +284,50 @@ export function cmsValueMatch(text: string, index: CmsValueIndex): CmsValueHit[]
   }
   return out
 }
+
+/**
+ * A text made of the values of several entries (or of several items of a list) in a row: a day's hours
+ * written from the start of its first row to the end of its last ("7:00–13:00"). Only values of `units`
+ * count (`cmsValueUnit`: what stands around the text), all of one collection or global; the text is their
+ * forms in a row with nothing but spaces and punctuation between them (two to four values, each once, of at
+ * least two units). `null`: it is not such a text; `'many'`: it is, in more ways than one, so it does not
+ * tell which values it shows.
+ */
+export function cmsValueJoint(text: string, index: CmsValueIndex, units: ReadonlySet<string>): CmsValueField[] | 'many' | null {
+  const folded = cmsMatchSquash(text).toLocaleLowerCase('cs')
+  const tokens: { start: number; end: number }[] = []
+  for (const m of folded.matchAll(TOKEN)) tokens.push({ start: m.index, end: m.index + m[0].length })
+  const n = tokens.length
+  if (n < 2 || n > TOKENS_MOST) return null
+  const occs: { i: number; j: number; field: CmsValueField; key: string }[] = []
+  for (let i = 0; i < n; i++) {
+    for (let j = i; j < n && j < i + SPAN_MOST; j++) {
+      for (const field of index.byKey.get(folded.slice(tokens[i]!.start, tokens[j]!.end)) ?? []) {
+        const unit = cmsValueUnit(field.entity, field.id, field.at)
+        if (units.has(unit)) occs.push({ i, j, field, key: `${unit}\n${cmsValuePathKey(field.at)}` })
+      }
+    }
+  }
+  const chains: (typeof occs)[] = []
+  const walk = (pos: number, used: typeof occs) => {
+    if (chains.length > 8) return
+    if (pos === n) {
+      if (used.length >= 2) chains.push(used)
+      return
+    }
+    if (used.length >= 4) return
+    for (const o of occs) {
+      if (o.i !== pos || used.some((u) => u.key === o.key) || (used.length && used[0]!.field.entity !== o.field.entity)) continue
+      walk(o.j + 1, [...used, o])
+    }
+  }
+  walk(0, [])
+  if (!chains.length) return null
+  // One entry alone can make it: that is a text of one entry (`cmsValueMatch`), not this.
+  const unitsOf = (c: typeof occs) => new Set(c.map((o) => cmsValueUnit(o.field.entity, o.field.id, o.field.at))).size
+  if (chains.length <= 8 && chains.some((c) => unitsOf(c) < 2)) return null
+  const set = (c: typeof occs) => c.map((o) => o.key).sort().join('\u0001')
+  const one = set(chains[0]!)
+  if (chains.length > 8 || chains.some((c) => set(c) !== one)) return 'many'
+  return chains[0]!.map((o) => o.field)
+}

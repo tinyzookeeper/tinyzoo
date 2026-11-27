@@ -4,7 +4,7 @@ import { changedBlock, findBlock, kindsAlong, pathOfId, pathOfListKey, textEdit,
 import { createBuilderHistory } from '../../shared/builder-history'
 import { isEntryStep, type CmsBuilderStep } from '../../shared/builder-pending'
 import { cmsBuilderEntryAddress, type CmsBuilderEntity, type CmsBuilderSource } from '../../shared/builder-sources'
-import type { CmsBuilderRect } from '../../shared/builder'
+import type { CmsBuilderRect, CmsBuilderValueAlso } from '../../shared/builder'
 import { createCmsPending, type CmsBuilderPendingStore } from './useCmsBuilderPending'
 
 // The editor in the preview (experimental, NUXT_CMS_BUILDER=on), admin side: a bridge between the
@@ -128,7 +128,7 @@ export interface CmsBuilder {
   /** Since 2g: the changes to entries and globals made in the page, waiting for the editor's save. */
   pending: CmsBuilderPendingStore
   /** Since 2g: the values the page asked a box for (their own controls, drawn over the preview at `rect`, the page's pixels). */
-  box: Readonly<ShallowRef<{ entity: string; id: string; values: string[][]; rect: CmsBuilderRect; at: number } | null>>
+  box: Readonly<ShallowRef<{ entity: string; id: string; values: string[][]; also?: CmsBuilderValueAlso[]; rect: CmsBuilderRect; at: number } | null>>
   /** Since 2g: close the box (the page is told). */
   closeBox: () => void
   /** The history of the page-blocks field's changes while the editor is open. */
@@ -266,7 +266,7 @@ function createBridge(deps: CmsBuilderDeps): CmsBuilder {
       sync()
     },
   })
-  const box = shallowRef<{ entity: string; id: string; values: string[][]; rect: CmsBuilderRect; at: number } | null>(null)
+  const box = shallowRef<{ entity: string; id: string; values: string[][]; also?: CmsBuilderValueAlso[]; rect: CmsBuilderRect; at: number } | null>(null)
   function closeBox() {
     if (!box.value) return
     box.value = null
@@ -342,8 +342,9 @@ function createBridge(deps: CmsBuilderDeps): CmsBuilder {
         return
       }
       if (message.type === 'cms:builder:value') {
-        box.value = { entity: message.entity, id: message.id, values: message.values, rect: message.rect, at: Date.now() }
+        box.value = { entity: message.entity, id: message.id, values: message.values, ...(message.also ? { also: message.also } : {}), rect: message.rect, at: Date.now() }
         void pending.open(message.entity, message.id)
+        for (const other of message.also ?? []) void pending.open(message.entity, other.id)
         return
       }
       if (message.type === 'cms:builder:anchor') {

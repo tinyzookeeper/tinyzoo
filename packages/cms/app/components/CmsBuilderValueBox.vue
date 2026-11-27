@@ -2,7 +2,8 @@
 // The editor in the preview (experimental, NUXT_CMS_BUILDER=on), since 2g: a small box over the preview,
 // at an element of the page that shows values of an entry or a global which are not typed as page text: a
 // number, a date, a choice, a rich text, a text with a form, or several values the element shows together
-// (the "from" and the "to" of one row of the opening hours). It holds those fields' own controls, the same
+// (the "from" and the "to" of one row of the opening hours; the start of a day's first row and the end of
+// its last, values of two entries, each under its entry's name). It holds those fields' own controls, the same
 // components the entry's form uses, bound to the changes that wait in the page's editor (useCmsBuilder
 // `pending`): the preview shows a change at once, undo and redo hold it, and the editor's save stores it.
 //
@@ -15,7 +16,7 @@ import { cmsValueAt } from '../../shared/builder-values'
 
 interface Box { left: number; top: number; width: number; height: number }
 const props = defineProps<{
-  request: { entity: string; id: string; values: string[][]; at: number }
+  request: { entity: string; id: string; values: string[][]; also?: { id: string; values: string[][] }[]; at: number }
   anchor: Box
   bounds: Box
   room: { width: number; height: number }
@@ -26,40 +27,51 @@ const builder = useCmsBuilder()
 const { data: graph } = useNuxtData<any[]>('cms-graph')
 
 const meta = computed(() => (graph.value ?? []).find((e: any) => e.name === props.request.entity))
-const entry = computed(() => builder.value?.pending.entry(props.request.entity, props.request.id) ?? null)
-const row = computed(() => (entry.value ? cmsPendingRow(entry.value) : null))
+/** The entries whose values the element shows: one, or several of the same collection. */
+const asked = computed(() => [{ id: props.request.id, values: props.request.values }, ...(props.request.also ?? [])])
 const loading = ref(true)
 watch(() => props.request.at, async () => {
   loading.value = true
-  await builder.value?.pending.open(props.request.entity, props.request.id)
+  await Promise.all(asked.value.map((a) => builder.value?.pending.open(props.request.entity, a.id)))
   loading.value = false
 }, { immediate: true })
 
-const bindings = computed(() => {
-  const r = row.value
-  if (!r) return []
+const groups = computed(() => {
   const fields = (meta.value?.fields ?? []).filter((f: any) => f.key !== meta.value?.orderField)
-  return props.request.values.flatMap((at) => {
-    const field = cmsEntryFieldAt<any>(fields, r, at)
-    return field ? [{ at, key: at.join('.'), field, value: cmsValueAt(r, at) }] : []
+  return asked.value.flatMap((a) => {
+    const entry = builder.value?.pending.entry(props.request.entity, a.id) ?? null
+    const r = entry ? cmsPendingRow(entry) : null
+    if (!entry || !r) return []
+    const bindings = a.values.flatMap((at) => {
+      const field = cmsEntryFieldAt<any>(fields, r, at)
+      return field ? [{ id: a.id, at, key: `${a.id}.${at.join('.')}`, field, value: cmsValueAt(r, at) }] : []
+    })
+    // Under the collection's name in the box's head, each entry goes by its own title.
+    const own = meta.value?.titleField ? r[meta.value.titleField] : null
+    const title = (typeof own === 'string' ? own.trim() : typeof own === 'number' ? String(own) : '') || t('common.untitled')
+    return [{ id: a.id, entry, row: r, bindings, title, locked: !entry.can }]
   })
 })
+const several = computed(() => asked.value.length > 1)
+const entry = computed(() => groups.value[0]?.entry ?? null)
+const bindings = computed(() => groups.value.flatMap((g) => g.bindings))
 const rich = computed(() => bindings.value.some((b) => b.field.type === 'richtext'))
 const long = computed(() => rich.value || bindings.value.some((b) => b.field.type === 'text' && b.field.meta?.multiline))
 /** Two short values of one element stand side by side ("from" and "to"). */
 const beside = computed(() => bindings.value.length === 2 && !long.value && bindings.value.every((b) => ['text', 'number', 'select'].includes(b.field.type)))
-const heading = computed(() => (entry.value ? builder.value?.pending.title(entry.value) : entityLabel(meta.value)) ?? '')
-const locked = computed(() => !!entry.value && !entry.value.can)
+const heading = computed(() => (!several.value && entry.value ? builder.value?.pending.title(entry.value) : entityLabel(meta.value)) ?? '')
+const locked = computed(() => groups.value.some((g) => g.locked))
+const errors = computed(() => groups.value.flatMap((g) => (g.entry.error ? [several.value ? `${g.title}: ${g.entry.error}` : g.entry.error] : [])))
 
 // The controls read what a form gives them: the entry's values (a field may read another), no shared text.
-provide('cmsForm', { get state() { return row.value ?? {} }, isNew: computed(() => false), issues: {}, quiet: (fn: () => void) => fn() })
+provide('cmsForm', { get state() { return groups.value[0]?.row ?? {} }, isNew: computed(() => false), issues: {}, quiet: (fn: () => void) => fn() })
 provide('cmsCollab', null)
 provide('cmsInBuilderPanel', true)
 provide('cmsReadOnly', locked)
 
-function set(at: string[], value: unknown) {
+function set(id: string, at: string[], value: unknown) {
   if (locked.value) return
-  builder.value?.pending.set(props.request.entity, props.request.id, at, value === undefined ? null : value)
+  builder.value?.pending.set(props.request.entity, id, at, value === undefined ? null : value)
 }
 function whole() {
   builder.value?.editEntry(props.request.entity, props.request.id, props.request.values[0]?.[0] ?? null)
@@ -142,27 +154,31 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDown, true))
       </div>
       <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" :aria-label="t('common.close')" @click="emit('close')" />
     </header>
-    <p v-if="entry?.error" role="alert" class="cms-vbox__error">
-      <UIcon name="i-lucide-circle-alert" class="mt-0.5 size-4 shrink-0" aria-hidden="true" />{{ entry.error }}
+    <p v-for="error in errors" :key="error" role="alert" class="cms-vbox__error">
+      <UIcon name="i-lucide-circle-alert" class="mt-0.5 size-4 shrink-0" aria-hidden="true" />{{ error }}
     </p>
     <p v-if="locked" class="cms-vbox__error cms-vbox__error--quiet" role="status">
       <UIcon name="i-lucide-lock" class="mt-0.5 size-4 shrink-0" aria-hidden="true" />{{ t('builderPending.cannot') }}
     </p>
     <div v-if="bindings.length" class="cms-vbox__fields" :class="beside ? 'cms-vbox__fields--beside' : ''">
-      <div v-for="b in bindings" :key="b.key" class="min-w-0">
-        <CmsField
-          :model-value="b.value" :field="b.field" :entity="request.entity" :id-prefix="`vbox-${request.id}-${b.key}-`" hide-optional
-          :placement="b.field.type === 'richtext' ? 'main' : 'sidebar'"
-          @update:model-value="(v: unknown) => set(b.at, v)"
-        />
-      </div>
+      <template v-for="g in groups" :key="g.id">
+        <div v-for="(b, i) in g.bindings" :key="b.key" class="min-w-0" :class="several ? 'cms-vbox__of' : ''">
+          <p v-if="several" class="cms-vbox__whose" :class="i ? 'cms-vbox__whose--same' : ''" :title="g.title" :aria-hidden="i ? 'true' : undefined">{{ g.title }}</p>
+          <CmsField
+            :model-value="b.value" :field="b.field" :entity="request.entity" :id-prefix="`vbox-${b.key}-`" hide-optional
+            :placement="b.field.type === 'richtext' ? 'main' : 'sidebar'"
+            @update:model-value="(v: unknown) => set(b.id, b.at, v)"
+          />
+        </div>
+      </template>
     </div>
     <p v-else class="cms-vbox__wait" role="status">
       <UIcon v-if="loading" name="i-lucide-loader-circle" class="size-4 animate-spin" aria-hidden="true" />
       {{ loading ? t('builderPending.loading') : t('builderPending.gone') }}
     </p>
     <footer class="cms-vbox__foot">
-      <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-panel-left-open" @click="whole">{{ t('builderPending.wholeEntry') }}</UButton>
+      <UButton v-if="!several" size="xs" variant="ghost" color="neutral" icon="i-lucide-panel-left-open" @click="whole">{{ t('builderPending.wholeEntry') }}</UButton>
+      <span v-else />
       <UButton size="xs" color="neutral" variant="outline" @click="emit('close')">{{ t('builderPending.done') }}</UButton>
     </footer>
   </div>
@@ -185,6 +201,9 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDown, true))
 .cms-vbox__error--quiet { color: var(--ui-text-muted); }
 .cms-vbox__fields { display: grid; gap: 0.875rem; min-height: 0; overflow-y: auto; padding: 0.125rem; margin: -0.125rem; }
 .cms-vbox__fields--beside { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.cms-vbox__of { display: flex; flex-direction: column; gap: 0.375rem; }
+.cms-vbox__whose { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; font-weight: 600; line-height: 1.35; color: var(--ui-text-muted); }
+.cms-vbox__whose--same { visibility: hidden; }
 .cms-vbox--rich .cms-vbox__fields { max-height: min(24rem, 55vh); }
 .cms-vbox__wait { display: flex; align-items: center; gap: 0.5rem; margin: 0; font-size: 0.8125rem; color: var(--ui-text-muted); }
 .cms-vbox__foot { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
