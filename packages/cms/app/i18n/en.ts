@@ -780,6 +780,7 @@ export default {
     pickerTitle: 'Add a block',
     search: 'Search blocks…',
     noMatch: 'No block matches.',
+    pickerHint: 'Point at a block to see what it is for.',
     emptyTitle: 'No content yet',
     emptyDescription: 'Build this page from blocks — a heading, text, images…',
     emptyAction: 'Add the first block',

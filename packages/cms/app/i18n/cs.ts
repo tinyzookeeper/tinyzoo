@@ -778,6 +778,7 @@ export default {
     pickerTitle: 'Přidat blok',
     search: 'Hledat bloky…',
     noMatch: 'Žádný blok neodpovídá.',
+    pickerHint: 'Najeďte na blok a uvidíte, k čemu je.',
     emptyTitle: 'Zatím bez obsahu',
     emptyDescription: 'Poskládejte stránku z bloků — nadpis, text, obrázky…',
     emptyAction: 'Přidat první blok',

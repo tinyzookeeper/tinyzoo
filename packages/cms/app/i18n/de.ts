@@ -778,6 +778,7 @@ export default {
     pickerTitle: 'Block hinzufügen',
     search: 'Blöcke suchen…',
     noMatch: 'Kein passender Block.',
+    pickerHint: 'Zeigen Sie auf einen Block und Sie sehen, wofür er ist.',
     emptyTitle: 'Noch keine Inhalte',
     emptyDescription: 'Bauen Sie diese Seite aus Blöcken auf: Überschrift, Text, Bilder…',
     emptyAction: 'Ersten Block hinzufügen',
