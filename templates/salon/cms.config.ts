@@ -1,6 +1,7 @@
 import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
+import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
 
 // The content model of the Salon template: what the salon can write and change. One model for
 // all three looks (looks.ts): a look decides how a block is drawn, never what it holds.
@@ -20,7 +21,7 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // The home page beside the form: a change of look or colours shows before it is saved.
     preview: '/',
     sections: [
-      { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'tagline'] },
+      { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'ownColor', 'tagline'] },
       { label: { en: 'Contact', cs: 'Kontakt' }, fields: ['phone', 'email', 'address', 'town', 'mapUrl', 'instagram', 'facebook'] },
       { label: { en: 'Opening hours', cs: 'Otevírací doba' }, fields: ['hours', 'hoursNote', 'hoursShort'] },
       { label: { en: 'Footer', cs: 'Zápatí' }, fields: ['about', 'founded', 'legal'] },
@@ -36,6 +37,8 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // Only the chosen look's palettes are offered; a change of look moves the colours to its first one.
     colors: f.select(looks.fields.colors).label({ en: 'Colours', cs: 'Barvy' })
       .help({ en: 'Each look has three colour palettes.', cs: 'Každý vzhled má tři barevné palety.' }),
+    // The owner's own main colour: the palette of the chosen colours follows it (templates/kit/palette.ts).
+    ownColor: f.color().optional().label(OWN_COLOR_FIELD.label).help(OWN_COLOR_FIELD.help),
     tagline: f.text().optional().label({ en: 'Line under the name', cs: 'Řádek pod názvem' })
       .help({ en: 'What the salon is, in a few words, for example “Hairdresser and barber · Jičín”. Mirror writes it beside the name, Shop Window under it and again in the footer; Chessboard does not use it.', cs: 'Čím salon je, pár slovy, například „Kadeřnictví a holičství · Jičín“. Zrcadlo ho píše vedle názvu, Výloha pod něj a znovu v zápatí, Šachovnice ho nepoužívá.' }),
     phone: f.text().optional().label({ en: 'Phone', cs: 'Telefon' })

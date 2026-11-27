@@ -329,6 +329,7 @@ export const siteSettings = pgTable('site_settings', {
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   look: siteSettingsLook('look').$type<'ctvero-dob'>().notNull().default("ctvero-dob"),
   colors: siteSettingsColors('colors').$type<'sad' | 'jablko' | 'hreben'>().notNull().default("sad"),
+  ownColor: text('own_color'),
   legalName: text('legal_name'),
   about: text('about'),
   companyId: text('company_id'),

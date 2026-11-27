@@ -132,6 +132,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'atelier' | 'negativ' | 'zapisnik'
   colors: 'bronz' | 'oliva' | 'bridlice' | 'mosaz' | 'salvej' | 'bordo' | 'inkoust' | 'jedle' | 'svestka'
+  ownColor: string | null
   tagline: string | null
   ctaLabel: string | null
   ctaUrl: string | null

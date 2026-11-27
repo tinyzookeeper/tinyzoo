@@ -2,7 +2,7 @@
 
 **Status (2026-11-24):** an exploration. Nothing here is built into the product and nothing is decided. The experiments were throwaway: they ran on this machine against a Postgres 16.16 of their own, and their temporary changes were removed afterwards (2.14 says what each one showed). Where a number is an estimate, it says so.
 
-**Update (2026-11-24):** step 0 and the server's half of step 1 are now built on the branch `feat/one-app` (not released), and the designs of all 20 hosted templates are in one app there. 2.16 and 2.17 say what exists and what it costs. The cloud runs that one app since 2.18. Step 2 has its detailed design in `docs/custom-types-plan.md` (2.19), step 3 in `docs/model-file-plan.md` (2.20).
+**Update (2026-11-24):** step 0 and the server's half of step 1 are now built on the branch `feat/one-app` (not released), and the designs of all 20 hosted templates are in one app there. 2.16 and 2.17 say what exists and what it costs. The cloud runs that one app since 2.18. Step 2 has its detailed design in `docs/custom-types-plan.md` (2.19), step 3 in `docs/model-file-plan.md` (2.20), step 4 in `docs/look-as-data-plan.md` (2.21).
 
 Part 1 is the short read with the recommendation and the decisions to make. Part 2 holds the details behind it.
 
@@ -553,3 +553,13 @@ Five things there correct this document:
 - **The CLI changes no database** (2.7, step 1, said `pull` brings the local database to the same shape). The local server adds what the file has when it starts, on request, and never removes.
 - **A new choice passes a registration,** and a custom type's choice field is typed as its known values or any other text. 2.6 called a new choice safe; for typed code that reads the field it is only safe when the type says so.
 
+## 2.21 Step 4: the detailed design
+
+Step 4 (colours and type as data) is designed in detail in `docs/look-as-data-plan.md`, and its first part, an owner's own main colour, is built on the branch `feat/look-as-data`: the rules of an own palette, where it is stored and how it reaches the page, the admin's field, what an owner cannot break, the tests, and the design of typefaces.
+
+Four things there correct this document:
+
+- **Colours, typefaces, corners and spacing are not one step** (2.11, level 2, named all four). Colours can be data in every look today. Typefaces can in some looks, from a small list. Corners and spacing have nothing to hold on to: no look has a variable for either, and section spacing belongs to step 5.
+- **An owner does not edit a palette** (2.11 said "an owner changes colours"). A look's presets set 3 to 13 variables under 95 different names. The owner gives one colour and the look makes the palette, by rules read from its own three presets.
+- **The 89 typefaces of the build are not 89 choices** (2.3, 2.17). 54 of them are in the build as one to five fixed weights, the ones their own look needs. A typeface chosen at run time comes from a new, small list of families with every weight.
+- **This step needs no experimental setting.** It is one optional field of the design's part of the model, and a site that leaves it empty is drawn as before, to the pixel.

@@ -1,6 +1,7 @@
 import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
+import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
 
 // The content model of the Event template: what the organisers of a race or a festival can
 // write and change. One model for both looks (looks.ts): a look decides how a block is drawn,
@@ -34,7 +35,7 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // The home page beside the form: a change of look or colours shows before it is saved.
     preview: '/',
     sections: [
-      { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'edition', 'tagline'] },
+      { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'ownColor', 'edition', 'tagline'] },
       { label: { en: 'When and where', cs: 'Kdy a kde' }, fields: ['date', 'registrationCloses', 'venueName', 'venueArea', 'address', 'coordinates', 'mapUrl'] },
       { label: { en: 'Registration', cs: 'Přihlášky' }, fields: ['ctaLabel', 'ctaUrl'] },
       { label: { en: 'Organiser', cs: 'Pořadatel' }, fields: ['organizerName', 'organizerAbout', 'contactName', 'contactRole', 'phone', 'email', 'companyId', 'social'] },
@@ -50,6 +51,8 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // Only the chosen look's palettes are offered; a change of look moves the colours to its first one.
     colors: f.select(looks.fields.colors).label({ en: 'Colours', cs: 'Barvy' })
       .help({ en: 'Each look has three colour palettes.', cs: 'Každý vzhled má tři barevné palety.' }),
+    // The owner's own main colour: the palette of the chosen colours follows it (templates/kit/palette.ts).
+    ownColor: f.color().optional().label(OWN_COLOR_FIELD.label).help(OWN_COLOR_FIELD.help),
     edition: f.number({ int: true, min: 1 }).optional().label({ en: 'Edition', cs: 'Ročník' })
       .help({ en: 'For example 14. Race Clock writes it beside the name in the header, with the year of the date below.', cs: 'Například 14. Časomíra ho napíše v záhlaví za název, spolu s rokem z data akce.' }),
     tagline: f.text({ multiline: true }).optional().label({ en: 'Description for the footer', cs: 'Popis do zápatí' })

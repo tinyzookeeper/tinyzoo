@@ -1,6 +1,7 @@
 import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
+import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
 
 // The content model of the Medical template: what a practice can write and change. One model
 // for both looks (looks.ts): a look decides how a block is drawn, never what it holds.
@@ -35,7 +36,7 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // The home page beside the form: a change of look or colours shows before it is saved.
     preview: '/',
     sections: [
-      { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'field'] },
+      { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'ownColor', 'field'] },
       { label: { en: 'Where', cs: 'Kde' }, fields: ['street', 'town', 'floor', 'mapUrl'] },
       { label: { en: 'Phone and e-mail', cs: 'Telefon a e-mail' }, fields: ['phone', 'phoneNote', 'smsPhone', 'email'] },
       { label: { en: 'New patients and closed hours', cs: 'Noví pacienti a zavřeno' }, fields: ['accepting', 'acceptingNote', 'closedText', 'visitsText'] },
@@ -52,6 +53,8 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // Only the chosen look's palettes are offered; a change of look moves the colours to its first one.
     colors: f.select(looks.fields.colors).label({ en: 'Colours', cs: 'Barvy' })
       .help({ en: 'Each look has three colour palettes.', cs: 'Každý vzhled má tři barevné palety.' }),
+    // The owner's own main colour: the palette of the chosen colours follows it (templates/kit/palette.ts).
+    ownColor: f.color().optional().label(OWN_COLOR_FIELD.label).help(OWN_COLOR_FIELD.help),
     field: f.text().optional().label({ en: 'What you do', cs: 'Obor' })
       .help({ en: 'A few words under the name in the footer, for example “General practitioner for adults”.', cs: 'Pár slov pod názvem v zápatí, například „Praktický lékař pro dospělé“.' }),
     street: f.text().optional().label({ en: 'Street and number', cs: 'Ulice a číslo' }),

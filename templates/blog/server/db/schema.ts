@@ -314,6 +314,7 @@ export const siteSettings = pgTable('site_settings', {
   tagline: text('tagline'),
   look: siteSettingsLook('look').$type<'obalka' | 'ctvrthodinka'>().notNull().default("obalka"),
   colors: siteSettingsColors('colors').$type<'mech' | 'cihla' | 'inkoust' | 'jedle' | 'noc' | 'den'>().notNull().default("mech"),
+  ownColor: text('own_color'),
   ctaLabel: text('cta_label'),
   ctaUrl: text('cta_url'),
   aboutLabel: text('about_label'),

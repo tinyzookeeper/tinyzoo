@@ -317,6 +317,7 @@ export const siteSettings = pgTable('site_settings', {
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   look: siteSettingsLook('look').$type<'zrcadlo' | 'sachovnice' | 'vyloha'>().notNull().default("zrcadlo"),
   colors: siteSettingsColors('colors').$type<'mlha' | 'pudr' | 'salvej' | 'malina' | 'pistacie' | 'mandarinka' | 'lahvova' | 'bordo' | 'inkoust'>().notNull().default("mlha"),
+  ownColor: text('own_color'),
   tagline: text('tagline'),
   phone: text('phone'),
   email: text('email'),

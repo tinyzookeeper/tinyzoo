@@ -14,7 +14,15 @@
 // (`look`, `colors`): nothing about them is compiled into the build, so one build serves
 // every site made from the template.
 //
-// This file has no imports: cms.config.ts, the seed and the app can all load it.
+// An owner may add a main colour of their own to a preset (`ownColor` in the settings): the
+// look then shows the preset with that colour and what follows from it (palette.ts, and
+// docs/look-as-data-plan.md). A site without one is drawn exactly as its preset says.
+//
+// This file imports only palette.ts, which imports nothing: cms.config.ts, the seed and the app
+// can all load it.
+import { learnPalette, ownPalette, plainHex, type OwnColours, type PaletteRule, type Vars } from './palette.ts'
+
+export type { OwnColours } from './palette.ts'
 
 /** A text in the admin's languages. */
 export type LookText = { cs: string; en: string }
@@ -36,13 +44,30 @@ export interface LookDef<Id extends string = string, PresetId extends string = s
   name: LookText
   /** The look's colour presets; the first is its default. Ids are unique across the whole template. */
   presets: readonly [ColorPreset<PresetId>, ...ColorPreset<PresetId>[]]
+  /**
+   * What the look says about an owner's own main colour: which variable it is, and what the look
+   * puts together with it (palette.ts). `against` and `fixed` are written by
+   * templates/kit/scripts/look-pairs.mjs; test/unit/template-palette.spec.ts keeps them true.
+   */
+  own?: OwnColours
+}
+
+/** The owner's own choices beside a look and a preset (Site settings). */
+export interface OwnLook {
+  /** Their main colour, `#rrggbb`. Anything else counts as none. */
+  color?: string | null
 }
 
 export interface ResolvedLook<L extends LookDef = LookDef> {
   look: L
   preset: L['presets'][number]
-  /** The preset as an inline style: `--brand:#7a5a3a;--paper:#faf8f4`. */
+  /** The preset as an inline style: `--brand:#7a5a3a;--paper:#faf8f4`. With an own colour, the palette that comes of it. */
   style: string
+  /**
+   * The owner's main colour when the page shows one: as they gave it, and as it is shown (the
+   * same, or lighter or darker where a text would be hard to read). Null without one.
+   */
+  own: { given: string; shown: string } | null
 }
 
 export interface Looks<L extends LookDef> {
@@ -76,15 +101,34 @@ export interface Looks<L extends LookDef> {
    * The look and colours a site shows. An unknown look is the first one; colours that belong
    * to another look (the look was changed, the colours were not) are the look's default.
    */
-  resolve(look: string | null | undefined, preset: string | null | undefined): ResolvedLook<L>
+  resolve(look: string | null | undefined, preset: string | null | undefined, own?: OwnLook | null): ResolvedLook<L>
+  /** A look's rules for an own colour (palette.ts); null for a look that takes none. */
+  paletteRule(look: string): PaletteRule | null
 }
 
-/** One preset as an inline style. Only custom properties with plain values are written. */
-export function presetStyle(preset: ColorPreset): string {
-  return Object.entries(preset.vars)
+/** CSS variables as an inline style. Only custom properties with plain values are written. */
+export function varsStyle(vars: Vars): string {
+  return Object.entries(vars)
     .filter(([name, value]) => /^--[a-z0-9-]+$/i.test(name) && /^[#a-z0-9(),.%\s-]+$/i.test(value))
     .map(([name, value]) => `${name}:${value}`)
     .join(';')
+}
+
+/** One preset as an inline style. */
+export function presetStyle(preset: ColorPreset): string {
+  return varsStyle(preset.vars)
+}
+
+/**
+ * The field `ownColor` of Site settings, as every template writes it:
+ * `f.color().optional().label(OWN_COLOR_FIELD.label).help(OWN_COLOR_FIELD.help)`.
+ */
+export const OWN_COLOR_FIELD: { label: LookText; help: LookText } = {
+  label: { cs: 'Vlastní barva', en: 'Own colour' },
+  help: {
+    cs: 'Zadejte svou hlavní barvu. Ostatní barvy palety se jí přizpůsobí. Barvu, na které by se texty špatně četly nebo která je na velkou plochu příliš výrazná, zobrazíme o něco světlejší, tmavší nebo tlumenější.',
+    en: 'Give your own main colour. The other colours of the palette follow it. A colour that would make texts hard to read, or that is too loud for a large area, is shown a little lighter, darker or calmer.',
+  },
 }
 
 const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i
@@ -130,6 +174,15 @@ export function defineLooks<const T extends readonly [LookDef, ...LookDef[]]>(al
       swatches[preset.id] = presetSwatch(preset)
     }
   }
+  // A look's rules for an own colour are worked out when first asked for, once.
+  const rules = new Map<string, PaletteRule | null>()
+  const paletteRule = (lookId: string): PaletteRule | null => {
+    if (!rules.has(lookId)) {
+      const look = all.find((l) => l.id === lookId)
+      rules.set(lookId, look ? learnPalette(look.presets, look.own) : null)
+    }
+    return rules.get(lookId) ?? null
+  }
   const ids = all.map((l) => l.id) as unknown as Looks<L>['ids']
   const presetIds = all.flatMap((l) => l.presets.map((p) => p.id)) as unknown as Looks<L>['presetIds']
   return {
@@ -148,10 +201,16 @@ export function defineLooks<const T extends readonly [LookDef, ...LookDef[]]>(al
         optionsBy: { field: 'look', options: presetsByLook as Looks<L>['presetsByLook'] }, swatches: swatches as Looks<L>['swatches'],
       },
     },
-    resolve(lookId, presetId) {
+    resolve(lookId, presetId, own) {
       const look: L = all.find((l) => l.id === lookId) ?? all[0]
       const preset = look.presets.find((p) => p.id === presetId) ?? look.presets[0]
-      return { look, preset, style: presetStyle(preset) }
+      const given = plainHex(own?.color)
+      const rule = given ? paletteRule(look.id) : null
+      // No colour of the owner's (or a look that takes none): the preset, exactly as before.
+      if (!given || !rule) return { look, preset, style: presetStyle(preset), own: null }
+      const vars = ownPalette(preset.vars, rule, given)
+      return { look, preset, style: varsStyle(vars), own: { given, shown: vars[rule.main] ?? given } }
     },
+    paletteRule,
   }
 }

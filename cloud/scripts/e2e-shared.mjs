@@ -21,8 +21,11 @@
 // database user, refused everywhere else, migrated with the migrations of its own template's
 // model; each shows its own name, design, look and content, and a collection or a route of one
 // template does not exist on a site of the other; a session, a file and an entry of one site do
-// not exist on another; an unknown host gets nothing; deleting one site removes its row,
-// database, user and folder while the others keep answering from the same process. It prints
+// not exist on another; a Photographer site without an own colour carries its preset exactly,
+// with one its owner saved it carries `data-own` and the palette `looks.resolve` gives (and the
+// same look stylesheet), a value that is not `#rrggbb` is refused, and clearing it brings the
+// preset back; an unknown host gets nothing; deleting one site removes its row, database, user
+// and folder while the others keep answering from the same process. It prints
 // the process's memory with three sites. Then what the cloud does when things go wrong: the
 // app's process is gone (it is started again on the same port), a step fails ("Try again" goes
 // on, keeping the database of the first try), the site directory or app.json is lost (written
@@ -41,6 +44,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, wri
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import pg from 'pg'
+import { presetStyle } from '../../templates/kit/looks.ts'
 import { alive, appEntries, arg, cloudDir, dbUrl, freePortFrom, log, looksOf, repoRoot, runDb, runPort, runSitePrefix, sleep, startCloud, waitFor, withPg } from './lib.mjs'
 
 const run = promisify(execFile)
@@ -455,6 +459,50 @@ async function main() {
 
   // ── 3c · a site's own content type (only with CLOUD_CUSTOM_TYPES=on) ──
   if (CUSTOM_TYPES) await customTypes({ one, wed, row1, rowW, rowB, admin1, adminW, home: homeW, pid, basicPid: basicApp.pid, htmlTag, looksOn })
+
+  // ── 3d · the owner's own colour (Site settings, `ownColor`) ──
+  // A site without one is drawn exactly as its preset says; with one, <html> carries `data-own` and the palette
+  // `looks.resolve` gives, and the look's stylesheet is the same. The API refuses what is not `#rrggbb`.
+  log('3 · the owner\'s own colour on a Photographer site: none, saved, refused when it is not #rrggbb, cleared')
+  const photoLooks = await looksOf({ dir: 'templates/photographer' })
+  const attrOf = (text, name) => {
+    const raw = new RegExp(`\\s${name}="([^"]*)"`).exec(htmlTag(text))?.[1]
+    return raw === undefined ? null : raw.replace(/&quot;/g, '"').replace(/&#39;/g, '\'').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+  }
+  const settingsOf = async () => (await new Http(one.publicUrl).get('/api/content/_global/siteSettings')).body?.item
+  // The owner saves Site settings: the row is read and sent back whole, with the change (templates/app/scripts/sites.mjs `writableRow`).
+  const saveSettings = async (change) => {
+    const { body } = await admin1.get('/api/cms/_singleton/siteSettings')
+    const row = {}
+    for (const [key, value] of Object.entries(body?.row ?? {})) {
+      if (['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'].includes(key) || key.endsWith('__media')) continue
+      if (key.endsWith('Id') && key.slice(0, -2) in body.row) continue
+      row[key] = value
+    }
+    return admin1.request('PUT', '/api/cms/_singleton/siteSettings', { json: { ...row, ...change } })
+  }
+  const OWN = '#2f6f4f'
+  const ownSet0 = await settingsOf()
+  const ownHome0 = await page(one.publicUrl)
+  const ownPlain = photoLooks.resolve(ownSet0?.look, ownSet0?.colors)
+  const ownPlainStyle = presetStyle(ownPlain.preset)
+  check('without an own colour the settings hold none, <html> has no data-own and its style is exactly the preset\'s', ownSet0?.ownColor === null && attrOf(ownHome0.text, 'data-own') === null && attrOf(ownHome0.text, 'style') === ownPlainStyle && ownPlainStyle !== '', `ownColor ${JSON.stringify(ownSet0?.ownColor)} | data-own ${attrOf(ownHome0.text, 'data-own')} | style ${attrOf(ownHome0.text, 'style')} | preset ${ownPlainStyle}`)
+  const ownSaved = await saveSettings({ ownColor: OWN })
+  const ownSet1 = await settingsOf()
+  const ownHome1 = await page(one.publicUrl)
+  const ownMine = photoLooks.resolve(ownSet1?.look, ownSet1?.colors, { color: OWN })
+  check('the owner saves an own colour through the admin API: 200, and the content API gives it back', ownSaved.status === 200 && ownSet1?.ownColor === OWN, `${ownSaved.status} ${ownSaved.text.slice(0, 200)} | ${JSON.stringify(ownSet1?.ownColor)}`)
+  check('the home page\'s <html> carries data-own and the palette looks.resolve gives, which is not the preset\'s', ownMine.own !== null && attrOf(ownHome1.text, 'data-own') === ownMine.own.shown && attrOf(ownHome1.text, 'style') === ownMine.style && ownMine.style !== ownPlainStyle, `data-own ${attrOf(ownHome1.text, 'data-own')} (${ownMine.own?.shown}) | style ${attrOf(ownHome1.text, 'style')} | wanted ${ownMine.style}`)
+  const hrefs = (text) => looksOn(text).looks.map((x) => x.href).join(' ')
+  check('its look and colours are as before, and so is its look stylesheet', attrOf(ownHome1.text, 'data-look') === attrOf(ownHome0.text, 'data-look') && attrOf(ownHome1.text, 'data-colors') === attrOf(ownHome0.text, 'data-colors') && attrOf(ownHome0.text, 'data-look') === ownSet0?.look && hrefs(ownHome0.text) !== '' && hrefs(ownHome1.text) === hrefs(ownHome0.text), `${attrOf(ownHome0.text, 'data-look')}/${attrOf(ownHome0.text, 'data-colors')} -> ${attrOf(ownHome1.text, 'data-look')}/${attrOf(ownHome1.text, 'data-colors')} | ${hrefs(ownHome0.text)} -> ${hrefs(ownHome1.text)}`)
+  const notHex = ['red', '#2f6f4', '#2f6f4fzz', '#2f6f4f;background:url(x)']
+  const ownRefused = []
+  for (const value of notHex) ownRefused.push((await saveSettings({ ownColor: value })).status)
+  check('what is not #rrggbb is refused by the API (422), and the saved colour stays', ownRefused.every((s) => s === 422) && (await settingsOf())?.ownColor === OWN, `${notHex.map((v, i) => `${v} ${ownRefused[i]}`).join(' | ')} | ${JSON.stringify((await settingsOf())?.ownColor)}`)
+  const ownCleared = await saveSettings({ ownColor: null })
+  const ownSet2 = await settingsOf()
+  const ownHome2 = await page(one.publicUrl)
+  check('the owner clears it: 200, none in the content API, no data-own, and the preset\'s style again, the same as at first', ownCleared.status === 200 && ownSet2?.ownColor === null && attrOf(ownHome2.text, 'data-own') === null && attrOf(ownHome2.text, 'style') === ownPlainStyle && attrOf(ownHome2.text, 'style') === attrOf(ownHome0.text, 'style'), `${ownCleared.status} ${ownCleared.text.slice(0, 200)} | ${JSON.stringify(ownSet2?.ownColor)} | data-own ${attrOf(ownHome2.text, 'data-own')} | style ${attrOf(ownHome2.text, 'style')}`)
 
   // ── 4 · sessions ──
   log('4 · a session of one site is refused on the other')

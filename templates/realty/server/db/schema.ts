@@ -336,6 +336,7 @@ export const siteSettings = pgTable('site_settings', {
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   look: siteSettingsLook('look').$type<'katastr' | 'cedule' | 'rozsviceno'>().notNull().default("katastr"),
   colors: siteSettingsColors('colors').$type<'petrol' | 'vinova' | 'grafit' | 'zluta' | 'mentol' | 'kobalt' | 'soumrak' | 'mech' | 'pulnoc'>().notNull().default("petrol"),
+  ownColor: text('own_color'),
   town: text('town'),
   townIn: text('town_in'),
   street: text('street'),

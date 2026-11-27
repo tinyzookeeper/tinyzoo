@@ -1,0 +1,359 @@
+{
+  "accommodation/cely-rok": {
+    "main": "--brand",
+    "follows": [
+      "--brand-ink"
+    ]
+  },
+  "accommodation/ode-dveri": {
+    "main": "--brand",
+    "follows": [
+      "--soft",
+      "--ink"
+    ]
+  },
+  "association/ctvero-dob": {
+    "main": "--brand",
+    "follows": [
+      "--ink"
+    ]
+  },
+  "blog/ctvrthodinka": {
+    "main": "--brand",
+    "follows": [
+      "--brand-ink"
+    ]
+  },
+  "blog/obalka": {
+    "main": "--brand",
+    "follows": [
+      "--tint",
+      "--deep",
+      "--deep-ink",
+      "--deep-soft",
+      "--line"
+    ]
+  },
+  "car-service/cesta": {
+    "main": "--brand",
+    "follows": [
+      "--tint",
+      "--line"
+    ]
+  },
+  "car-service/kontrolky": {
+    "main": "--brand",
+    "follows": [
+      "--brand-ink"
+    ]
+  },
+  "car-service/supliky": {
+    "main": "--brand",
+    "follows": [
+      "--brand-deep"
+    ]
+  },
+  "construction/harmonogram": {
+    "main": "--brand",
+    "follows": [
+      "--brand-ink",
+      "--paper"
+    ]
+  },
+  "construction/vykres": {
+    "main": "--brand",
+    "follows": []
+  },
+  "construction/zdivo": {
+    "main": "--brand",
+    "follows": [
+      "--brand-d",
+      "--brand-2",
+      "--brand-3",
+      "--ink"
+    ]
+  },
+  "development/modrotisk": {
+    "main": "--paper",
+    "follows": [
+      "--panel",
+      "--quiet"
+    ]
+  },
+  "development/patra": {
+    "main": "--brand",
+    "follows": [
+      "--ink",
+      "--quiet"
+    ]
+  },
+  "development/po-slunci": {
+    "main": "--brand",
+    "follows": [
+      "--soft",
+      "--ink",
+      "--quiet"
+    ]
+  },
+  "event/casomira": {
+    "main": "--led",
+    "follows": []
+  },
+  "event/soutisk": {
+    "main": "--c1",
+    "follows": [
+      "--paper",
+      "--paper2"
+    ]
+  },
+  "individual/rozhovor": {
+    "main": "--brand",
+    "follows": [
+      "--tint"
+    ]
+  },
+  "individual/vizitka": {
+    "main": "--brand",
+    "follows": [
+      "--ink"
+    ]
+  },
+  "individual/zvyraznovac": {
+    "main": "--brand",
+    "follows": []
+  },
+  "medical/cekarna": {
+    "main": "--brand",
+    "follows": [
+      "--brand-tint",
+      "--tint",
+      "--line",
+      "--ink",
+      "--body",
+      "--quiet"
+    ]
+  },
+  "medical/cifernik": {
+    "main": "--brand",
+    "follows": [
+      "--soft",
+      "--paper",
+      "--track",
+      "--ink",
+      "--body",
+      "--quiet"
+    ]
+  },
+  "office/lhuty": {
+    "main": "--brand",
+    "follows": [
+      "--paper",
+      "--tint",
+      "--line",
+      "--ink",
+      "--quiet",
+      "--brand-soft"
+    ]
+  },
+  "office/sanony": {
+    "main": "--brand",
+    "follows": [
+      "--soft"
+    ]
+  },
+  "photographer/atelier": {
+    "main": "--brand",
+    "follows": [
+      "--tint",
+      "--line"
+    ]
+  },
+  "photographer/negativ": {
+    "main": "--brand",
+    "follows": []
+  },
+  "photographer/zapisnik": {
+    "main": "--brand",
+    "follows": [
+      "--tint",
+      "--ink"
+    ]
+  },
+  "realty/cedule": {
+    "main": "--brand",
+    "follows": [
+      "--brand-on-dark",
+      "--tint"
+    ]
+  },
+  "realty/katastr": {
+    "main": "--brand",
+    "follows": []
+  },
+  "realty/rozsviceno": {
+    "main": "--accent",
+    "follows": [
+      "--accent-ink"
+    ]
+  },
+  "restaurant/paragon": {
+    "main": "--brand",
+    "follows": []
+  },
+  "restaurant/salon": {
+    "main": "--brand",
+    "follows": [
+      "--text",
+      "--paper"
+    ]
+  },
+  "restaurant/talir": {
+    "main": "--brand",
+    "follows": [
+      "--pop",
+      "--ink"
+    ]
+  },
+  "salon/sachovnice": {
+    "main": "--brand",
+    "follows": [
+      "--brand-ink",
+      "--ink",
+      "--soft"
+    ]
+  },
+  "salon/vyloha": {
+    "main": "--glass",
+    "follows": [
+      "--pane",
+      "--shade"
+    ]
+  },
+  "salon/zrcadlo": {
+    "main": "--brand",
+    "follows": [
+      "--paper",
+      "--ink",
+      "--body",
+      "--quiet",
+      "--line"
+    ]
+  },
+  "shop/na-hacku": {
+    "main": "--brand",
+    "follows": [
+      "--ink"
+    ]
+  },
+  "shop/portal": {
+    "main": "--wood",
+    "follows": [
+      "--wood-hi",
+      "--wood-lo"
+    ]
+  },
+  "shop/regal": {
+    "main": "--rail",
+    "follows": [
+      "--signal-ink",
+      "--ink"
+    ]
+  },
+  "software/jeden-den": {
+    "main": "--brand",
+    "follows": []
+  },
+  "software/magnety": {
+    "main": "--brand",
+    "follows": [
+      "--ink",
+      "--sky"
+    ]
+  },
+  "software/navod": {
+    "main": "--brand",
+    "follows": [
+      "--tint",
+      "--ink"
+    ]
+  },
+  "sports-club/dres": {
+    "main": "--brand",
+    "follows": [
+      "--brand-lite",
+      "--paper"
+    ]
+  },
+  "sports-club/hriste": {
+    "main": "--brand",
+    "follows": []
+  },
+  "sports-club/zpravodaj": {
+    "main": "--brand",
+    "follows": []
+  },
+  "studio/deka": {
+    "main": "--brand",
+    "follows": [
+      "--k1"
+    ]
+  },
+  "studio/sal": {
+    "main": "--brand",
+    "follows": [
+      "--ink"
+    ]
+  },
+  "studio/tabule": {
+    "main": "--brand",
+    "follows": [
+      "--accent-ink",
+      "--ink"
+    ]
+  },
+  "trades/mistr": {
+    "main": "--brand",
+    "follows": [
+      "--brand-soft"
+    ]
+  },
+  "trades/reflex": {
+    "main": "--brand",
+    "follows": [
+      "--brand-lit",
+      "--paper",
+      "--ink",
+      "--coal"
+    ]
+  },
+  "wedding/magazin": {
+    "main": "--brand",
+    "follows": [
+      "--tint",
+      "--line",
+      "--ink",
+      "--body",
+      "--quiet",
+      "--deep"
+    ]
+  },
+  "wedding/oznameni": {
+    "main": "--brand",
+    "follows": [
+      "--tint",
+      "--line",
+      "--ink",
+      "--body",
+      "--quiet"
+    ]
+  },
+  "wedding/vecer": {
+    "main": "--brand",
+    "follows": [
+      "--ink",
+      "--body",
+      "--card",
+      "--card-line"
+    ]
+  }
+}

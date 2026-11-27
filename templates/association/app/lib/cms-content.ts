@@ -154,6 +154,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'ctvero-dob'
   colors: 'sad' | 'jablko' | 'hreben'
+  ownColor: string | null
   legalName: string | null
   about: string | null
   companyId: string | null

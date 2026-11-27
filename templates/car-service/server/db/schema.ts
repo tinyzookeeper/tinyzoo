@@ -328,6 +328,7 @@ export const siteSettings = pgTable('site_settings', {
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   look: siteSettingsLook('look').$type<'cesta' | 'kontrolky' | 'supliky'>().notNull().default("cesta"),
   colors: siteSettingsColors('colors').$type<'modra' | 'zelena' | 'grafit' | 'podsviceni' | 'jantar' | 'led' | 'cervena' | 'safir' | 'lahvova'>().notNull().default("modra"),
+  ownColor: text('own_color'),
   phone: text('phone').notNull(),
   phone2: text('phone2'),
   email: text('email'),

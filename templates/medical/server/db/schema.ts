@@ -305,6 +305,7 @@ export const siteSettings = pgTable('site_settings', {
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   look: siteSettingsLook('look').$type<'cekarna' | 'cifernik'>().notNull().default("cekarna"),
   colors: siteSettingsColors('colors').$type<'inkoust' | 'jedle' | 'svestka' | 'tyrkys' | 'chrpa' | 'lipa'>().notNull().default("inkoust"),
+  ownColor: text('own_color'),
   field: text('field'),
   street: text('street'),
   town: text('town'),

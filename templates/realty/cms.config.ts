@@ -1,6 +1,7 @@
 import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
+import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
 
 // The content model of the Realty template: what an agency can write and change. One model for
 // all three looks (looks.ts): a look decides how a block is drawn, never what it holds.
@@ -25,7 +26,7 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // The home page beside the form: a change of look or colours shows before it is saved.
     preview: '/',
     sections: [
-      { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'descriptor', 'logo', 'look', 'colors'] },
+      { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'descriptor', 'logo', 'look', 'colors', 'ownColor'] },
       { label: { en: 'Office and contacts', cs: 'Kancelář a kontakty' }, fields: ['town', 'townIn', 'street', 'postcode', 'phone', 'email', 'hours'] },
       { label: { en: 'The offer and the header button', cs: 'Nabídka a tlačítko v záhlaví' }, fields: ['offerTotal', 'ctaLabel', 'ctaUrl'] },
       { label: { en: 'Footer and company', cs: 'Zápatí a firma' }, fields: ['about', 'company', 'companyId', 'vatId', 'register', 'legalNote'] },
@@ -44,6 +45,8 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // Only the chosen look's palettes are offered; a change of look moves the colours to its first one.
     colors: f.select(looks.fields.colors).label({ en: 'Colours', cs: 'Barvy' })
       .help({ en: 'Each look has three colour palettes.', cs: 'Každý vzhled má tři barevné palety.' }),
+    // The owner's own main colour: the palette of the chosen colours follows it (templates/kit/palette.ts).
+    ownColor: f.color().optional().label(OWN_COLOR_FIELD.label).help(OWN_COLOR_FIELD.help),
     town: f.text().optional().label({ en: 'Town', cs: 'Město' })
       .help({ en: 'The town the agency works from, for example “Písek”. It stands in the header, the search and the map.', cs: 'Město, ze kterého kancelář působí, například „Písek“. Objeví se v záhlaví, ve vyhledávání a na mapě.' }),
     townIn: f.text().optional().label({ en: 'The town after “in”', cs: 'Město po „v“' })

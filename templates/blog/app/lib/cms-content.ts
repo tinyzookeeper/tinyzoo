@@ -164,6 +164,7 @@ export interface SiteSettings {
   tagline: string | null
   look: 'obalka' | 'ctvrthodinka'
   colors: 'mech' | 'cihla' | 'inkoust' | 'jedle' | 'noc' | 'den'
+  ownColor: string | null
   ctaLabel: string | null
   ctaUrl: string | null
   aboutLabel: string | null

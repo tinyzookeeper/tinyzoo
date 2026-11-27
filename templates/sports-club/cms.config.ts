@@ -1,6 +1,7 @@
 import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
+import { OWN_COLOR_FIELD } from 'tinyzoo-template-kit/looks'
 
 // The content model of the Sports club template: what a club can write and change. One model
 // for all three looks (looks.ts): a look decides how a block is drawn, never what it holds.
@@ -25,7 +26,7 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // The home page beside the form: a change of look or colours shows before it is saved.
     preview: '/',
     sections: [
-      { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors'] },
+      { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'ownColor'] },
       { label: { en: 'The club', cs: 'Klub' }, fields: ['fullName', 'sport', 'founded', 'footerText', 'motto', 'companyId'] },
       { label: { en: 'Ground and contacts', cs: 'Hřiště a kontakty' }, fields: ['groundName', 'address', 'mapUrl', 'admission', 'email', 'phone', 'phoneNote', 'facebook'] },
       { label: { en: 'Header button', cs: 'Tlačítko v záhlaví' }, fields: ['ctaLabel', 'ctaUrl'] },
@@ -41,6 +42,8 @@ export const SiteSettings = defineSingleton('siteSettings', {
     // Only the chosen look's palettes are offered; a change of look moves the colours to its first one.
     colors: f.select(looks.fields.colors).label({ en: 'Colours', cs: 'Barvy' })
       .help({ en: 'Each look has three colour palettes: pick your club’s.', cs: 'Každý vzhled má tři barevné palety: vyberte barvy svého klubu.' }),
+    // The owner's own main colour: the palette of the chosen colours follows it (templates/kit/palette.ts).
+    ownColor: f.color().optional().label(OWN_COLOR_FIELD.label).help(OWN_COLOR_FIELD.help),
     fullName: f.text().optional().label({ en: 'Full name of the club', cs: 'Celý název klubu' })
       .help({ en: 'The registered name, for example “TJ Tatran Hořany, z. s.”. It stands in the footer.', cs: 'Úřední název, například „TJ Tatran Hořany, z. s.“. Je v zápatí.' }),
     sport: f.text().optional().label({ en: 'Sport', cs: 'Sport' })

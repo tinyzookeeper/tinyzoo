@@ -199,6 +199,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'zpravodaj' | 'dres' | 'hriste'
   colors: 'cervenobili' | 'zelenobili' | 'modrozluti' | 'rudi' | 'zlutocerni' | 'modrobili' | 'cervena' | 'modra' | 'zelena'
+  ownColor: string | null
   fullName: string | null
   sport: string | null
   founded: number | null

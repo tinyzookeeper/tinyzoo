@@ -316,6 +316,7 @@ export const siteSettings = pgTable('site_settings', {
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   look: siteSettingsLook('look').$type<'navod' | 'magnety' | 'jeden-den'>().notNull().default("navod"),
   colors: siteSettingsColors('colors').$type<'zelena' | 'modra' | 'cihlova' | 'odpoledne' | 'rano' | 'vecer' | 'podzim' | 'zima' | 'leto'>().notNull().default("zelena"),
+  ownColor: text('own_color'),
   ctaLabel: text('cta_label'),
   ctaLongLabel: text('cta_long_label'),
   ctaUrl: text('cta_url'),

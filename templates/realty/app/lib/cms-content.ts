@@ -161,6 +161,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'katastr' | 'cedule' | 'rozsviceno'
   colors: 'petrol' | 'vinova' | 'grafit' | 'zluta' | 'mentol' | 'kobalt' | 'soumrak' | 'mech' | 'pulnoc'
+  ownColor: string | null
   town: string | null
   townIn: string | null
   street: string | null

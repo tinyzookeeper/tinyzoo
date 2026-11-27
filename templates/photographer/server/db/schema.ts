@@ -292,6 +292,7 @@ export const siteSettings = pgTable('site_settings', {
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   look: siteSettingsLook('look').$type<'atelier' | 'negativ' | 'zapisnik'>().notNull().default("atelier"),
   colors: siteSettingsColors('colors').$type<'bronz' | 'oliva' | 'bridlice' | 'mosaz' | 'salvej' | 'bordo' | 'inkoust' | 'jedle' | 'svestka'>().notNull().default("bronz"),
+  ownColor: text('own_color'),
   tagline: text('tagline'),
   ctaLabel: text('cta_label'),
   ctaUrl: text('cta_url'),

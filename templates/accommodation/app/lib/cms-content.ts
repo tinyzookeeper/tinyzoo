@@ -175,6 +175,7 @@ export interface SiteSettings {
   tagline: string | null
   look: 'cely-rok' | 'ode-dveri'
   colors: 'vres' | 'jerabina' | 'jinovatka' | 'bridlice' | 'les' | 'vresova'
+  ownColor: string | null
   phone: string | null
   email: string | null
   arrival: string | null

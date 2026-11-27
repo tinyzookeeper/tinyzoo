@@ -40,6 +40,8 @@ export interface Words {
   backToGallery: string
   sending: string
   draftPreview: string
+  /** The preview's line when an owner's colour is shown lighter or darker than given; for the editor only. */
+  ownColorShown: (given: string, shown: string) => string
   welcomeTitle: string
   welcomeBefore: string
   welcomeAdmin: string
@@ -67,6 +69,7 @@ export const WORDS: Record<string, Words> = {
     noAlbums: 'Zatím tu nejsou žádná alba.', backToGallery: 'Zpět do galerie',
     sending: 'Odesílám…',
     draftPreview: 'Náhled nezveřejněné stránky',
+    ownColorShown: (given, shown) => `Vaše barva ${given} je na tomto vzhledu zobrazena jako ${shown}, aby stránka zůstala čitelná a klidná.`,
     welcomeTitle: 'Založte úvodní stránku',
     welcomeBefore: 'Otevřete ', welcomeAdmin: 'administraci', welcomeAfter: ' a založte stránku s adresou „home“. Její obsah sestavíte z bloků.',
     notFoundTitle: 'Stránku jsme nenašli', notFoundText: 'Zkontrolujte adresu nebo se vraťte na úvodní stránku.',

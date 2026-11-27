@@ -143,6 +143,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'navod' | 'magnety' | 'jeden-den'
   colors: 'zelena' | 'modra' | 'cihlova' | 'odpoledne' | 'rano' | 'vecer' | 'podzim' | 'zima' | 'leto'
+  ownColor: string | null
   ctaLabel: string | null
   ctaLongLabel: string | null
   ctaUrl: string | null

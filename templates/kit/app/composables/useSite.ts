@@ -9,6 +9,7 @@
 import type { Navigation, Page, SiteSettings } from '#site/app/lib/cms-content'
 import type { looks } from '#site/looks'
 import type { CustomPage } from '../utils/customTypes'
+import { colourDistance } from '../../palette'
 
 type SiteWords = ReturnType<typeof wordsOf>
 
@@ -22,17 +23,25 @@ export async function useSite() {
   const design = useDesign()
   // In the admin's preview (?preview) the settings and menus come with the editor's unsaved
   // values laid over them, so a look or a colour can be tried before it is saved.
-  const query = 'preview' in useRoute().query ? { preview: '' } : undefined
+  const isPreview = 'preview' in useRoute().query
+  const query = isPreview ? { preview: '' } : undefined
   const [{ data: settings }, { data: nav }] = await Promise.all([
     useFetch<{ item: SiteSettings | null }>('/api/content/_global/siteSettings', { key: 'site-settings', query }),
     useFetch<{ item: Navigation | null }>('/api/content/_global/navigation', { key: 'site-nav', query }),
   ])
   const item = computed(() => settings.value?.item ?? null)
+  const look = computed(() => design.looks.resolve(item.value?.look, item.value?.colors, { color: item.value?.ownColor }) as ReturnType<typeof looks.resolve>)
   return {
     settings: item,
     nav: computed(() => nav.value?.item ?? null),
     /** The look and colours the site shows (looks.ts): the first look until the settings say otherwise. */
-    look: computed(() => design.looks.resolve(item.value?.look, item.value?.colors) as ReturnType<typeof looks.resolve>),
+    look,
+    /** The owner's colour and how it is shown, when it visibly differs; only in the admin's preview, else null. */
+    ownNote: computed(() => {
+      const own = look.value.own
+      // A change the eye does not see is not worth a line (about 2 is just visible).
+      return isPreview && own && colourDistance(own.given, own.shown) >= 3 ? own : null
+    }),
     /** The site's name: what the settings hold, else a neutral word. */
     name: computed(() => item.value?.siteName || (design.site.wordsOf(design.site.DEFAULT_LANGUAGE) as SiteWords).defaultName),
   }
@@ -94,5 +103,7 @@ export async function useSitePage() {
     customEntry: computed<Record<string, any> | null>(() => (customPage.value ? data.value?.item ?? null : null)),
     /** Whether what is shown is a draft an editor previews. */
     isDraft: computed(() => !!data.value?.preview && data.value?.item?.status !== 'published'),
+    /** Whether the server answered as to an editor's preview (?preview and signed in): never for a visitor. */
+    isPreview: computed(() => !!data.value?.preview),
   }
 }

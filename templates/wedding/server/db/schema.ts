@@ -316,6 +316,7 @@ export const siteSettings = pgTable('site_settings', {
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   look: siteSettingsLook('look').$type<'oznameni' | 'vecer' | 'magazin'>().notNull().default("oznameni"),
   colors: siteSettingsColors('colors').$type<'salvej' | 'ruze' | 'holubi' | 'les' | 'pulnoc' | 'svestka' | 'pisek' | 'oliva' | 'bridlice'>().notNull().default("salvej"),
+  ownColor: text('own_color'),
   date: timestamp('date', { withTimezone: true, mode: 'date', precision: 3 }),
   rsvpDeadline: timestamp('rsvp_deadline', { withTimezone: true, mode: 'date', precision: 3 }),
   venueName: text('venue_name'),

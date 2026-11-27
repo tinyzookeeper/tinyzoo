@@ -12,6 +12,7 @@ export const looks = defineLooks([
     // The finish-line clock: a dark page where every number that matters is lit in a dot-matrix face.
     id: 'casomira',
     name: { cs: 'Časomíra', en: 'Race Clock' },
+    own: { main: '--led', against: ['--bg', '--led-ink', '--panel'], fixed: ['#050606', '#eef0ec'] },
     presets: [
       { id: 'cervena', name: { cs: 'Časomíra', en: 'Race clock' }, swatch: ['#0c0e0f', '#ff5b2b', '#eef0ec'], vars: { '--led': '#ff5b2b', '--led-ink': '#0c0e0f', '--bg': '#0c0e0f', '--panel': '#15191b', '--line': '#2c3336' } },
       { id: 'zelena', name: { cs: 'Zelená', en: 'Green' }, swatch: ['#0a0f0c', '#5fe38c', '#eef0ec'], vars: { '--led': '#5fe38c', '--led-ink': '#07110b', '--bg': '#0a0f0c', '--panel': '#121a15', '--line': '#27332b' } },
@@ -22,6 +23,7 @@ export const looks = defineLooks([
     // A hand-printed poster in three inks: overprinted hills, a round photo, section edges cut as hills.
     id: 'soutisk',
     name: { cs: 'Soutisk', en: 'Overprint' },
+    own: { main: '--c1', against: ['--c2', '--ink', '--paper', '--paper2'] },
     presets: [
       { id: 'cinober', name: { cs: 'Soutisk', en: 'Overprint' }, swatch: ['#f06a45', '#f4c13d', '#1f7480'], vars: { '--c1': '#f06a45', '--c2': '#f4c13d', '--c3': '#1f7480', '--paper': '#f4efe2', '--paper2': '#e9e1cd', '--ink': '#1c2b2d' } },
       { id: 'louka', name: { cs: 'Louka', en: 'Meadow' }, swatch: ['#f08548', '#d3e07c', '#2f6243'], vars: { '--c1': '#f08548', '--c2': '#d3e07c', '--c3': '#2f6243', '--paper': '#f3f1e3', '--paper2': '#e4e3cd', '--ink': '#1c2a20' } },

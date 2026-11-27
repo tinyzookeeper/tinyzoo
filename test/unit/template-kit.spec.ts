@@ -71,10 +71,21 @@ describe('looks and colour presets', () => {
   })
 
   it('resolve to the first look and the look\'s first colours when a choice is missing or foreign', () => {
-    expect(looks.resolve(undefined, undefined)).toMatchObject({ look: { id: 'one' }, preset: { id: 'a' }, style: '--brand:#112233' })
+    expect(looks.resolve(undefined, undefined)).toMatchObject({ look: { id: 'one' }, preset: { id: 'a' }, style: '--brand:#112233', own: null })
     expect(looks.resolve('one', 'b').preset.id).toBe('b')
     expect(looks.resolve('two', 'b').preset.id).toBe('c')
     expect(looks.resolve('two', 'c').style).toBe('--brand:#778899;--bg:rgb(0 0 0)')
+  })
+
+  it('show the preset as it is when the owner\'s colour is its own, a palette for another, and nothing for a colour that is none', () => {
+    const same = looks.resolve('one', 'a', { color: '#112233' })
+    expect(same.style).toBe('--brand:#112233')
+    expect(same.own).toEqual({ given: '#112233', shown: '#112233' })
+    const other = looks.resolve('one', 'a', { color: '#aa3355' })
+    expect(other.own?.given).toBe('#aa3355')
+    expect(other.style).toBe(`--brand:${other.own?.shown}`)
+    expect(looks.resolve('one', 'a', { color: 'red' }).own).toBeNull()
+    expect(looks.resolve('one', 'a', { color: 'red' }).style).toBe('--brand:#112233')
   })
 
   it('refuse a preset id used twice, and write nothing but plain custom properties into a style', () => {

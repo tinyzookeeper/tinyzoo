@@ -155,6 +155,7 @@ export interface SiteSettings {
   logo: CmsMedia | null
   look: 'vykres' | 'harmonogram' | 'zdivo'
   colors: 'tuzka' | 'modrak' | 'zelen' | 'laser' | 'cervena' | 'snura' | 'cihla' | 'bridlice' | 'smrk'
+  ownColor: string | null
   phone: string | null
   email: string | null
   street: string | null

@@ -328,6 +328,7 @@ export const siteSettings = pgTable('site_settings', {
   tagline: text('tagline'),
   look: siteSettingsLook('look').$type<'cely-rok' | 'ode-dveri'>().notNull().default("cely-rok"),
   colors: siteSettingsColors('colors').$type<'vres' | 'jerabina' | 'jinovatka' | 'bridlice' | 'les' | 'vresova'>().notNull().default("vres"),
+  ownColor: text('own_color'),
   phone: text('phone'),
   email: text('email'),
   arrival: text('arrival'),

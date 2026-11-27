@@ -12,6 +12,7 @@ export const looks = defineLooks([
     // A first-republic dining room: a dark page the colour of the wainscoting, brass hairlines, menus on cream cards.
     id: 'salon',
     name: { cs: 'Salon', en: 'Dining Room' },
+    own: { against: ['--bg', '--brand-ink', '--panel', '--text'] },
     presets: [
       { id: 'lahvova', name: { cs: 'Lahvová', en: 'Bottle green' }, vars: { '--bg': '#15281f', '--panel': '#1c3328', '--line': '#3a5143', '--text': '#efe8d6', '--quiet': '#b3bba8', '--brand': '#c8a45c', '--brand-ink': '#15281f', '--paper': '#f3ecda' } },
       { id: 'burgundska', name: { cs: 'Burgundská', en: 'Burgundy' }, vars: { '--bg': '#2a1317', '--panel': '#371b20', '--line': '#5b3a3f', '--text': '#f2e8dc', '--quiet': '#c7b3ae', '--brand': '#d9ae74', '--brand-ink': '#2a1317', '--paper': '#f5ecdf' } },
@@ -22,6 +23,7 @@ export const looks = defineLooks([
     // A poster: one loud colour, a headline as wide as the page, 2 px tables, food from above cut into plates.
     id: 'talir',
     name: { cs: 'Talíř', en: 'Plate' },
+    own: { calm: true, against: ['--brand-ink', '--paper'] },
     presets: [
       { id: 'horcice', name: { cs: 'Hořčice', en: 'Mustard' }, vars: { '--brand': '#f6c519', '--brand-ink': '#151412', '--pop': '#f6c519', '--paper': '#f5f2e9', '--ink': '#151412' } },
       { id: 'rajce', name: { cs: 'Rajče', en: 'Tomato' }, vars: { '--brand': '#cc3219', '--brand-ink': '#fff5ea', '--pop': '#ff7253', '--paper': '#f6f1e8', '--ink': '#1b1210' } },
@@ -32,6 +34,7 @@ export const looks = defineLooks([
     // The pub's own paperwork: forms printed in ink and filled in on a typewriter, a red stamp, the waiter's pencil.
     id: 'paragon',
     name: { cs: 'Paragon', en: 'Receipt' },
+    own: { against: ['--brand-ink', '--paper', '--sheet', '--tint', '--type'] },
     presets: [
       { id: 'inkoust', name: { cs: 'Inkoust', en: 'Ink' }, vars: { '--paper': '#e9e3d3', '--sheet': '#fbf9f2', '--tint': '#f2d9d0', '--ink': '#1d2b57', '--type': '#25242b', '--brand': '#b82e1b', '--brand-ink': '#fff8f0' } },
       { id: 'vycep', name: { cs: 'Výčep', en: 'Taproom' }, vars: { '--paper': '#e4e2cf', '--sheet': '#fafaf0', '--tint': '#f0dfa6', '--ink': '#1c3a2c', '--type': '#262722', '--brand': '#a44414', '--brand-ink': '#fff8ec' } },

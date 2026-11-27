@@ -292,6 +292,7 @@ export const siteSettings = pgTable('site_settings', {
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   look: siteSettingsLook('look').$type<'mistr' | 'reflex'>().notNull().default("mistr"),
   colors: siteSettingsColors('colors').$type<'modra' | 'zelena' | 'cihla' | 'zluta' | 'oranzova' | 'monterkova'>().notNull().default("modra"),
+  ownColor: text('own_color'),
   phone: text('phone'),
   hoursLine: text('hours_line'),
   hours: jsonb('hours').$type<CmsBlock[]>().notNull().default([]),
