@@ -546,11 +546,11 @@ export const f = {
  *
  * @internal
  */
-export function bindingField(kind: 'entries' | 'chosen' | 'card') {
+export function bindingField(kind: 'entries' | 'chosen' | 'card', extra?: Record<string, unknown>) {
   return as<ScalarKind<CmsBinding, CmsBinding, true>>(createField({
     type: 'binding', ui: { edit: 'CmsFieldBinding', cell: 'CmsCellText' },
     base: { kind: 'jsonb' }, tsType: 'CmsBinding',
-    meta: { binding: kind },
+    meta: { binding: kind, ...extra },
     zod: () => (kind === 'card' ? cardBindingSchema : bindingSchema),
   }))
 }
@@ -562,11 +562,11 @@ export function bindingField(kind: 'entries' | 'chosen' | 'card') {
  *
  * @internal
  */
-export function fieldRefField(takes: readonly CustomFieldKind[]) {
+export function fieldRefField(takes: readonly CustomFieldKind[], extra?: Record<string, unknown>) {
   return as<ScalarKind<string>>(createField({
     type: 'text', ui: { edit: 'CmsFieldRef', cell: 'CmsCellText' },
     base: { kind: 'text' },
-    meta: { format: FIELD_REF_FORMAT, ref: { takes: [...new Set(takes)] } },
+    meta: { format: FIELD_REF_FORMAT, ref: { takes: [...new Set(takes)], ...extra } },
     zod: () => fieldRefSchema,
   }))
 }

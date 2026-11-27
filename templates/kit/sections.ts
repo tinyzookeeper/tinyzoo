@@ -9,7 +9,7 @@
 // on a wide screen, two on a tablet and one on a phone. The owner sets nothing per screen size.
 // An empty choice is the default (app/utils/customTypes.ts reads them), so a block saved before
 // a choice existed is drawn as a new one. Blocks are stored in one column: no migration.
-import { customTypeBlocks, customTypeCard, customTypeFieldRef, defineBlock, f } from 'tinyzoo'
+import { customTypeBlocks, customTypeCard, customTypeFieldRef, defineBlock, f, type CustomCardOptions } from 'tinyzoo'
 import { CARD_ARRANGEMENTS, CARD_COLUMNS, CARD_DATE_FORMS, CARD_GROUP_ARRANGEMENTS, CARD_GROUP_MAX, CARD_HEADING_SIZES, CARD_MAX, CARD_PICTURE_SHAPES, CARD_SURFACES, CARD_TAKES, CARD_TEXT_SIZES } from './app/utils/card'
 
 /** How many cards stand side by side at most. The default is the first. */
@@ -282,8 +282,34 @@ function cardSize(fallback: 'fill' | 'content' = 'fill') {
 
 /** The field a small block of a card shows: one of the bound type's fields whose kind the block takes (CARD_TAKES). */
 function cardField(block: keyof typeof CARD_TAKES, label = { en: 'Content from', cs: 'Obsah bere z', de: 'Inhalt aus' }) {
-  return customTypeFieldRef({ takes: CARD_TAKES[block] }).label(label)
+  return customTypeFieldRef({ takes: CARD_TAKES[block], ...CARD_REF_FIELDS[block] }).label(label)
 }
+
+/** A block's own text, offered when it names no field, and the fields that matter only for one kind of field. */
+const CARD_REF_FIELDS = {
+  heading: { own: 'text' },
+  text: { own: 'text', only: { number: ['before', 'after'], date: ['date'] } },
+  picture: {},
+  button: {},
+} as const
+
+/**
+ * The card the admin designs from a type's fields when the section is added (the first picture, the title
+ * as a heading, the first longer text, a button to the entry's page), and the groups it offers: a row,
+ * whose blocks after the first are as wide as their content, and a column.
+ */
+const CARD_STARTER = {
+  starter: [
+    { block: 'picture', from: ['picture'] },
+    { block: 'heading', from: 'title' },
+    { block: 'text', from: ['longText', 'richText'] },
+    { block: 'button', from: ['page'], set: { label: { en: 'Read more', cs: 'Zjistit víc', de: 'Mehr erfahren' } } },
+  ],
+  groups: [
+    { block: 'group', label: { en: 'Row', cs: 'Řádek', de: 'Zeile' }, icon: 'i-lucide-columns-3', set: { arrangement: 'row' }, next: { size: 'content' } },
+    { block: 'group', label: { en: 'Column', cs: 'Sloupec', de: 'Spalte' }, icon: 'i-lucide-rows-3', set: { arrangement: 'stack' } },
+  ],
+} satisfies CustomCardOptions
 
 const ownText = (multiline = false) => f.text(multiline ? { multiline: true } : {}).label({ en: 'Own text', cs: 'Vlastní text', de: 'Eigener Text' })
   .help({
@@ -369,7 +395,7 @@ function cardBlocks() {
       label: { en: 'Button', cs: 'Tlačítko', de: 'Knopf' },
       icon: 'i-lucide-mouse-pointer-click',
       fields: {
-        field: cardField('button', { en: 'Leads to', cs: 'Vede na', de: 'Führt zu' }),
+        field: cardField('button', { en: 'Leads to', cs: 'Kam vede', de: 'Führt zu' }),
         label: f.text().label({ en: 'Button text', cs: 'Text tlačítka', de: 'Text des Knopfs' })
           .help({ en: 'The same on every card.', cs: 'Na každé kartě stejný.', de: 'Auf jeder Karte gleich.' }),
         size: cardSize('content'),
@@ -536,7 +562,7 @@ export function kitSections() {
       fields: {
         heading: heading(),
         text: shortText(),
-        source: customTypeCard().label({ en: 'What it shows', cs: 'Co zobrazuje', de: 'Was er zeigt' }),
+        source: customTypeCard(CARD_STARTER).label({ en: 'What it shows', cs: 'Co zobrazuje', de: 'Was er zeigt' }),
         items: f.blocks({
           ...cardBlocks(),
           group: defineBlock({

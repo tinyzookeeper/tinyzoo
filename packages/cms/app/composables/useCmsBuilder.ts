@@ -58,7 +58,15 @@ export interface CmsBuilderList {
   /** Ask which block to add (the picker of that list's types), then add it there. */
   add: (place: CmsBuilderPlace) => void
   /** Set a field of the block at `path` (the focus panel's fields). */
-  set: (path: CmsBuilderPath, key: string, value: unknown) => void
+  set: (path: CmsBuilderPath, key: string, value: unknown) => number | null
+  /**
+   * Set several fields of the block at `path` in ONE step of the history (an undo takes all of them back
+   * at once): a type change that rewrites a card sets its binding and its list together. Keys `id` and
+   * `type` are ignored; an empty `values` or an unknown path changes nothing.
+   */
+  patch: (path: CmsBuilderPath, values: Record<string, unknown>) => number | null
+  /** Say something with an *Undo* (a toast the next change of the list takes away again); the step is the one `set` or `patch` returned. */
+  notice: (message: Parameters<ReturnType<typeof useToast>['add']>[0]) => void
   /** Put a whole value back (an undo or a redo): no step of the history. */
   apply: (items: any[]) => void
 }
@@ -91,6 +99,8 @@ export interface CmsBuilder {
   labels: ComputedRef<Record<string, string>>
   /** What the page's list takes, all the way down. */
   kinds: ComputedRef<CmsBuilderListKinds>
+  /** The language the page is edited in (the preview's translation); null: the content's default language. */
+  locale: Readonly<Ref<string | null>>
   register: (list: CmsBuilderList) => () => void
   attach: (panel: CmsBuilderPanel) => () => void
   /** A row was opened in the form (by the person, an insert or a duplicate): the page selects that block and scrolls to it. */
@@ -123,8 +133,22 @@ export interface CmsBuilder {
   editEntry: (entity: string, id: string | null, field?: string | null) => void
   /** Since 2f: the sheet closed (or opened another entry). */
   closeEntry: () => void
+  /** Since 3c: counts up when an entry beside the page was saved or its sheet closed (a card's panel counts the entries again). */
+  entriesChanged: Readonly<Ref<number>>
+  /** Since 3c: the sheet saved an entry or closed. */
+  entryDone: () => void
   /** Since 2f: the page shows its content anew (an entry beside it was typed in or saved). */
   refresh: () => void
+  /**
+   * Since 3c: the entry of the card the person clicked in the page (the page's overlay sets it; the panel of a
+   * card's block takes its examples from it). Cleared when the selected section changes.
+   */
+  cardEntry: ShallowRef<{ section: string; entity: string; id: string } | null>
+  /**
+   * Since 3c: a field the panel of a card's block points at (hover or focus of a row), for the page to try it
+   * on the card; null when nothing is pointed at. Nothing reads it yet.
+   */
+  cardTry: ShallowRef<{ path: CmsBuilderPath; field: string } | null>
   /** Since 2g: the changes to entries and globals made in the page, waiting for the editor's save. */
   pending: CmsBuilderPendingStore
   /** Since 2g: the values the page asked a box for (their own controls, drawn over the preview at `rect`, the page's pixels). */
@@ -174,6 +198,11 @@ function createBridge(deps: CmsBuilderDeps): CmsBuilder {
   const sources = shallowRef<Record<string, CmsBuilderSource[]>>({})
   const entities = shallowRef<Record<string, CmsBuilderEntity>>({})
   const entryRequest = shallowRef<{ entity: string; id: string | null; field: string | null; at: number } | null>(null)
+  const cardEntry = shallowRef<{ section: string; entity: string; id: string } | null>(null)
+  const cardTry = shallowRef<{ path: CmsBuilderPath; field: string } | null>(null)
+  const entriesChanged = ref(0)
+  // A card clicked in one section says nothing about another's.
+  watch(() => selectedPath.value?.[0] ?? null, () => { cardEntry.value = null; cardTry.value = null }, { flush: 'sync' })
   let panel: CmsBuilderPanel | null = null
   const owner = (id: string | undefined) => (id === undefined ? lists.value[0] : lists.value.find((l) => l.ids().includes(id)))
   const labels = computed(() => Object.assign({}, ...lists.value.map((l) => l.labels())) as Record<string, string>)
@@ -279,8 +308,9 @@ function createBridge(deps: CmsBuilderDeps): CmsBuilder {
   }
   return {
     lists, selected, selectedPath, selection, openPath, labels, kinds, select, history, fieldRequest, focusPanel,
-    panel: panelOn, focused, sources, entities, entryRequest, editEntry, pending, box, closeBox,
+    panel: panelOn, focused, locale: deps.locale, cardEntry, cardTry, sources, entities, entryRequest, editEntry, pending, box, closeBox,
     closeEntry() { entryRequest.value = null },
+    entriesChanged, entryDone() { entriesChanged.value++ },
     refresh() { panel?.postNow() },
     register(list) {
       lists.value = [...lists.value, list]

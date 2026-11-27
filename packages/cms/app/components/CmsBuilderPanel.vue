@@ -19,7 +19,11 @@
 // elsewhere*), as the page found it: each collection or global it shows, the entries it shows now (a click
 // edits one beside the page), *Add entry* and *All entries*. What the person may not do is not offered.
 import type { CmsBuilderPath } from '../../shared/builder'
-import { cmsCardBindingOf } from '../utils/cmsFieldRef'
+import { cmsCardBindingOf, type CmsCardBlock, type CmsCardBlockOf } from '../utils/cmsFieldRef'
+import { cmsCardTypeOf } from '../utils/cmsCardType'
+import { cardBindingFieldOf, cardHiddenFields, cardRefOf, cardRepeatCount } from '../../shared/builder-card'
+import type { CmsCardOwner } from '../composables/useCmsCardEdit'
+import { cmsBindingRead } from '../utils/cmsBinding'
 import { blockListFull, findBlock, isLockedBlock, issueCounts, keyOfPath } from '../../shared/block-tree'
 
 const props = defineProps<{ entity: string; readOnly?: boolean }>()
@@ -50,6 +54,15 @@ provide('cmsCardRoot', {
   defs: () => tree.value?.defs ?? {},
 })
 provide('cmsCardSource', computed(() => (rootList.value ? cmsCardBindingOf(rootList.value.block, rootList.value.list.defs[rootList.value.block.type]) : undefined)))
+// The section that holds the card, whole (a reference control reads the other blocks' fields from it) and
+// the block the panel shows, for a control that needs a sibling's value (its own text).
+provide('cmsCardBlock', computed<CmsCardBlock | undefined>(() => {
+  const top = rootList.value
+  const at = path.value[0]
+  const def = top ? top.list.defs[top.block.type] : undefined
+  return top && at && cmsCardBindingOf(top.block, def) !== undefined ? { block: top.block, def, path0: at } : undefined
+}))
+provide<CmsCardBlockOf>('cmsCardBlockOf', (idPrefix) => (block.value && idPrefix === `${owner.value?.key}-${block.value.id}-` ? { block: block.value, path: [...path.value] } : undefined))
 const def = computed(() => (found.value ? found.value.list.defs[found.value.block.type] : undefined))
 const locked = computed(() => !found.value || isLockedBlock(found.value.list.defs, found.value.block))
 const key = computed(() => (owner.value && tree.value ? keyOfPath(owner.value.key, tree.value, path.value) : null))
@@ -57,15 +70,45 @@ const along = computed(() => selection.value?.along ?? [])
 const name = (i: number) => tl(along.value[i]?.def?.label as any, along.value[i]?.type ?? '')
 const icon = (i: number) => along.value[i]?.def?.icon ?? 'i-lucide-square'
 const isSection = computed(() => path.value.length === 1)
+const builderOn = useCmsBuilderOn()
+// A card section (bound to one of the site's own types): its quiet line says how often the card repeats.
+const isCardSection = computed(() => builderOn.value && isSection.value && !locked.value && !!block.value && !!cardBindingFieldOf(def.value))
+const cardBinding = computed(() => {
+  const k = cardBindingFieldOf(def.value)?.key
+  return isCardSection.value && k ? cmsBindingRead(block.value?.[k]) : null
+})
+const cardName = computed(() => cardBinding.value?.type ?? null)
+const cardInfo = useCmsCardType(cardName)
+const repeat = computed(() => {
+  if (!cardName.value || !cardInfo.type.value) return null
+  const shown = builder.value?.sources.value[path.value.join('/')]?.find((x) => x.entity === cardName.value)?.entries.length
+  return cardRepeatCount(shown ?? null, cardInfo.total.value, cardBinding.value?.limit)
+})
+const lang = useCmsContentLang(() => props.entity)
+const cardEdit = useCmsCardEdit(() => lang.value)
 const about = computed(() => {
+  if (repeat.value !== null) return repeat.value > 0 ? t('card.quietLine', { count: repeat.value }) : t('card.quietNone')
   const own = tl(def.value?.description as any, '')
   if (own) return own
   return isSection.value ? t('builderPanel.ofPage') : t('builderPanel.inBlock', { name: name(path.value.length - 2) })
 })
 
+// Inside a card (the section around the block names a card): what the reference says hides the fields that
+// do not apply, and a block with no text of its own (a button) asks for its other content first.
+const cardType = computed(() => {
+  const source = rootList.value ? cmsCardBindingOf(rootList.value.block, rootList.value.list.defs[rootList.value.block.type]) : undefined
+  return source === undefined ? undefined : cmsCardTypeOf(graph.value, cmsBindingRead(source)?.type, tl, t('fieldRef.page'))?.type ?? null
+})
 const fields = computed(() => {
-  const all = (def.value?.fields ?? []).filter((f: any) => !(found.value?.index === 0 && f.meta?.needsPrevious))
-  return { content: all.filter((f: any) => !f.meta?.setting), settings: all.filter((f: any) => f.meta?.setting) }
+  let all = (def.value?.fields ?? []).filter((f: any) => !(found.value?.index === 0 && f.meta?.needsPrevious))
+  const ref = builderOn.value && cardType.value !== undefined ? cardRefOf(def.value) : null
+  if (ref) {
+    const hidden = cardHiddenFields(def.value, block.value, cardType.value ?? null)
+    all = all.filter((f: any) => !hidden.has(f.key))
+  }
+  const content = all.filter((f: any) => !f.meta?.setting)
+  if (ref && !ref.own) content.sort((a: any, b: any) => Number(a.key === ref.key) - Number(b.key === ref.key))
+  return { content, settings: all.filter((f: any) => f.meta?.setting) }
 })
 /** A list or a group inside the block is keyed by its full path, so its ids and errors are found. */
 const fieldOf = (f: any) => (f.type === 'blocks' || f.type === 'group' ? { ...f, key: `${key.value}.${f.key}` } : f)
@@ -84,8 +127,16 @@ const blockIssue = computed(() => {
 })
 const counts = computed(() => (owner.value && tree.value ? issueCounts(owner.value.key, tree.value, path.value, Object.keys(issues.value)) : { outside: 0, along: [] }))
 
+/** The section is written by the list that holds it: several keys in one step, *Undo* from the history. */
+const cardOwner: CmsCardOwner = {
+  apply: (values) => owner.value?.patch(path.value, values) ?? null,
+  undo: (step) => () => { if (step !== null) builder.value?.history.undoStep(step) },
+  notify: (message) => owner.value?.notice(message),
+}
 function set(fieldKey: string, value: unknown) {
   if (props.readOnly || !owner.value) return
+  // The type of a card section changes: its card follows in the same step.
+  if (builderOn.value && isSection.value && block.value && cardEdit.change(block.value, def.value, fieldKey, value, cardOwner)) return
   // The preview follows as it follows any typing (after a short pause).
   owner.value.set(path.value, fieldKey, value)
 }
@@ -218,6 +269,10 @@ function remove() {
       </p>
     </template>
     <template v-else>
+      <CmsCardNotices
+        v-if="isCardSection" :section="block" :def="def" :read-only="readOnly"
+        @drop="cardEdit.dropUnbound(block, def, cardOwner)" @redesign="cardEdit.redesign(block, def, cardOwner)"
+      />
       <div class="space-y-5">
         <div v-for="f in fields.content" :key="f.key" :data-cms-panel-field="f.key" class="cms-focus__field">
           <CmsField

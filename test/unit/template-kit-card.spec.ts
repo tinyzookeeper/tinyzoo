@@ -128,7 +128,7 @@ describe('the card: what each block takes', () => {
       for (const kind of takes) {
         const t: CustomType = { ...course, fields: [BY_KIND[kind] ?? field('x', 'text')] }
         const key = kind === 'page' ? 'slug' : BY_KIND[kind]!.key
-        const design = { ...({ heading, text, picture, button }[block] as (e: Record<string, unknown>) => unknown)({ field: key, label: 'Více' }) }
+        const design = { ...({ heading, text, picture, button }[block] as (e: Record<string, unknown>) => Record<string, unknown>)({ field: key, label: 'Více' }) }
         const p = cardListPlan({ source: { type: t.name }, items: [design] }, [t], 'cs')
         if (!p.ok) throw new Error(p.reason)
         const cards = cardEntries(p, [{ id: '1', slug: 'tanec', ...(kind === 'page' ? {} : { [key]: VALUES[kind] }) }], { lang: 'cs' })

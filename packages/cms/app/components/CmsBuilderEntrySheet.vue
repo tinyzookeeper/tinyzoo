@@ -92,6 +92,7 @@ async function close() {
   hidden.value = false
   attach(null)
   await dropDraft(was)
+  builder.value?.entryDone()
 }
 
 // The page (a card's "Edit", a double click) or the panel (a row, "Add entry") asks for an entry.
@@ -161,6 +162,7 @@ function onMessage(e: MessageEvent) {
     // Saved by its own editor: the page's editor loads it again before it changes it next.
     builder.value?.pending.reload(m.entity, m.id)
     builder.value?.refresh()
+    builder.value?.entryDone()
     void checkShown(m.entity, m.id)
   }
 }

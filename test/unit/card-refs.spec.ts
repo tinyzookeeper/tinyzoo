@@ -377,3 +377,49 @@ describe('a reference as written in blocks', () => {
     expect(schema.safeParse(nested('Not a key')).success).toBe(false)
   })
 })
+
+describe('the options a design gives the admin (part 3c)', () => {
+  const text = defineBlock({ label: 'Text', fields: {
+    field: customTypeFieldRef({ takes: ['text', 'number', 'date'], own: 'text', only: { number: ['after'], date: ['form'] } }),
+    text: f.text(), after: f.text(), form: f.text(),
+  } })
+  const button = defineBlock({ label: 'Button', fields: { field: customTypeFieldRef({ takes: ['link', 'page'] }), label: f.text() } })
+  const row = defineBlock({ label: 'Group', fields: { items: f.blocks({ text, button }), arrangement: f.text(), size: f.text() } })
+  const starter = [
+    { block: 'text', from: 'title' as const },
+    { block: 'button', from: ['page'] as CustomFieldKind[], set: { label: { en: 'Read more', cs: 'Zjistit víc' } } },
+  ]
+  const groups = [{ block: 'group', label: { en: 'Row' }, set: { arrangement: 'row' }, next: { size: 'content' } }]
+
+  it('keeps the starter and the groups in the binding field, and the own text and the fields per kind in the reference', () => {
+    const source = customTypeCard({ starter, groups })
+    expect(source.meta?.binding).toBe('card')
+    expect(source.meta?.card).toEqual({ starter, groups })
+    expect(customTypeCard().meta?.card).toBeUndefined()
+    const graph = blocksGraph({ text }) as any
+    expect(graph.text.fields[0].meta.ref).toEqual({ takes: ['text', 'number', 'date'], own: 'text', only: { number: ['after'], date: ['form'] } })
+    expect(customTypeFieldRef({ takes: ['picture'] }).meta?.ref).toEqual({ takes: ['picture'] })
+  })
+
+  it('refuses options of a wrong shape when the field is made', () => {
+    expect(refused(() => customTypeCard({ starter: [{ block: '', from: 'title' }] as any }))).toMatch(/starter\[0\]/)
+    expect(refused(() => customTypeCard({ starter: [{ block: 'text', from: [] }] as any }))).toMatch(/'title' or a list of kinds/)
+    expect(refused(() => customTypeCard({ starter: [{ block: 'text', from: ['hologram'] }] as any }))).toMatch(/"hologram"/)
+    expect(refused(() => customTypeCard({ starter: [{ block: 'text', from: 'title', set: { label: [1] } }] as any }))).toMatch(/set\.label/)
+    expect(refused(() => customTypeCard({ groups: [{ block: 'group' }] as any }))).toMatch(/needs a label/)
+    expect(refused(() => customTypeFieldRef({ takes: ['text'], own: '1x' }))).toMatch(/own/)
+    expect(refused(() => customTypeFieldRef({ takes: ['text'], only: { number: ['after'] } }))).toMatch(/"number" is not among/)
+  })
+
+  it('loads a card whose options name its own blocks and fields, and refuses one that names others', () => {
+    const ok = defineBlock({ label: 'List', fields: { source: customTypeCard({ starter, groups }), items: f.blocks({ text, button, group: row }) } })
+    expect(() => definePages({ blocks: { ok } })).not.toThrow()
+    const noBlock = defineBlock({ label: 'List', fields: { source: customTypeCard({ starter: [{ block: 'picture', from: ['picture'] }] }), items: f.blocks({ text, button }) } })
+    expect(refused(() => definePages({ blocks: { noBlock } }))).toMatch(/"picture", which the card's list does not have/)
+    const noField = defineBlock({ label: 'List', fields: { source: customTypeCard({ groups: [{ block: 'group', label: 'Row', next: { width: 'x' } }] }), items: f.blocks({ text, group: row }) } })
+    expect(refused(() => definePages({ blocks: { noField } }))).toMatch(/sets "width"/)
+    const badText = defineBlock({ label: 'Text', fields: { field: customTypeFieldRef({ takes: ['text'], own: 'missing' }) } })
+    const withBad = defineBlock({ label: 'List', fields: { source: customTypeCard(), items: f.blocks({ badText }) } })
+    expect(refused(() => definePages({ blocks: { withBad } }))).toMatch(/names "missing"/)
+  })
+})

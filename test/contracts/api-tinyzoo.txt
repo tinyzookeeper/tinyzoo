@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (140) ─────────────────────────────────────────────────
+// ── public (145) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -686,7 +686,34 @@ export interface ContentConfig<F extends Record<string, AnyFieldDescriptor>> {
     };
 }
 
+export interface CustomCardGroup {
+    block: string;
+    label: LocalizedText;
+    icon?: string;
+    set?: Readonly<Record<string, CustomCardValue>>;
+    next?: Readonly<Record<string, CustomCardValue>>;
+}
+
+export interface CustomCardOptions {
+    starter?: readonly CustomCardStep[];
+    groups?: readonly CustomCardGroup[];
+}
+
+export interface CustomCardStep {
+    block: string;
+    from: 'title' | readonly CustomFieldKind[];
+    set?: Readonly<Record<string, CustomCardValue>>;
+}
+
+export type CustomCardValue = string | number | boolean | null | Readonly<Record<string, string>>;
+
 export type CustomFieldKind = 'text' | 'longText' | 'richText' | 'number' | 'date' | 'choice' | 'yesNo' | 'picture' | 'gallery' | 'file' | 'link' | 'email' | 'color' | 'relation' | 'page';
+
+export interface CustomFieldRefOptions {
+    takes: readonly CustomFieldKind[];
+    own?: string;
+    only?: Readonly<Partial<Record<CustomFieldKind, readonly string[]>>>;
+}
 
 export interface CustomFieldShape {
     type: string;
@@ -984,11 +1011,9 @@ export function customFieldKind(field: CustomFieldShape): CustomFieldKind | null
 
 export function customTypeBlocks(): CustomTypeBlocks;
 
-export function customTypeCard(): FieldDescriptor<ScalarKind<CmsBinding, CmsBinding, true>>;
+export function customTypeCard(o?: CustomCardOptions): FieldDescriptor<ScalarKind<CmsBinding, CmsBinding, true>>;
 
-export function customTypeFieldRef(o: {
-    takes: readonly CustomFieldKind[];
-}): FieldDescriptor<ScalarKind<string, string, false>>;
+export function customTypeFieldRef(o: CustomFieldRefOptions): FieldDescriptor<ScalarKind<string, string, false>>;
 
 export function defineAdminMenu(input: CmsAdminMenuInput): CmsAdminMenuDef;
 

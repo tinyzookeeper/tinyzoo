@@ -157,11 +157,42 @@ export function checkFieldRefPlaces(where: string, fields: Record<string, AnyFie
 
 /** A block of an entity's list: no reference of its own; inside, references only when it holds a card. */
 function checkTopBlockRefs(trail: string[], def: BlockDef) {
-  const card = cardBindingKey(def) !== null
+  const bindingKey = cardBindingKey(def)
+  const card = bindingKey !== null
+  if (bindingKey) checkCardOptions([...trail, bindingKey], def)
   for (const [key, fld] of Object.entries(def.fields) as [string, FieldDescriptor][]) {
     if (isFieldRef(fld)) throw new Error(refRefusal([...trail, key]))
     if (fld.type === 'group') checkNoRefs([...trail, key], fld.fields ?? {})
     else if (fld.type === 'blocks') checkInnerRefs([...trail, key], fld, card)
+  }
+}
+
+/**
+ * A card's starter and groups (`customTypeCard({ starter, groups })`) name blocks of the card's list
+ * (the block's first `f.blocks()`) and fields of those blocks.
+ */
+function checkCardOptions(trail: string[], def: BlockDef) {
+  const opts = (def.fields[trail[trail.length - 1]!] as FieldDescriptor | undefined)?.meta?.card as { starter?: any[]; groups?: any[] } | undefined
+  if (!opts) return
+  const list = (Object.values(def.fields) as FieldDescriptor[]).find((f) => f.type === 'blocks' && !f.meta?.list)
+  const where = trail.join(' › ')
+  const check = (what: string, block: string, ...values: (Record<string, unknown> | undefined)[]) => {
+    const inner = list?.blocks?.[block]
+    if (!inner) throw new Error(`${where}: ${what} names the block "${block}", which the card's list does not have${list ? ` (it has ${Object.keys(list.blocks ?? {}).join(', ')})` : ': the block has no list of blocks'}.`)
+    for (const v of values) for (const key of Object.keys(v ?? {})) {
+      if (!(key in inner.fields)) throw new Error(`${where}: ${what} sets "${key}", which the block "${block}" does not have.`)
+    }
+  }
+  opts.starter?.forEach((step, i) => check(`starter[${i}]`, step.block, step.set))
+  opts.groups?.forEach((g, i) => check(`groups[${i}]`, g.block, g.set, g.next))
+}
+
+/** A reference's `own` and `only` name fields of its own block. */
+function checkRefSiblings(trail: string[], def: BlockDef, fld: FieldDescriptor) {
+  const ref = fld.meta?.ref as { own?: string; only?: Record<string, string[]> } | undefined
+  const names = [...(ref?.own ? [ref.own] : []), ...Object.values(ref?.only ?? {}).flat()]
+  for (const name of names) {
+    if (!(name in def.fields)) throw new Error(`${trail.join(' › ')} names "${name}", which its block does not have (customTypeFieldRef({ own, only }) name fields of the same block).`)
   }
 }
 
@@ -170,6 +201,7 @@ function checkInnerRefs(trail: string[], list: FieldDescriptor, card: boolean) {
   for (const [type, def] of Object.entries(list.blocks ?? {})) {
     for (const [key, fld] of Object.entries(def.fields) as [string, FieldDescriptor][]) {
       if (isFieldRef(fld) && !card) throw new Error(refRefusal([...trail, type, key]))
+      if (isFieldRef(fld)) checkRefSiblings([...trail, type, key], def, fld)
       if (fld.type === 'group') checkNoRefs([...trail, type, key], fld.fields ?? {})
       else if (fld.type === 'blocks') checkInnerRefs([...trail, type, key], fld, card)
     }

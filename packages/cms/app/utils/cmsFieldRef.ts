@@ -88,3 +88,23 @@ export function cmsCardBindingOf(block: unknown, def: { fields?: any[] } | undef
   if (!field || !isObject(block)) return undefined
   return block[field.key] ?? null
 }
+
+/**
+ * The top-level block that holds the card a small block is in (provided as `cmsCardBlock`): the block, its
+ * definition and the section's id (the first id of every path inside it). A reference control reads the
+ * whole card from it (which fields the other blocks show).
+ */
+export interface CmsCardBlock { block: any; def: any; path0: string }
+
+/**
+ * Finds the block a field of the form belongs to (provided as `cmsCardBlockOf`, by the focus panel and by
+ * each list of blocks): from the field's `idPrefix` (`<list key>-<block id>-` in a list, `<owner key>-<block id>-`
+ * in the panel) to the block and its path from the page's list down (null when the form is not the page's).
+ */
+export type CmsCardBlockOf = (idPrefix: string) => { block: any; path: string[] | null } | undefined
+
+/** The `idPrefix` of a field from the id the control got (`cms-field-<idPrefix><key>`). */
+export function cmsFieldIdPrefix(id: string | undefined, key: string): string | null {
+  if (!id?.startsWith('cms-field-') || !id.endsWith(key)) return null
+  return id.slice('cms-field-'.length, id.length - key.length)
+}

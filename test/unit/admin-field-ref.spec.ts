@@ -3,6 +3,7 @@ import { cmsBindingTypes } from '../../packages/cms/app/utils/cmsBinding'
 import {
   CMS_REF_KIND_ICONS, cmsCardBindingOf, cmsGraphFieldKind, cmsRefFields, cmsRefFitting, cmsRefState,
 } from '../../packages/cms/app/utils/cmsFieldRef'
+import { cmsCardTypeOf, cmsPagePrefix } from '../../packages/cms/app/utils/cmsCardType'
 import { CUSTOM_FIELD_KINDS } from '../../packages/cms/src/custom-kinds'
 
 const f = (key: string, type: string, meta: Record<string, any> = {}, extra: Record<string, any> = {}) => ({ key, type, optional: true, required: false, ui: {}, meta: { label: key, ...meta }, ...extra })
@@ -99,5 +100,40 @@ describe('field reference: the card around a block', () => {
     expect(cmsCardBindingOf({}, undefined)).toBeUndefined()
     expect(cmsCardBindingOf(null, def)).toBeUndefined()
     expect(cmsCardBindingOf('x', { fields: 3 as any })).toBeUndefined()
+  })
+})
+
+describe('the card type from the graph', () => {
+  const tl = (x: any, fallback = '') => (typeof x === 'string' ? x : x?.cs ?? x?.en ?? fallback)
+  const graph = [{
+    ...course, label: { cs: 'Kurzy' }, labelSingular: { cs: 'Kurz' }, icon: 'i-lucide-graduation-cap', previewPaths: { cs: '/kurzy/:slug', en: '/en/courses/:slug' },
+    fields: course.fields.map((x) => (x.key === 'level' ? { ...x, meta: { ...x.meta, options: ['a', 'b'], labels: { a: { cs: 'Začátečník' } } } } : x)),
+  }]
+
+  it('reads the prefix of the pages from the preview addresses', () => {
+    expect(cmsPagePrefix({ cs: '/kurzy/:slug', en: '/en/courses/:slug' })).toBe('kurzy')
+    expect(cmsPagePrefix({ '': '/blog/archiv/:slug' })).toBe('blog/archiv')
+    expect(cmsPagePrefix(null)).toBeNull()
+    expect(cmsPagePrefix({})).toBeNull()
+    expect(cmsPagePrefix({ cs: '/:slug' })).toBeNull()
+    expect(cmsPagePrefix('x')).toBeNull()
+  })
+
+  it('describes the type: labels, kinds, choices, names, icon and page prefix', () => {
+    const found = cmsCardTypeOf(graph, 'custom_course', tl, 'Stránka záznamu')!
+    expect(found.meta).toEqual({ label: 'Kurzy', labelSingular: 'Kurz', icon: 'i-lucide-graduation-cap', pagePrefix: 'kurzy' })
+    expect(found.type.titleField).toBe('title')
+    const byKey = Object.fromEntries(found.type.fields.map((x) => [x.key, x]))
+    expect(byKey.slug).toEqual({ key: 'slug', kind: 'page', label: 'Stránka záznamu' })
+    expect(byKey.status).toBeUndefined()
+    expect(byKey.level?.choices).toEqual({ a: 'Začátečník', b: 'b' })
+    expect(byKey.price?.kind).toBe('number')
+  })
+
+  it('gives nothing for a type that is not the site\'s own, and a type without pages has no prefix', () => {
+    expect(cmsCardTypeOf(graph, 'custom_nope', tl, 'P')).toBeNull()
+    expect(cmsCardTypeOf(graph, null, tl, 'P')).toBeNull()
+    expect(cmsCardTypeOf(null, 'custom_course', tl, 'P')).toBeNull()
+    expect(cmsCardTypeOf([{ ...course, fields: course.fields.filter((x) => x.key !== 'slug') }], 'custom_course', tl, 'P')?.meta.pagePrefix).toBeNull()
   })
 })

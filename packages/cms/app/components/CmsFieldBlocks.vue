@@ -3,9 +3,14 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 import { isLinkRef } from '../../src/linkref'
 import type { CmsBuilderPath, CmsBuilderPlace } from '../../shared/builder'
 import { cmsBindingRead, cmsBindingTypes } from '../utils/cmsBinding'
-import { cmsCardBindingOf, cmsRefFields } from '../utils/cmsFieldRef'
+import { cmsCardBindingOf, cmsRefFields, type CmsCardBlock, type CmsCardBlockOf } from '../utils/cmsFieldRef'
+import { cmsCardTypeOf } from '../utils/cmsCardType'
 import {
-  blankBlock, blockListFull, blockListKinds, blockListMax, findBlock, isLockedBlock, listOfPlaceIn, treeDuplicate, treeInsert, treeMove, treeRemove, treeSet, typingGroup, withNewIds,
+  cardBindingFieldOf, cardBlockState, cardGroupCount, cardHiddenFields, cardOptionsOf, cardRefOf, cardRowSummary, type CardOptions,
+} from '../../shared/builder-card'
+import type { CmsCardOwner } from '../composables/useCmsCardEdit'
+import {
+  blankBlock, blockListField, blockListFull, blockListKinds, blockListMax, findBlock, isLockedBlock, listOfPlaceIn, treeDuplicate, treeInsert, treeMove, treeRemove, treeSet, typingGroup, withNewIds,
   type BlockList,
 } from '../../shared/block-tree'
 
@@ -27,7 +32,7 @@ const props = defineProps<{ field: any; entity: string; readOnly?: boolean }>()
 // Text inside blocks is edited on its own (not shared), even on a shared entry.
 provide('cmsCollab', null)
 const model = defineModel<any[] | null>()
-const { t, tl, fieldLabel } = useCmsI18n()
+const { t, tl, fieldLabel, locale } = useCmsI18n()
 const toast = useToast()
 // The editor in the preview (experimental): the page-blocks field of a form registers with it and makes
 // every change the page asks for, at any depth; a list inside a block follows what the page selects.
@@ -59,13 +64,30 @@ const cardSource = inside && cardRoot && props.field.key.startsWith(`${cardRoot.
   })
   : null
 if (cardSource) provide('cmsCardSource', cardSource)
+// The top-level block that holds the card, whole (a reference control reads the other blocks' fields from it).
+const cardBlock = cardSource
+  ? computed<CmsCardBlock | undefined>(() => {
+    const at = Number(props.field.key.slice(cardRoot!.key.length + 1).split('.')[0])
+    const top = Number.isInteger(at) ? cardRoot!.blocks()[at] : undefined
+    const topDef = top ? cardRoot!.defs()[top.type] : undefined
+    return top && cmsCardBindingOf(top, topDef) !== undefined ? { block: top, def: topDef, path0: top.id } : undefined
+  })
+  : null
+if (cardBlock) provide('cmsCardBlock', cardBlock)
 // A reference in a row's summary is named by the field's name in the card's type, never by its key.
 const { data: cardGraph } = useNuxtData<any[]>('cms-graph')
+const builderOn = useCmsBuilderOn()
+const cardTypeNow = computed(() => cmsCardTypeOf(cardGraph.value, cmsBindingRead(cardSource?.value)?.type, tl, t('fieldRef.page'))?.type ?? null)
 function refName(binding: unknown, key: string): string {
   const type = cmsBindingTypes(cardGraph.value).find((x) => x.name === cmsBindingRead(binding)?.type)
   const field = type ? cmsRefFields(type).find((f) => f.key === key) : undefined
   return field ? (field.kind === 'page' ? t('fieldRef.page') : tl(field.label as any, key)) : key
 }
+// A control that needs the block it is a field of (a reference: its own text, where it stands) finds it from its field's id.
+provide<CmsCardBlockOf>('cmsCardBlockOf', (idPrefix) => {
+  const b = blocks.value.find((x) => x && `${props.field.key}-${x.id}-` === idPrefix)
+  return b ? { block: b, path: above.value ? [...above.value, b.id] : null } : undefined
+})
 /** The path (ids from the page's list down) of the block whose list this is: `[]` for the page's own list. */
 const above = computed<CmsBuilderPath | null>(() => (takesPart ? [] : inside ? builderRef.value?.pathOf(props.field.key) ?? null : null))
 const pathTo = (id: string): CmsBuilderPath | null => (above.value ? [...above.value, id] : null)
@@ -140,18 +162,22 @@ function showUndo(message: Parameters<typeof toast.add>[0]) {
   const added = toast.add(message)
   if (takesPart) undoToast = added.id
 }
-function insertAt(index: number, type: string) {
-  if (full.value) return
-  const b = blankBlock(defs.value, type)
+/** Put `b` (a block built by the picker, or a blank one) at `index` of this list: one step of the history. Returns it. */
+function insertBlockAt(index: number, b: any): number | null {
+  if (full.value) return null
   const next = [...blocks.value]
   next.splice(index, 0, b)
-  update(next)
+  const step = update(next)
   // Only the new one opens: a page with many blocks stays readable.
   for (const k of Object.keys(open)) open[k] = false
   open[b.id] = true
   pickerOpen.value = false
   opened(b.id)
   builderRef.value?.changed()
+  return step
+}
+function insertAt(index: number, type: string) {
+  insertBlockAt(index, blankBlock(defs.value, type))
 }
 function move(index: number, by: number) {
   const next = [...blocks.value]
@@ -263,25 +289,30 @@ function builderRemove(path: CmsBuilderPath) {
 }
 /** Add a new block of `type` at `place` (in this field's value, at any depth), open it and select it on the page. */
 function builderInsert(place: CmsBuilderPlace, type: string) {
-  pickerOpen.value = false
   const into = listOfPlaceIn(tree(), place)
-  if (props.readOnly || !into) return
-  const b = blankBlock(into.defs, type)
+  if (props.readOnly || !into) return void (pickerOpen.value = false)
+  builderInsertBlock(place, blankBlock(into.defs, type))
+}
+/** The same for a block that is built already; returns the step of the history it went into (null: nothing was added). */
+function builderInsertBlock(place: CmsBuilderPlace, b: any): number | null {
+  pickerOpen.value = false
+  if (props.readOnly || !listOfPlaceIn(tree(), place)) return null
   const next = treeInsert(tree(), place, b)
-  if (!next) return
-  update(next)
+  if (!next) return null
+  const step = update(next)
   const path = [...(place.in ?? []), b.id]
   builderReveal(path)
   builderRef.value?.opened(path)
   builderRef.value?.changed()
+  return step
 }
 function builderAdd(place: CmsBuilderPlace) {
   const into = listOfPlaceIn(tree(), place)
   if (props.readOnly || !into || blockListFull(into)) return
   const types = Object.keys(into.defs)
-  if (types.length === 1) return builderInsert(place, types[0]!)
-  pickerFor.value = { defs: into.defs, place }
-  pickerQuery.value = ''
+  const card = cardOf(place)
+  if (types.length === 1 && !card) return builderInsert(place, types[0]!)
+  pickerFor.value = { defs: into.defs, place, card }
   pickerOpen.value = true
 }
 if (takesPart) {
@@ -297,8 +328,15 @@ if (takesPart) {
       move: builderMove, duplicate: builderDuplicate, remove: builderRemove, add: builderAdd,
       set(path, key, value) {
         const next = props.readOnly ? null : treeSet(tree(), path, key, value)
-        if (next) update(next)
+        return next ? update(next) : null
       },
+      patch(path, values) {
+        if (props.readOnly) return null
+        let next: any[] | null = null
+        for (const [key, value] of Object.entries(values)) next = treeSet({ ...tree(), items: next ?? tree().items }, path, key, value) ?? next
+        return next ? update(next) : null
+      },
+      notice: showUndo,
       apply(items) {
         lastSet = items
         model.value = items
@@ -390,6 +428,9 @@ function nested(f: any, index: number) {
   return { ...f, key: `${props.field.key}.${index}.${f.key}` }
 }
 function setField(index: number, key: string, value: unknown) {
+  // The type of a card section changes: its card follows, in the same step (with a notice).
+  const section = blocks.value[index]
+  if (builderOn.value && takesPart && section && cardEdit.change(toRaw(section), defs.value[section.type], key, value, cardOwner(index))) return
   const next = [...blocks.value]
   next[index] = { ...next[index], [key]: value }
   update(next)
@@ -450,8 +491,17 @@ function textsOf(b: any, fields: any[], parts: string[], depth: number, card?: u
 }
 /** The fields of block `index` as its form shows them: the content first, then the settings (`.setting()`), each in their own order. */
 function formFields(b: any, index: number): { content: any[]; settings: any[] } {
-  const all = (defs.value[b?.type]?.fields ?? []).filter((x: any) => !(index === 0 && x.meta?.needsPrevious))
-  return { content: all.filter((x: any) => !x.meta?.setting), settings: all.filter((x: any) => x.meta?.setting) }
+  let all = (defs.value[b?.type]?.fields ?? []).filter((x: any) => !(index === 0 && x.meta?.needsPrevious))
+  // A block inside a card (editor in the preview on): what its reference says hides the fields that do not apply.
+  const ref = builderOn.value && cardBlock?.value ? cardRefOf(defs.value[b?.type]) : null
+  if (ref) {
+    const hidden = cardHiddenFields(defs.value[b?.type], b, cardTypeNow.value)
+    all = all.filter((x: any) => !hidden.has(x.key))
+  }
+  const content = all.filter((x: any) => !x.meta?.setting)
+  // With no text of its own (a button) it asks for its other content first, then where it leads.
+  if (ref && !ref.own) content.sort((a: any, b2: any) => Number(a.key === ref.key) - Number(b2.key === ref.key))
+  return { content, settings: all.filter((x: any) => x.meta?.setting) }
 }
 /**
  * The server's refusal of the block as a whole ("saved by a newer version", "this type no
@@ -485,37 +535,160 @@ function menu(index: number): DropdownMenuItem[][] {
   ]
 }
 
-// ── picker ──
+// ── picker (CmsBlockPicker) ──
 const pickerOpen = ref(false)
 const pickerAt = ref(0)
-const pickerQuery = ref('')
-/** The picker asked for by the page: the types of the list it adds to (at any depth) and the place. */
-const pickerFor = ref<{ defs: Record<string, any>; place: CmsBuilderPlace } | null>(null)
+/** The picker asked for by the page: the types of the list it adds to (at any depth), the place and the card it is in. */
+const pickerFor = ref<{ defs: Record<string, any>; place: CmsBuilderPlace; card: PickerCard | null } | null>(null)
+type PickerCard = { type: string; options: CardOptions; items: unknown; topDefs: Record<string, any>; group: any | null; sectionId: string }
 // One block type (e.g. menu links): no picker, the button names the type.
 const onlyType = computed(() => {
   const types = Object.keys(defs.value)
   return types.length === 1 ? types[0]! : null
 })
-// A list says "Add item" (a label like "Opening hours" doesn't bend into a sentence).
-const addLabel = computed(() => (list.value ? t('blocks.addItem') : onlyType.value ? t('blocks.addType', { label: tl(defs.value[onlyType.value]?.label, onlyType.value) }) : t('blocks.add')))
+
+/** The card a list of the form is the list of (with the editor in the preview on): the card's own, or a group's in it. */
+function cardIn(section: any, sectionDef: any, group: any | null): PickerCard | null {
+  const field = blockListField(sectionDef)
+  const type = cmsBindingRead(cmsCardBindingOf(section, sectionDef))?.type
+  if (!field || !type || !cmsBindingTypes(cardGraph.value).some((x) => x.name === type)) return null
+  return {
+    type, options: cardOptionsOf(sectionDef), items: section[field.key], topDefs: (field.meta?.blocks ?? {}) as Record<string, any>,
+    group, sectionId: String(section.id),
+  }
+}
+/** The same for a place the page names: the page's own list resolves its first id to the section, a second to a group in it. */
+function cardOf(place: CmsBuilderPlace): PickerCard | null {
+  if (!builderOn.value || !takesPart || list.value) return null
+  const path = place.in ?? []
+  if (path.length < 1 || path.length > 2) return null
+  const section = findBlock(tree(), [path[0]!])?.block
+  const card = section ? cardIn(section, defs.value[section.type], null) : null
+  if (!card || path.length === 1) return card
+  const group = findBlock(tree(), path)?.block
+  return group && isGroupOf(card, group) ? { ...card, group } : null
+}
+const isGroupOf = (card: PickerCard, group: any) => !!blockListField(card.topDefs[group?.type])
+/** Where this list is in a card (the editor in the preview on): the card's own list (`group: null`) or a group's in it; `null` for any other list. */
+const cardPlace = computed<{ top: boolean; group: any | null } | null>(() => {
+  const owner = cardBlock?.value
+  if (!builderOn.value || !owner || list.value || !cardRoot) return null
+  const rest = props.field.key.slice(cardRoot.key.length + 1).split('.')
+  if (rest[1] !== blockListField(owner.def)?.key || (rest.length !== 2 && rest.length !== 4)) return null
+  return { top: rest.length === 2, group: rest.length === 2 ? null : owner.block[rest[1]!]?.[Number(rest[2])] ?? null }
+})
+/** This list, when it is the card's or a group's list in the form (a nested list; `cardBlock` knows the section it is in). */
+const formCard = computed<PickerCard | null>(() => {
+  const owner = cardBlock?.value
+  const place = cardPlace.value
+  if (!owner || !place) return null
+  const card = cardIn(owner.block, owner.def, null)
+  if (!card || place.top) return card
+  return place.group && isGroupOf(card, place.group) ? { ...card, group: place.group } : null
+})
+const activeCard = computed(() => (pickerFor.value ? pickerFor.value.card : formCard.value))
+/** Adding a section to the page: the section that is made for the site's own types, when the site has them. */
+const sectionChoice = computed(() => {
+  if (!builderOn.value || !takesPart || list.value || (pickerFor.value && (pickerFor.value.place.in ?? []).length)) return null
+  if (!cmsBindingTypes(cardGraph.value).length) return null
+  const defType = Object.keys(defs.value).find((type) => cardBindingFieldOf(defs.value[type]) && blockListField(defs.value[type]))
+  return defType ? { defType } : null
+})
+/** The language of the values a design fixes: the page's own, else the content's default, else the admin's. */
+const contentLang = computed(() => builderRef.value?.locale.value
+  ?? cardGraph.value?.find((e) => e?.name === props.entity)?.locales?.default
+  ?? locale.value)
+
+// ── a card's section and its rows (part 3c) ──
+const cardEdit = useCmsCardEdit(() => contentLang.value)
+/** How a card section is written by this list: several keys in one step; *Undo* is the history's. */
+function cardOwner(index: number): CmsCardOwner {
+  const before = blocks.value[index]
+  return {
+    apply(values) {
+      const next = [...blocks.value]
+      next[index] = { ...next[index], ...values }
+      return update(next)
+    },
+    undo: (step) => undoAction(step, () => {
+      const back = [...blocks.value]
+      if (before) back[Math.min(index, back.length - 1)] = before
+      update(back)
+    }),
+    notify: showUndo,
+  }
+}
+const isCardSection = (b: any) => builderOn.value && takesPart && !!cardBindingFieldOf(defs.value[b?.type])
+/** The card's blocks of a section that show nothing on the website. */
+const sectionUnbound = (b: any): number => (isCardSection(b) ? cardEdit.unboundOf(b, defs.value[b?.type]).length : 0)
+/** What a block of a card says it shows (this list is a card's or a group's): its text, its look and whether it shows nothing; null elsewhere. */
+function cardRow(b: any, kinds: Record<string, any> = defs.value): { text: string; cls: string; warn: boolean } | null {
+  if (!cardPlace.value) return null
+  const sum = cardRowSummary(cardBlockState(b, kinds[b?.type], cardTypeNow.value), locale.value)
+  switch (sum.kind) {
+    case 'field': return { text: `\u2190 ${sum.text}`, cls: 'text-primary', warn: false }
+    case 'page': return { text: `\u2192 ${sum.text}`, cls: 'text-primary', warn: false }
+    case 'own': return { text: sum.text, cls: 'text-muted', warn: false }
+    case 'unbound': return { text: t('card.rowUnbound'), cls: 'text-warning font-medium', warn: true }
+    case 'missing': return { text: sum.text === 'slug' ? t('card.rowNoPages') : t('card.rowMissing', { name: sum.text }), cls: 'text-warning font-medium', warn: true }
+    case 'unfit': return { text: t('card.rowUnfit', { name: sum.text }), cls: 'text-warning font-medium', warn: true }
+    case 'group': {
+      const n = cardGroupCount(b, kinds[b?.type])
+      return { text: n ? t('card.groupBlocks', { count: n }) : t('card.groupEmpty'), cls: 'text-muted', warn: false }
+    }
+    default: return null
+  }
+}
+/** In the focus panel the blocks of a group stand right under its row, smaller and indented, so the whole card is seen at once. */
+function groupKids(b: any): { id: string; icon: string; label: string; row: ReturnType<typeof cardRow> }[] {
+  const place = cardPlace.value
+  const inner = place?.top && panelMode.value ? blockListField(defs.value[b?.type]) : null
+  if (!inner || !Array.isArray(b?.[inner.key])) return []
+  const kinds = (inner.meta?.blocks ?? {}) as Record<string, any>
+  return b[inner.key].filter((c: any) => c && typeof c.id === 'string' && kinds[c.type]).map((c: any) => ({
+    id: c.id, icon: kinds[c.type]?.icon ?? 'i-lucide-square', label: tl(kinds[c.type]?.label, c.type), row: cardRow(c, kinds),
+  }))
+}
+function openKid(groupId: string, kidId: string, e: MouseEvent) {
+  const at = pathTo(groupId)
+  if (!at || !builderRef.value) return
+  if (e.detail === 0) builderRef.value.focusPanel.value = true
+  builderRef.value.select([...at, kidId])
+}
+
+// A list says "Add item" (a label like "Opening hours" doesn't bend into a sentence); a card's, "Add to the card".
+const addLabel = computed(() => {
+  if (formCard.value) return t(formCard.value.group ? 'card.addToGroup' : 'card.addToCard')
+  return list.value ? t('blocks.addItem') : onlyType.value ? t('blocks.addType', { label: tl(defs.value[onlyType.value]?.label, onlyType.value) }) : t('blocks.add')
+})
+const pickerTitle = computed(() => {
+  const card = activeCard.value
+  return card ? t(card.group ? 'card.addToGroup' : 'card.addToCard') : t('blocks.pickerTitle')
+})
 function openPicker(at: number) {
-  if (onlyType.value) return insertAt(at, onlyType.value)
+  if (onlyType.value && !formCard.value) return insertAt(at, onlyType.value)
   pickerFor.value = null
   pickerAt.value = at
-  pickerQuery.value = ''
   pickerOpen.value = true
 }
 function choose(type: string) {
   if (pickerFor.value) builderInsert(pickerFor.value.place, type)
   else insertAt(pickerAt.value, type)
 }
+/** A block the picker built: a section made from a type (with a quiet note and *Undo*), or a block of a card. */
+function chooseBuilt(block: any, designed: string | null) {
+  const step = pickerFor.value ? builderInsertBlock(pickerFor.value.place, block) : insertBlockAt(pickerAt.value, block)
+  if (!designed || step === null) return
+  showUndo({
+    title: t('card.designed', { type: designed }),
+    icon: 'i-lucide-sparkles',
+    actions: [{ label: t('blocks.undo'), color: 'neutral', variant: 'outline', onClick: undoAction(step, () => {
+      const gone = treeRemove(tree(), [block.id])
+      if (gone) update(gone.items)
+    }) }],
+  })
+}
 watch(pickerOpen, (value) => { if (!value) pickerFor.value = null })
-const choices = computed(() => {
-  const q = pickerQuery.value.trim().toLowerCase()
-  return Object.entries(pickerFor.value?.defs ?? defs.value)
-    .map(([type, d]) => ({ type, label: tl(d.label, type), description: tl(d.description), icon: d.icon }))
-    .filter((c) => !q || c.label.toLowerCase().includes(q) || c.description.toLowerCase().includes(q))
-})
 </script>
 
 <template>
@@ -586,12 +759,17 @@ const choices = computed(() => {
             <template v-else>
               <UIcon :name="defs[b.type]?.icon ?? 'i-lucide-square'" class="size-4 text-muted shrink-0" />
               <span class="text-sm font-medium text-highlighted shrink-0">{{ tl(defs[b.type]?.label, b.type) }}</span>
-              <span v-if="(panelMode || !open[b.id]) && summary(b)" class="text-sm text-muted truncate">{{ summary(b) }}</span>
+              <span v-if="cardRow(b)" class="min-w-0 truncate text-sm" :class="cardRow(b)!.cls">{{ cardRow(b)!.text }}</span>
+              <span v-else-if="(panelMode || !open[b.id]) && summary(b)" class="text-sm text-muted truncate">{{ summary(b) }}</span>
             </template>
-            <span v-if="hasIssue(i)" class="ml-auto shrink-0 inline-flex items-center gap-1 text-xs text-error">
+            <span v-if="sectionUnbound(b)" class="ml-auto shrink-0 inline-flex items-center gap-1 text-xs font-medium text-warning">
+              <span class="size-1.5 rounded-full bg-warning" aria-hidden="true" />{{ t('card.unboundShort', { count: sectionUnbound(b) }) }}
+            </span>
+            <span v-else-if="cardRow(b)?.warn" class="ml-auto shrink-0 size-1.5 rounded-full bg-warning" aria-hidden="true" />
+            <span v-if="hasIssue(i)" :class="sectionUnbound(b) || cardRow(b)?.warn ? 'ml-3' : 'ml-auto'" class="shrink-0 inline-flex items-center gap-1 text-xs text-error">
               <span class="size-1.5 rounded-full bg-error" aria-hidden="true" />{{ panelMode ? t('builderPanel.toFix', { count: issueCount(i) }) : t('blocks.hasErrors') }}
             </span>
-            <UIcon v-if="panelMode" name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0" :class="hasIssue(i) ? '' : 'ml-auto'" aria-hidden="true" />
+            <UIcon v-if="panelMode" name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0" :class="hasIssue(i) || sectionUnbound(b) || cardRow(b)?.warn ? 'ml-2' : 'ml-auto'" aria-hidden="true" />
           </button>
           <UDropdownMenu :items="menu(i)" :content="{ align: 'end' }">
             <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-ellipsis" class="pointer-coarse:size-11" :aria-label="t('blocks.actions')" />
@@ -602,6 +780,10 @@ const choices = computed(() => {
             <UIcon name="i-lucide-circle-alert" class="mt-0.5 size-4 shrink-0" aria-hidden="true" />{{ blockIssue(i) }}
           </p>
           <p v-if="!defs[b.type]" class="text-sm text-muted">{{ b.type }}</p>
+          <CmsCardNotices
+            v-if="isCardSection(b)" :section="b" :def="defs[b.type]" :read-only="readOnly"
+            @drop="cardEdit.dropUnbound(toRaw(b), defs[b.type], cardOwner(i))" @redesign="cardEdit.redesign(toRaw(b), defs[b.type], cardOwner(i))"
+          />
           <CmsField
             v-for="f in formFields(b, i).content" :key="f.key"
             :model-value="b[f.key]" :field="f.type === 'blocks' || f.type === 'group' ? nested(f, i) : f" :entity="entity" :id-prefix="`${field.key}-${b.id}-`"
@@ -622,6 +804,22 @@ const choices = computed(() => {
           </div>
         </div>
       </div>
+
+      <!-- the blocks of a group, right under its row (the focus panel) -->
+      <ul v-if="groupKids(b).length" class="ml-6 space-y-1 -mt-0.5" :aria-label="tl(defs[b.type]?.label, b.type)">
+        <li v-for="c in groupKids(b)" :key="c.id">
+          <button
+            type="button" class="cms-card flex h-9 w-full min-w-0 items-center gap-2 px-2.5 text-left text-xs pointer-coarse:h-11 transition-colors hover:bg-elevated/60"
+            @click="(e: MouseEvent) => openKid(b.id, c.id, e)"
+          >
+            <UIcon :name="c.icon" class="size-3.5 shrink-0 text-muted" aria-hidden="true" />
+            <span class="shrink-0 font-medium text-highlighted">{{ c.label }}</span>
+            <span v-if="c.row" class="min-w-0 truncate" :class="c.row.cls">{{ c.row.text }}</span>
+            <span v-if="c.row?.warn" class="ml-auto size-1.5 shrink-0 rounded-full bg-warning" aria-hidden="true" />
+            <UIcon name="i-lucide-chevron-right" class="size-3.5 shrink-0 text-dimmed" :class="c.row?.warn ? '' : 'ml-auto'" aria-hidden="true" />
+          </button>
+        </li>
+      </ul>
     </template>
 
     <UButton v-if="(blocks.length || onlyType || inside) && !full" color="neutral" variant="ghost" icon="i-lucide-plus" size="sm" @click="openPicker(blocks.length)">
@@ -631,24 +829,9 @@ const choices = computed(() => {
       <UIcon name="i-lucide-mouse-pointer-click" class="mt-px size-3.5 shrink-0 text-dimmed" aria-hidden="true" />{{ t('builderPanel.hint') }}
     </p>
 
-    <UModal v-model:open="pickerOpen" :title="t('blocks.pickerTitle')">
-      <template #body>
-        <UInput v-model="pickerQuery" icon="i-lucide-search" :placeholder="t('blocks.search')" autofocus class="w-full mb-3" />
-        <ul class="-mx-2 space-y-0.5">
-          <li v-for="c in choices" :key="c.type">
-            <button type="button" class="w-full flex items-start gap-3 rounded-(--ui-radius) px-2 py-2 text-left hover:bg-elevated/70" @click="choose(c.type)">
-              <span class="size-8 shrink-0 rounded-md border border-default grid place-items-center text-muted">
-                <UIcon :name="c.icon" class="size-4" />
-              </span>
-              <span class="min-w-0">
-                <span class="block text-sm font-medium text-highlighted">{{ c.label }}</span>
-                <span v-if="c.description" class="block text-xs text-muted">{{ c.description }}</span>
-              </span>
-            </button>
-          </li>
-        </ul>
-        <p v-if="!choices.length" class="text-sm text-muted px-1 py-2">{{ t('blocks.noMatch') }}</p>
-      </template>
-    </UModal>
+    <CmsBlockPicker
+      v-model:open="pickerOpen" :defs="pickerFor?.defs ?? defs" :title="pickerTitle" :lang="contentLang"
+      :sections="sectionChoice" :card="activeCard" @choose="choose" @insert="chooseBuilt"
+    />
   </div>
 </template>
