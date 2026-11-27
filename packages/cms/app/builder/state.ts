@@ -41,3 +41,14 @@ export const cmsBuilderDraft: { data: unknown; listeners: Set<(data: unknown) =>
  * `refresh` makes it once the typing has ended.
  */
 export const cmsBuilderHold: { count: number; missed: boolean; refresh: () => Promise<unknown> } = { count: 0, missed: false, refresh: async () => {} }
+
+/**
+ * Since 2g: the entries and globals changed in the page that wait in the editor (by `<entity>\n<id>`: the
+ * changed fields), those the person may not change after all, and who wants to hear of the next ones: a
+ * text of an entry typed in the page waits for its value here before the page loads its content anew.
+ */
+export const cmsBuilderPending: {
+  entries: Map<string, Record<string, unknown>>; locked: Set<string>; listeners: Set<() => void>
+  /** The entry open in the sheet beside the page: its own form holds its changes. */
+  sheet: { entity: string; id: string | null } | null
+} = { entries: new Map(), locked: new Set(), listeners: new Set(), sheet: null }

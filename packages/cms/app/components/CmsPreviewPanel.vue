@@ -10,13 +10,18 @@
 // down to fit, so a row is seen as a row; a phone at 390 px. The page is told its scale, so its tools
 // keep their size. Undo and redo (the bridge's history) sit in the panel's bar, with Ctrl/⌘ Z.
 // Reloaded after every save; the unsaved values are dropped when the editor closes.
+// Since 2g the panel also draws the box with an entry's own controls over the page, at the element the
+// page names (CmsBuilderValueBox): it knows where the frame is and how much smaller it draws the page.
 import { cmsBuilderFit, isCmsBuilderToAdmin, type CmsBuilderKey, type CmsBuilderToPage } from '../../shared/builder'
 import { cmsBuilderEntities } from '../../shared/builder-sources'
+import type { Ref } from 'vue'
 
 const props = defineProps<{ url: string; entity: string; id: string; locale: string | null; data: Record<string, any>; version: string | null; sheet?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 const { t, locale: adminLanguage, entityLabel, fieldLabel } = useCmsI18n()
 const builder = useCmsBuilder()
+// A page this person may only read has no save: nothing of an entry is changed from its preview either.
+const pageReadOnly = inject<Ref<boolean> | null>('cmsReadOnly', null)
 // The collections and globals, for content a block draws from them (since 2f): the admin's graph, as the layout loaded it.
 const { data: graph } = useNuxtData<any[]>('cms-graph')
 // The preview may take the form's room (a narrow admin): the editor's page hides the form column then.
@@ -24,6 +29,7 @@ const { large, toggle: toggleLarge } = useCmsLargePreview()
 
 const frame = ref<HTMLIFrameElement | null>(null)
 const stage = ref<HTMLElement | null>(null)
+const root = ref<HTMLElement | null>(null)
 const width = ref<'desktop' | 'phone'>('desktop')
 
 // ── the scaled page (the editor in the preview only; without it the frame fills the stage as before) ──
@@ -68,6 +74,33 @@ watch(stage, (el) => {
   sizes.observe(el)
 }, { flush: 'post' })
 watch(() => fit.value?.scale, (scale) => { if (scale && loaded) sendToPage({ type: 'cms:builder:view', scale }) })
+// ── the box over a value of an entry (since 2g) ──
+// The page gives the element's box in its own pixels; here it is in the panel's, with the visible page around it.
+const boxTick = ref(0)
+const boxPlace = computed(() => {
+  void boxTick.value
+  void room.value
+  const request = builder.value?.box.value
+  const el = frame.value
+  const panel = root.value
+  if (!request || !el || !panel) return null
+  const scale = fit.value?.scale ?? 1
+  const f = el.getBoundingClientRect()
+  const p = panel.getBoundingClientRect()
+  const shown = (stage.value ?? el).getBoundingClientRect()
+  const left = Math.max(f.left, shown.left)
+  const top = Math.max(f.top, shown.top)
+  return {
+    anchor: { left: f.left - p.left + request.rect.left * scale, top: f.top - p.top + request.rect.top * scale, width: request.rect.width * scale, height: request.rect.height * scale },
+    bounds: { left: left - p.left, top: top - p.top, width: Math.min(f.right, shown.right) - left, height: Math.min(f.bottom, shown.bottom) - top },
+    room: { width: p.width, height: p.height },
+  }
+})
+function closeBox() {
+  builder.value?.closeBox()
+  // The keys go on to the page (Escape, undo).
+  frame.value?.contentWindow?.focus()
+}
 const reloads = ref(0)
 // A save made a new version: show what is stored now.
 watch(() => props.version, () => { reloads.value++ })
@@ -133,7 +166,9 @@ function sendToPage(message: CmsBuilderToPage) {
 function sendOn() {
   const bridge = builder.value
   if (!bridge) return
-  const entities = cmsBuilderEntities(graph.value, { entity: (meta) => entityLabel(meta), field: (f) => fieldLabel(f) })
+  // While the preview shows a translation, only the fields that are per-language are changed in it.
+  const entities = cmsBuilderEntities(graph.value, { entity: (meta) => entityLabel(meta), field: (f) => fieldLabel(f) }, { translating: !!props.locale })
+  if (pageReadOnly?.value) for (const e of Object.values(entities)) { e.edit = false; e.create = false }
   bridge.entities.value = entities
   sendToPage({
     type: 'cms:builder:on',
@@ -143,6 +178,7 @@ function sendOn() {
       duplicate: t('blocks.duplicate'), remove: t('blocks.remove'), insertHere: t('blocks.insertHere'),
       moveLeft: t('blocks.moveLeft'), moveRight: t('blocks.moveRight'), addBlock: t('blocks.pickerTitle'), blank: t('builderPanel.blank'),
       edit: t('builderSources.edit'), more: t('builderSources.more'), openIn: t('builderSources.openIn', { name: '{name}' }), untitled: t('common.untitled'),
+      shared: t('builderPending.shared'),
     },
     selected: bridge.selected.value,
     selectedPath: bridge.selectedPath.value,
@@ -151,6 +187,8 @@ function sendOn() {
     entities: JSON.parse(JSON.stringify(entities)),
     self: { entity: props.entity, id: props.id },
   })
+  // The entries and globals changed in the page that still wait: the page hears of them again after it loaded anew.
+  if (bridge.pending.count.value) bridge.pending.tell()
 }
 /** Ctrl/⌘ Z and Ctrl/⌘ ⇧ Z (or Ctrl Y), outside a text field (which keeps the browser's own undo). */
 function historyKey(e: KeyboardEvent): 'undo' | 'redo' | null {
@@ -191,7 +229,11 @@ async function onLoad() {
   loaded = true
   sendOn()
 }
-watch(reloads, () => { loaded = false })
+watch(reloads, () => {
+  loaded = false
+  // The page loads anew: the element a box stood at is gone.
+  builder.value?.closeBox()
+})
 // The admin's first render comes from the server, so the frame can finish loading before the
 // `load` listener exists: a frame on the same site that is complete counts as loaded.
 function frameComplete() {
@@ -217,6 +259,9 @@ watch(builder, (bridge, _old, onCleanup) => {
       void post()
     },
   })
+  const moved = () => { boxTick.value++ }
+  window.addEventListener('resize', moved)
+  window.addEventListener('scroll', moved, true)
   window.addEventListener('message', onMessage)
   window.addEventListener('keydown', forwardKey)
   window.addEventListener('keydown', onHistoryKey)
@@ -226,6 +271,8 @@ watch(builder, (bridge, _old, onCleanup) => {
   onCleanup(() => {
     stop()
     detach()
+    window.removeEventListener('resize', moved)
+    window.removeEventListener('scroll', moved, true)
     window.removeEventListener('message', onMessage)
     window.removeEventListener('keydown', forwardKey)
     window.removeEventListener('keydown', onHistoryKey)
@@ -259,7 +306,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="cms-preview" :class="sheet ? 'cms-preview--sheet flex-1 min-h-0' : ''" :aria-label="t('editor.previewPanel')">
+  <section ref="root" class="cms-preview" :class="[sheet ? 'cms-preview--sheet flex-1 min-h-0' : '', builder ? 'cms-preview--tools' : '']" :aria-label="t('editor.previewPanel')">
     <div class="flex items-center justify-between gap-2 pb-2">
       <div class="flex items-center gap-1">
         <span class="text-xs text-muted mr-2 max-sm:hidden">{{ t('editor.previewHint') }}</span>
@@ -318,5 +365,9 @@ onBeforeUnmount(() => {
         class="cms-preview__frame" :class="width === 'phone' ? 'cms-preview__frame--phone' : ''" @load="onLoad()"
       />
     </div>
+    <CmsBuilderValueBox
+      v-if="builder?.box.value && boxPlace" :key="builder.box.value.at" :request="builder.box.value"
+      :anchor="boxPlace.anchor" :bounds="boxPlace.bounds" :room="boxPlace.room" @close="closeBox"
+    />
   </section>
 </template>

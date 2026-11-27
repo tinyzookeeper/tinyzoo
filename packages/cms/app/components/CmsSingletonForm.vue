@@ -3,6 +3,7 @@
 // the same CmsField widgets as the entry editor, and upserts via PUT /_singleton/:name.
 // With translatable fields, a language switcher edits the translations (?locale=).
 import type { LiveChange } from '../composables/useCmsLive'
+import { cmsValueSet } from '../../shared/builder-values'
 
 const props = defineProps<{ entity: string, meta: any }>()
 const route = useRoute()
@@ -13,7 +14,11 @@ const form = useCmsForm(computed(() => props.meta?.fields ?? []), computed(() =>
 const { state, fieldErrors, editable, dirty, saving, conflict } = form
 const toast = useToast()
 // The editor in the preview (experimental, NUXT_CMS_BUILDER=on): provided only when the menu says it is on.
-const builder = provideCmsBuilder(useCmsBuilderOn())
+// Since 2g it also keeps the entries changed in the page's preview, written in the language the preview shows.
+const builderLocale = ref<string | null>(null)
+const builder = provideCmsBuilder(useCmsBuilderOn(), { locale: builderLocale })
+const pendingCount = computed(() => builder.value?.pending.count.value ?? 0)
+form.setUnsavedElsewhere(() => pendingCount.value > 0)
 // Since 2f: this form as the sheet beside a page's preview shows it (`?embed=builder`): no breadcrumbs, no preview.
 const embedded = useCmsEmbedded()
 
@@ -24,6 +29,7 @@ const currentLocale = computed(() => {
   return typeof q === 'string' && locales.value?.all.includes(q) ? q : (locales.value?.default ?? null)
 })
 const isTranslation = computed(() => !!locales.value && currentLocale.value !== locales.value.default)
+watchEffect(() => { builderLocale.value = isTranslation.value ? currentLocale.value : null })
 const localeLabel = (code?: string | null) => (code ? tl(locales.value?.labels?.[code], code.toUpperCase()) : '')
 const defaultLabel = computed(() => {
   const code = locales.value?.default
@@ -182,7 +188,17 @@ const localeItems = computed(() => (locales.value?.all ?? []).map((code) => {
   }
 }))
 
-async function save() {
+/** One save (since 2g): this global when it has changes, and every entry changed in its preview, each through its own update route. */
+async function save(): Promise<boolean> {
+  const pending = builder.value?.pending
+  if (!pending?.count.value) return !!await saveOwn()
+  const ownOk = dirty.value ? !!await saveOwn() : true
+  const { saved, failed } = await pending.save()
+  if (failed.length) toast.add({ title: t('builderPending.notSaved', { name: failed.map((e) => pending.title(e)).join(', ') }), description: failed[0]!.error ?? undefined, icon: 'i-lucide-triangle-alert', color: 'error' })
+  else if (saved.length) toast.add({ title: t('builderPending.saved', { what: t('builderPending.others', { count: saved.length }) }), icon: 'i-lucide-check', color: 'success' })
+  return ownOk && !failed.length
+}
+async function saveOwn() {
   if (!await form.confirmSwitchOffs()) return false
   return form.submit(async () => {
     if (isTranslation.value) {
@@ -208,6 +224,14 @@ async function save() {
 }
 defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value) save() } } })
 
+/** Since 2g, beside a page: a value changed in the page goes into this form (a field, or a field of an item of a list), as an edit made here. */
+function applyFromPage(at: string[], value: unknown) {
+  const key = at[0]
+  const field = key ? editable.value.find((f: any) => f.key === key) : null
+  if (!key || !field || field.readOnly || readOnly.value) return
+  const next = at.length === 1 ? value : cmsValueSet(toRaw(state[key]), at.slice(1), value)
+  if (next !== undefined) state[key] = next
+}
 // Beside a page (the sheet): what is typed shows in the page's preview at once, the sheet hears when it is saved.
 /** Bring a field into view and give it the keyboard, with a short ring (as the entry editor does). */
 function focusField(key: string) {
@@ -223,6 +247,7 @@ function focusField(key: string) {
 useCmsEmbeddedEditor({
   embedded, entity: computed(() => props.entity), id: computed(() => (data.value?.row?.id as string | undefined) ?? null),
   locale: computed(() => (isTranslation.value ? currentLocale.value : null)), body: () => form.body(), dirty, saving, version, title, focus: focusField,
+  apply: applyFromPage,
 })
 </script>
 
@@ -236,7 +261,8 @@ useCmsEmbeddedEditor({
         </UButton>
       </UDropdownMenu>
       <span v-if="readOnly" class="inline-flex items-center gap-1 text-sm text-muted mr-1"><UIcon name="i-lucide-lock" class="size-3.5" />{{ t('readOnly.badge') }}</span>
-      <span v-else-if="dirty" class="max-md:hidden text-sm cms-unsaved mr-1">{{ t('editor.unsaved') }}</span>
+      <span v-else-if="dirty || pendingCount" class="max-md:hidden text-sm cms-unsaved mr-1">{{ t('editor.unsaved') }}</span>
+      <CmsBuilderPending v-if="builder && !embedded" :page="{ dirty, label: title, title: '', icon: meta?.icon }" />
       <UButton
         v-if="previewUrl && !embedded" color="neutral" variant="outline" icon="i-lucide-eye"
         :class="split ? 'bg-(--cms-nav-active)' : ''" :aria-pressed="split" :aria-label="t('editor.preview')" @click="togglePreview"

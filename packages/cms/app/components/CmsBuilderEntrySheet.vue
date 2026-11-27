@@ -8,7 +8,13 @@
 // shows, a quiet line says so. Closing with unsaved changes asks first. The page's editor stays mounted
 // underneath, with its selection and its own unsaved changes: the entry is saved on its own, apart from
 // the page's undo and redo.
-import { cmsBuilderEntryAddress, isCmsEmbedMessage } from '../../shared/builder-sources'
+//
+// Since 2g an entry may have changes made in the page that wait in the page's editor. One entry has one
+// place where its changes are: when the sheet opens it, those changes are handed into the sheet's form
+// (they show there as unsaved, and leave the page's own list of what it saves and its undo), and while the
+// sheet is open, what is changed of that entry in the page goes into the sheet's form too. The sheet's
+// Save stores them; closing without saving asks, as for anything typed in it.
+import { cmsBuilderEntryAddress, isCmsEmbedMessage, type CmsEmbedSet } from '../../shared/builder-sources'
 
 const { t, entityLabel } = useCmsI18n()
 const builder = useCmsBuilder()
@@ -23,6 +29,23 @@ const loading = ref(false)
 /** Saved, and not among what the selected block shows now. */
 const hidden = ref(false)
 const frame = ref<HTMLIFrameElement | null>(null)
+/** Values for the sheet's form: those waiting until its editor has loaded, then sent as they come. */
+let queue: CmsEmbedSet['sets'] = []
+let ready = false
+function hand(sets: CmsEmbedSet['sets']) {
+  if (!sets.length) return
+  if (!ready) {
+    queue.push(...sets)
+    return
+  }
+  frame.value?.contentWindow?.postMessage({ type: 'cms:entry:set', sets: JSON.parse(JSON.stringify(sets)) } satisfies CmsEmbedSet, location.origin)
+}
+/** The page's editor knows which entry the sheet has: that entry's changes from the page go into the sheet's form. */
+function attach(c: { entity: string; id: string | null } | null) {
+  const pending = builder.value?.pending
+  if (!pending) return
+  pending.sheet.value = c ? { entity: c.entity, id: c.id, set: (at, value) => hand([{ at, value }]) } : null
+}
 
 const open = computed({
   get: () => !!current.value,
@@ -67,6 +90,7 @@ async function close() {
   current.value = null
   state.value = null
   hidden.value = false
+  attach(null)
   await dropDraft(was)
 }
 
@@ -84,6 +108,11 @@ watch(() => builder.value?.entryRequest.value ?? null, async (request) => {
   state.value = null
   hidden.value = false
   loading.value = true
+  // What was changed of this entry in the page goes into the sheet's form, once its editor is there.
+  ready = false
+  const waiting = request.id === null ? null : builder.value?.pending.handOver(request.entity, request.id) ?? null
+  queue = Object.entries(waiting ?? {}).map(([key, value]) => ({ at: [key], value }))
+  attach({ entity: request.entity, id: request.id })
   current.value = {
     entity: request.entity, id: request.id, global,
     src: cmsBuilderEntryAddress(request.entity, request.id, global, { field: request.field }),
@@ -114,10 +143,23 @@ function onMessage(e: MessageEvent) {
     state.value = { id: m.id, dirty: m.dirty, saving: m.saving, title: m.title }
     loading.value = false
     if (m.dirty) hidden.value = false
+    // The editor in the sheet is there: it takes what waited for it.
+    if (!ready) {
+      ready = true
+      const sets = queue
+      queue = []
+      hand(sets)
+    }
   }
-  else if (m.type === 'cms:entry:draft') builder.value?.refresh()
+  else if (m.type === 'cms:entry:draft') {
+    builder.value?.refresh()
+    // A text of this entry typed in the page waits for its draft: it is at the server now.
+    builder.value?.pending.tell()
+  }
   else {
     if (state.value) state.value = { ...state.value, id: m.id }
+    // Saved by its own editor: the page's editor loads it again before it changes it next.
+    builder.value?.pending.reload(m.entity, m.id)
     builder.value?.refresh()
     void checkShown(m.entity, m.id)
   }
@@ -125,6 +167,7 @@ function onMessage(e: MessageEvent) {
 onMounted(() => window.addEventListener('message', onMessage))
 onBeforeUnmount(() => {
   window.removeEventListener('message', onMessage)
+  attach(null)
   if (current.value) void dropDraft(current.value)
 })
 </script>

@@ -18,6 +18,7 @@ import {
   cmsMatchElements, cmsMatchFieldsWith, cmsMatchPlacesInText, cmsMatchShown, cmsMatchSquash, cmsMatchValue, cmsRichPlain, isCmsRichDoc,
   type CmsMatchField, type CmsMatchNode,
 } from './builder-match'
+import { cmsFormKey, cmsValueForms, cmsValueMatch, type CmsValueField, type CmsValueIndex, type CmsValuePath } from './builder-values'
 
 // ── what the admin says about a collection or a global ──
 
@@ -26,9 +27,20 @@ import {
  * relation (`to`: the collection whose entries the content API puts in it), and its name.
  */
 export interface CmsBuilderEntityField {
-  kind: 'text' | 'rich' | 'picture' | 'relation'
+  /** Since 2g also a value that is no text (`value`), a list of items (`list`) and a group of fields (`group`). */
+  kind: 'text' | 'rich' | 'picture' | 'relation' | 'value' | 'list' | 'group'
   to?: string
   label?: string
+  /** Since 2g: a plain text is typed in the page: one line or several, and its maximum. A text without it (an address, a link) is edited in its own control. */
+  text?: 'line' | 'lines'
+  max?: number
+  /** Since 2g, for `value`: a number, a date and time, or a choice, with each option's names in every language the admin has. */
+  value?: 'number' | 'date' | 'choice'
+  options?: Record<string, string[]>
+  /** Since 2g, for `list`: the fields of its items, by the item's type; for `group`: its fields, under `''`. */
+  items?: Record<string, Record<string, CmsBuilderEntityField>>
+  /** Since 2g: this person may not change the field here (their role, or a field of all languages while a translation is shown). */
+  locked?: boolean
 }
 
 /** A collection or a global, in the admin's words, for content a block draws from it. */
@@ -93,24 +105,72 @@ export function cmsBuilderEntryAddress(entity: string, id: string | null, global
 
 /** The admin's field types the page can find by their text (`text`), as a rich text (`rich`) or by a picture's address. */
 const SOURCE_KINDS: Record<string, 'text' | 'rich' | 'picture'> = { text: 'text', richtext: 'rich', media: 'picture', gallery: 'picture' }
+/** Since 2g: the field types whose value is drawn in a form of its own. */
+const VALUE_KINDS: Record<string, 'number' | 'date' | 'choice'> = { number: 'number', datetime: 'date', select: 'choice' }
+
+/** Every way a name is written: a text, or one per language. */
+function namesOf(label: unknown): string[] {
+  if (typeof label === 'string') return label ? [label] : []
+  return isObject(label) ? Object.values(label).filter((x): x is string => typeof x === 'string' && x.length > 0 && x.length <= 500) : []
+}
+
+/**
+ * The fields of a collection, of a list's item or of a group as the page needs them (since 2g with what a
+ * plain text takes, what a value is, and the fields inside a list and a group, `depth` levels down).
+ */
+function entityFields(list: any[], words: { field: (field: any) => string }, o: { top: boolean; depth: number; skip: Set<string>; locked: (f: any) => boolean }): Record<string, CmsBuilderEntityField> {
+  const out: Record<string, CmsBuilderEntityField> = {}
+  for (const f of list) {
+    if (!f || typeof f.key !== 'string' || !NAME.test(f.key) || o.skip.has(f.key)) continue
+    const more = { label: words.field(f), ...(f.readOnly || o.locked(f) ? { locked: true } : {}) }
+    const kind = SOURCE_KINDS[f.type]
+    const value = VALUE_KINDS[f.type]
+    if (f.relation) {
+      if (o.top && f.relation.to && f.relation.kind !== 'one-to-many') out[f.key] = { kind: 'relation', to: f.relation.to, label: more.label }
+    }
+    else if (kind === 'text') {
+      // A colour is drawn as a colour, not as its text.
+      if (f.ui?.edit === 'CmsFieldColor') continue
+      const max = typeof f.meta?.max === 'number' && f.meta.max > 0 ? Math.floor(f.meta.max) : undefined
+      out[f.key] = { kind, ...more, ...(f.meta?.format ? {} : { text: f.meta?.multiline ? 'lines' as const : 'line' as const, ...(max ? { max } : {}) }) }
+    }
+    else if (kind === 'rich' || (kind === 'picture' && o.top)) out[f.key] = { kind, ...more }
+    else if (value) {
+      const options: Record<string, string[]> = {}
+      if (value === 'choice') for (const option of Array.isArray(f.meta?.options) ? f.meta.options : []) if (typeof option === 'string') options[option] = namesOf(f.meta?.labels?.[option]).slice(0, 20)
+      out[f.key] = { kind: 'value', value, ...more, ...(value === 'choice' ? { options } : {}) }
+    }
+    else if (f.type === 'blocks' && f.meta?.list && isObject(f.meta.blocks) && o.depth > 0) {
+      const items: Record<string, Record<string, CmsBuilderEntityField>> = {}
+      for (const [type, def] of Object.entries(f.meta.blocks)) if (isObject(def) && Array.isArray(def.fields)) items[type] = entityFields(def.fields, words, { ...o, top: false, depth: o.depth - 1, skip: new Set() })
+      out[f.key] = { kind: 'list', ...more, items }
+    }
+    else if (f.type === 'group' && Array.isArray(f.meta?.fields) && o.depth > 0) {
+      out[f.key] = { kind: 'group', ...more, items: { '': entityFields(f.meta.fields, words, { ...o, top: false, depth: o.depth - 1, skip: new Set() }) } }
+    }
+  }
+  return out
+}
 
 /**
  * Since 2f: the collections and globals of the admin's graph as the page needs them for content a block draws
  * from them: their names, their plain texts, rich texts and pictures, the title field, how they are
  * published, and what the person may do (the graph's `can`, the same the lists and the editor check).
  */
-export function cmsBuilderEntities(graph: any[] | null | undefined, words: { entity: (meta: any) => string; field: (field: any) => string }): Record<string, CmsBuilderEntity> {
+export function cmsBuilderEntities(
+  graph: any[] | null | undefined,
+  words: { entity: (meta: any) => string; field: (field: any) => string },
+  /** Since 2g: the preview shows a translation (`translating`): only the fields that are per-language can be changed in it. */
+  options: { translating?: boolean } = {},
+): Record<string, CmsBuilderEntity> {
   const out: Record<string, CmsBuilderEntity> = {}
   for (const meta of graph ?? []) {
     if (!meta?.name || !Array.isArray(meta.fields)) continue
-    const fields: CmsBuilderEntity['fields'] = {}
-    for (const f of meta.fields) {
-      const kind = SOURCE_KINDS[f?.type]
-      if (f?.relation?.to && f.relation.kind !== 'one-to-many') fields[f.key] = { kind: 'relation', to: f.relation.to, label: words.field(f) }
-      else if (kind && !f.relation) fields[f.key] = { kind, label: words.field(f) }
-    }
-    if (!Object.values(fields).some((f) => f.kind !== 'relation')) continue
     const p = meta.publish
+    // The order is set by arranging the list; the status and the date it goes live by publishing.
+    const skip = new Set<string>([meta.orderField, p?.field].filter((k): k is string => typeof k === 'string'))
+    const fields = entityFields(meta.fields, words, { top: true, depth: 2, skip, locked: (f) => (!!options.translating && !f.localized) || (!!p?.dateField && f.key === p.dateField) })
+    if (!Object.values(fields).some((f) => f.kind !== 'relation')) continue
     out[meta.name] = {
       label: words.entity(meta) || meta.name,
       ...(meta.singleton ? { global: true } : {}),
@@ -122,6 +182,32 @@ export function cmsBuilderEntities(graph: any[] | null | undefined, words: { ent
     }
   }
   return out
+}
+
+/**
+ * Since 2g: what the admin says of the field at a path of an entry: the field, a field of a list's item
+ * (found by the item's type in the entry's values) or of a group. `null` when the path leads nowhere.
+ */
+export function cmsEntityFieldAt(info: CmsBuilderEntity | undefined, values: Record<string, unknown> | undefined, at: readonly string[]): CmsBuilderEntityField | null {
+  let fields: Record<string, CmsBuilderEntityField> | undefined = info?.fields
+  let value: unknown = values
+  let field: CmsBuilderEntityField | null = null
+  for (const step of at) {
+    if (Array.isArray(value)) {
+      const item = value.find((x) => isObject(x) && x.id === step) as Record<string, unknown> | undefined
+      const type = typeof item?.type === 'string' ? item.type : ''
+      fields = field?.kind === 'list' && field.items && Object.hasOwn(field.items, type) ? field.items[type] : undefined
+      if (!item || !fields) return null
+      value = item
+      field = null
+      continue
+    }
+    field = fields && Object.hasOwn(fields, step) ? fields[step]! : null
+    if (!field || !isObject(value)) return null
+    value = value[step]
+    if (field.kind === 'group') fields = field.items?.['']
+  }
+  return field
 }
 
 /** Since 2f: what the editor in the sheet beside the page tells the sheet (same origin, from the frame to its parent; app/composables/useCmsEmbedded.ts). */
@@ -137,6 +223,14 @@ export function isCmsEmbedMessage(x: unknown): x is CmsEmbedMessage {
   if (typeof m.entity !== 'string') return false
   if (m.type === 'cms:entry:state') return (m.id === null || typeof m.id === 'string') && typeof m.dirty === 'boolean' && typeof m.saving === 'boolean' && typeof m.title === 'string'
   return (m.type === 'cms:entry:saved' || m.type === 'cms:entry:draft') && typeof m.id === 'string'
+}
+
+/** Since 2g: what the sheet tells the editor in it (same origin, from the sheet to its frame): values to put into the form, each at its path. */
+export interface CmsEmbedSet { type: 'cms:entry:set'; sets: { at: CmsValuePath; value: unknown }[] }
+
+export function isCmsEmbedSet(x: unknown): x is CmsEmbedSet {
+  if (!isObject(x) || x.type !== 'cms:entry:set' || !Array.isArray(x.sets) || x.sets.length > 200) return false
+  return x.sets.every((s) => isObject(s) && Array.isArray(s.at) && s.at.length >= 1 && s.at.length <= 6 && s.at.every((p) => typeof p === 'string' && p.length > 0 && p.length <= 200) && NAME.test(s.at[0] as string) && 'value' in s)
 }
 
 // ── the content API's requests and answers ──
@@ -218,8 +312,14 @@ export function cmsSourceState(values: Record<string, unknown>, info: CmsBuilder
 export interface CmsSourcePart {
   entity: string
   id: string
+  /** The entry's field (for a value inside a list or a group: the field that holds it). */
   field: string
-  kind: 'text' | 'rich' | 'picture'
+  /** Since 2g also `value`: a value that is no text, or several values the element shows together. */
+  kind: 'text' | 'rich' | 'picture' | 'value'
+  /** Since 2g: where the text is inside the entry, when it is not a field of its own (an item of a list). */
+  at?: CmsValuePath
+  /** Since 2g, for `value`: every value the element shows, in the text's order. */
+  values?: CmsValuePath[]
 }
 
 /** An entry's picture field and the addresses of what it holds. */
@@ -266,33 +366,60 @@ export function cmsSourceWithRelated(records: Map<string, CmsSourceRecord>, enti
  * so 2e's rules for the items of a list hold. The page's own entry (`self`, the page being edited) is left
  * out: its blocks are the block's own. Only what the admin describes counts (a collection it does not
  * know, a field that is no text or picture: nothing).
+ *
+ * Since 2g also the texts inside an entry's lists and groups (`at`: where), and `values`: every plain text
+ * and every value that is no text (a number, a date, a choice) with the forms it may be drawn in
+ * (`langs`: the page's languages), for a text made of values (shared/builder-values.ts).
  */
-export function cmsSourceFields(records: Iterable<CmsSourceRecord>, entities: Record<string, CmsBuilderEntity>, self?: { entity: string; id: string } | null): { texts: CmsMatchField[]; pictures: CmsSourcePicture[] } {
+export function cmsSourceFields(
+  records: Iterable<CmsSourceRecord>, entities: Record<string, CmsBuilderEntity>, self?: { entity: string; id: string } | null, langs: readonly string[] = [],
+): { texts: CmsMatchField[]; pictures: CmsSourcePicture[]; values: CmsValueField[] } {
   const texts: CmsMatchField[] = []
   const pictures: CmsSourcePicture[] = []
+  const values: CmsValueField[] = []
   for (const record of records) {
     const info = Object.hasOwn(entities, record.entity) ? entities[record.entity] : undefined
     if (!info) continue
-    for (const [id, values] of record.entries) {
+    for (const [id, row] of record.entries) {
       if (self && self.entity === record.entity && self.id === id) continue
-      for (const [field, f] of Object.entries(info.fields)) {
-        const value = values[field]
-        if (f.kind === 'text' && typeof value === 'string') {
-          const norm = cmsMatchValue(value)
-          if (norm) texts.push({ field, item: id, list: record.entity, kind: 'text', norm, text: /\n/.test(value) ? 'lines' : 'line' })
-        }
-        else if (f.kind === 'rich' && isCmsRichDoc(value)) {
-          const norm = cmsRichPlain(value)
-          if (norm) texts.push({ field, item: id, list: record.entity, kind: 'rich', norm })
-        }
-        else if (f.kind === 'picture') {
-          const all = (Array.isArray(value) ? value : [value]).map((x) => (isObject(x) && isMedia(x.media) ? x.media : x)).filter(isMedia)
-          if (all.length) pictures.push({ entity: record.entity, id, field, urls: all.map((m) => m.url), ids: all.map((m) => (typeof m.id === 'string' ? m.id : '')).filter(Boolean) })
+      const walk = (holder: Record<string, unknown>, fields: Record<string, CmsBuilderEntityField>, at: string[], depth: number) => {
+        for (const [key, f] of Object.entries(fields)) {
+          const value = holder[key]
+          const path = [...at, key]
+          const field = path[0]!
+          const inside = at.length ? { at: path } : {}
+          if (f.kind === 'text' && typeof value === 'string') {
+            const norm = cmsMatchValue(value)
+            if (!norm) continue
+            texts.push({ field, item: id, list: record.entity, kind: 'text', norm, text: /\n/.test(value) ? 'lines' : 'line', ...inside })
+            const form = cmsFormKey(norm)
+            if (form) values.push({ entity: record.entity, id, at: path, kind: 'text', keys: [form] })
+          }
+          else if (f.kind === 'rich' && isCmsRichDoc(value)) {
+            const norm = cmsRichPlain(value)
+            if (norm) texts.push({ field, item: id, list: record.entity, kind: 'rich', norm, ...inside })
+          }
+          else if (f.kind === 'picture' && !at.length) {
+            const all = (Array.isArray(value) ? value : [value]).map((x) => (isObject(x) && isMedia(x.media) ? x.media : x)).filter(isMedia)
+            if (all.length) pictures.push({ entity: record.entity, id, field, urls: all.map((m) => m.url), ids: all.map((m) => (typeof m.id === 'string' ? m.id : '')).filter(Boolean) })
+          }
+          else if (f.kind === 'value') {
+            const keys = cmsValueForms(value, f, langs)
+            if (keys.length) values.push({ entity: record.entity, id, at: path, kind: 'value', keys })
+          }
+          else if (f.kind === 'list' && Array.isArray(value) && depth < 3) {
+            for (const item of value) {
+              const inner = isObject(item) && typeof item.id === 'string' && item.id && typeof item.type === 'string' && f.items && Object.hasOwn(f.items, item.type) ? f.items[item.type] : undefined
+              if (inner) walk(item as Record<string, unknown>, inner, [...path, (item as { id: string }).id], depth + 1)
+            }
+          }
+          else if (f.kind === 'group' && isObject(value) && f.items?.[''] && depth < 3) walk(value, f.items[''], path, depth + 1)
         }
       }
+      walk(row, info.fields, [], 0)
     }
   }
-  return { texts, pictures }
+  return { texts, pictures, values }
 }
 
 /** The path of an address, without its origin, query and hash. */
@@ -383,6 +510,10 @@ export function cmsSourceFind<N extends CmsMatchNode>(
     related?: (parent: string, child: string) => boolean
     /** The collections the block loads itself: a text that entries of two collections share goes to one of these when nothing around it tells. */
     prefer?: ReadonlySet<string>
+    /** Since 2g: the values of everything the page loaded, for a text that is no value as it is stored but is made of values. */
+    values?: CmsValueIndex
+    /** Since 2g: whether something found may count in this block (a text inside a list of a global: only where the block loads that global). */
+    allow?: (part: CmsSourcePart) => boolean
   } = {},
 ): CmsSourceFound<N> {
   const text = options.text ?? cmsMatchShown
@@ -391,7 +522,8 @@ export function cmsSourceFind<N extends CmsMatchNode>(
   const parts = new Map<N, CmsSourcePart>()
   const own: N[] = []
   const order = new Map<N, number>()
-  const deferred: { el: N; hits: CmsMatchField[] }[] = []
+  /** For each text that could be an entry's: the entries it could be of, each with what it would be there. */
+  const cands = new Map<N, Map<string, CmsSourcePart>>()
   const all = cmsMatchElements(roots, { texts: true, text })
   all.forEach((n, i) => order.set(n, i))
   const pieces = smallest(roots, text, visible, all)
@@ -408,31 +540,88 @@ export function cmsSourceFind<N extends CmsMatchNode>(
       own.push(el)
       continue
     }
-    const hits = cmsMatchFieldsWith(texts, t).filter((f) => el.nodeType !== 3 || f.kind === 'text')
-    if (!hits.length) continue
-    const keys = new Set(hits.map(fieldKey))
-    if (keys.size === 1) parts.set(el, { entity: hits[0]!.list!, id: hits[0]!.item!, field: hits[0]!.field, kind: hits[0]!.kind })
-    else deferred.push({ el, hits })
+    const of = new Map<string, CmsSourcePart>()
+    const allowed = (part: CmsSourcePart) => !options.allow || options.allow(part)
+    for (const h of cmsMatchFieldsWith(texts, t)) {
+      if ((el.nodeType === 3 && h.kind !== 'text') || of.has(fieldKey(h))) continue
+      const part: CmsSourcePart = { entity: h.list!, id: h.item!, field: h.field, kind: h.kind, ...(h.at ? { at: h.at } : {}) }
+      if (allowed(part)) of.set(fieldKey(h), part)
+    }
+    // No value as it is stored: a value in another form (a number, a date, a choice's name), or several values
+    // in a row. Only for a text of its own (nothing inside it has a text of its own): an element around
+    // several texts is not one value with words around it.
+    if (!of.size && options.values && (el.nodeType === 3 || !elementChildren(el).some((c) => !!text(c as N)))) {
+      for (const hit of cmsValueMatch(t, options.values)) {
+        const part: CmsSourcePart = { entity: hit.entity, id: hit.id, field: hit.values[0]!.at[0]!, kind: 'value', values: hit.values.map((v) => v.at) }
+        if (allowed(part)) of.set(`${hit.entity}\n${hit.id}`, part)
+      }
+    }
+    if (!of.size) continue
+    cands.set(el, of)
+    if (of.size === 1) parts.set(el, [...of.values()][0]!)
   }
-  // A text of several entries: the entry whose parts stand nearest around it.
-  for (const { el, hits } of deferred) {
-    const keys = new Set(hits.map(fieldKey))
-    let done = false
+  const deferred = [...cands].filter(([, of]) => of.size > 1)
+  // A text several entries could have made is decided by what stands around it. Since 2g first by every
+  // text around it that only some of those entries could have made (the day's name beside the hours of that
+  // day, the hours beside a note), from the nearest element around it outwards: each narrows the entries
+  // down; texts at one level that disagree with each other settle nothing, and nothing further out is asked.
+  const disputed = new Set<N>()
+  if (deferred.length) {
+    const within = new Map<N, N[]>()
+    for (const el of cands.keys()) {
+      for (let at = el.parentNode as N | null; at; at = at.parentNode as N | null) {
+        const list = within.get(at)
+        if (list) list.push(el)
+        else within.set(at, [el])
+        if (roots.includes(at)) break
+      }
+    }
+    const settled: [N, CmsSourcePart][] = []
+    for (const [el, of] of deferred) {
+      let keys = new Set(of.keys())
+      for (let at = el.parentNode as N | null; at && keys.size > 1; at = at.parentNode as N | null) {
+        let narrowed: Set<string> | null = null
+        for (const other of within.get(at) ?? []) {
+          if (other === el) continue
+          const theirs = cands.get(other)!
+          const both = [...keys].filter((k) => theirs.has(k))
+          if (!both.length || both.length === keys.size) continue
+          narrowed = narrowed ? new Set(both.filter((k) => narrowed!.has(k))) : new Set(both)
+        }
+        if (narrowed) {
+          if (!narrowed.size) {
+            disputed.add(el)
+            break
+          }
+          keys = narrowed
+        }
+        if (roots.includes(at)) break
+      }
+      if (keys.size === 1) settled.push([el, of.get([...keys][0]!)!])
+    }
+    for (const [el, part] of settled) parts.set(el, part)
+  }
+  // Then, as since 2f: the entry whose parts (found without doubt) stand nearest around it.
+  const sure = new Map([...parts].filter(([el]) => (cands.get(el)?.size ?? 1) === 1))
+  for (const [el, of] of deferred) {
+    if (parts.has(el) || disputed.has(el)) continue
     for (let at = el.parentNode as N | null; at; at = at.parentNode as N | null) {
       const inside = new Set<string>()
-      for (const [p, part] of parts) if (keys.has(partKey(part)) && contains(at, p)) inside.add(partKey(part))
+      for (const [p, part] of sure) if (of.has(partKey(part)) && contains(at, p)) inside.add(partKey(part))
       if (inside.size === 1) {
-        const key = [...inside][0]!
-        const hit = hits.find((h) => fieldKey(h) === key)!
-        parts.set(el, { entity: hit.list!, id: hit.item!, field: hit.field, kind: hit.kind })
-        done = true
+        parts.set(el, of.get([...inside][0]!)!)
         break
       }
       if (inside.size > 1 || roots.includes(at)) break
     }
-    // Nothing around it tells: the one entry of a collection the block loads itself, if there is one.
-    const mine = done || !options.prefer ? [] : hits.filter((h) => options.prefer!.has(h.list!))
-    if (mine.length && new Set(mine.map(fieldKey)).size === 1) parts.set(el, { entity: mine[0]!.list!, id: mine[0]!.item!, field: mine[0]!.field, kind: mine[0]!.kind })
+  }
+  // Nothing around it tells: the one entry of a collection the block loads itself, if there is one.
+  if (options.prefer) {
+    for (const [el, of] of deferred) {
+      if (parts.has(el)) continue
+      const mine = [...of.values()].filter((p) => options.prefer!.has(p.entity))
+      if (mine.length === 1) parts.set(el, mine[0]!)
+    }
   }
   // The cards, in the page's order of their first part.
   const sorted = [...parts.entries()].sort((a, b) => (order.get(a[0]) ?? 0) - (order.get(b[0]) ?? 0))
@@ -539,6 +728,8 @@ export function cmsSourcesOf<N extends CmsMatchNode>(
 
 /** What a visible text of a block is: a field of the block, of an entry, of a global, or nothing. */
 export type CmsTextResolution = 'own' | 'entry' | 'global' | 'none'
+/** Since 2g: how an entry's or a global's text was found: as the value it is stored as, or (`value`) by a form of a value or as several values in a row. */
+export type CmsTextBy = 'value'
 /** What a text that is nothing is like: a date or a time, a number, a text made from a value (shortened, joined), a part of a form, or a look's own word. */
 export type CmsTextRest = 'date' | 'number' | 'derived' | 'form' | 'word'
 
@@ -564,7 +755,7 @@ export function cmsTextRest(text: string, values: string[], inForm = false): Cms
 export function cmsTextsReport<N extends CmsMatchNode>(
   roots: N[], ownFields: CmsMatchField[], found: CmsSourceFound<N>, entities: Record<string, CmsBuilderEntity>,
   options: { text?: (n: N) => string; visible?: (n: N) => boolean; values?: string[] } = {},
-): { text: string; res: CmsTextResolution; rest?: CmsTextRest }[] {
+): { text: string; res: CmsTextResolution; rest?: CmsTextRest; by?: CmsTextBy; of?: string }[] {
   const text = options.text ?? cmsMatchShown
   const visible = options.visible ?? (() => true)
   const values = options.values ?? []
@@ -593,7 +784,7 @@ export function cmsTextsReport<N extends CmsMatchNode>(
     // What the text, or the nearest element around it in the block, is found as.
     for (let at: CmsMatchNode | null = el; at; at = at.parentNode) {
       const part = found.parts.get(at as N)
-      if (part) return { text: t, res: Object.hasOwn(entities, part.entity) && entities[part.entity]!.global ? 'global' as const : 'entry' as const }
+      if (part) return { text: t, res: Object.hasOwn(entities, part.entity) && entities[part.entity]!.global ? 'global' as const : 'entry' as const, of: part.entity, ...(part.kind === 'value' ? { by: 'value' as const } : {}) }
       if (own.has(at as N)) return { text: t, res: 'own' as const }
       if (roots.includes(at as N)) break
     }

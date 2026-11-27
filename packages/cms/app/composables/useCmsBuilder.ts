@@ -2,7 +2,10 @@ import type { ComputedRef, InjectionKey, Ref, ShallowRef } from 'vue'
 import { cmsBuilderPathOf, cmsBuilderPlaceAnchor, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace, type CmsBuilderToAdmin, type CmsBuilderToPage } from '../../shared/builder'
 import { changedBlock, findBlock, kindsAlong, pathOfId, pathOfListKey, textEdit, type BlockKindDef, type BlockList } from '../../shared/block-tree'
 import { createBuilderHistory } from '../../shared/builder-history'
+import { isEntryStep, type CmsBuilderStep } from '../../shared/builder-pending'
 import { cmsBuilderEntryAddress, type CmsBuilderEntity, type CmsBuilderSource } from '../../shared/builder-sources'
+import type { CmsBuilderRect } from '../../shared/builder'
+import { createCmsPending, type CmsBuilderPendingStore } from './useCmsBuilderPending'
 
 // The editor in the preview (experimental, NUXT_CMS_BUILDER=on), admin side: a bridge between the
 // page-blocks fields of the form and the preview panel that shows the page. The fields register
@@ -28,6 +31,11 @@ import { cmsBuilderEntryAddress, type CmsBuilderEntity, type CmsBuilderSource } 
 // the collections and globals it shows, with the entries it shows now), and asks to edit an entry beside the
 // page (`entryRequest`, which the editor's sheet opens) or to open it in its own section. An entry is saved
 // on its own: the page's history never holds it.
+//
+// Since 2g the values of an entry or a global are changed in the page too: a plain text typed there, a
+// value in a box the admin draws over the preview (`box`, with the element's place as the page says it).
+// These changes wait in the editor (`pending`, useCmsBuilderPending) with the page's own: the history holds
+// them as steps in the order they were made, and the editor's save stores them with the page.
 
 /** What a page-blocks field lets the bridge do. The changes do nothing on a field that is read-only. */
 export interface CmsBuilderList {
@@ -117,6 +125,12 @@ export interface CmsBuilder {
   closeEntry: () => void
   /** Since 2f: the page shows its content anew (an entry beside it was typed in or saved). */
   refresh: () => void
+  /** Since 2g: the changes to entries and globals made in the page, waiting for the editor's save. */
+  pending: CmsBuilderPendingStore
+  /** Since 2g: the values the page asked a box for (their own controls, drawn over the preview at `rect`, the page's pixels). */
+  box: Readonly<ShallowRef<{ entity: string; id: string; values: string[][]; rect: CmsBuilderRect; at: number } | null>>
+  /** Since 2g: close the box (the page is told). */
+  closeBox: () => void
   /** The history of the page-blocks field's changes while the editor is open. */
   history: {
     canUndo: Readonly<Ref<boolean>>
@@ -134,9 +148,20 @@ export interface CmsBuilder {
   }
 }
 
+/** What the bridge reads of the editor around it (taken in the editor's setup: the bridge may be made later). */
+export interface CmsBuilderDeps {
+  graph: Ref<any[] | null | undefined>
+  /** The language the preview shows, when it is a translation. */
+  locale: Ref<string | null>
+  t: (key: string, params?: Record<string, unknown>) => string
+  fieldLabel: (field: any) => string
+  entityLabel: (meta: any) => string
+  notify: (title: string, description?: string) => void
+}
+
 const KEY: InjectionKey<ShallowRef<CmsBuilder | null>> = Symbol('cmsBuilder')
 const NONE: ShallowRef<CmsBuilder | null> = shallowRef(null)
-function createBridge(): CmsBuilder {
+function createBridge(deps: CmsBuilderDeps): CmsBuilder {
   const lists = shallowRef<CmsBuilderList[]>([])
   const selectedPath = shallowRef<CmsBuilderPath | null>(null)
   const selected = computed<string | null>({
@@ -173,7 +198,7 @@ function createBridge(): CmsBuilder {
   }
 
   // ── the history (one per editor; the steps name the field they belong to) ──
-  const steps = createBuilderHistory<{ key: string; value: any[] }>()
+  const steps = createBuilderHistory<CmsBuilderStep>()
   // Plain copies: the form's values are reactive and may be changed in place by a field.
   const copy = (v: unknown): any[] => JSON.parse(JSON.stringify(v ?? []))
   const canUndo = ref(false)
@@ -197,6 +222,11 @@ function createBridge(): CmsBuilder {
     // The value comes back through the form's v-model on the next tick: select once it is there.
     void nextTick(() => select(path))
   }
+  /** Take a step back (`to`: its value before) or do it again (its value after): a page-blocks field, or a field of an entry. */
+  function apply(to: CmsBuilderStep, from: CmsBuilderStep) {
+    if (isEntryStep(to)) pending.put(to.entry.entity, to.entry.id, to.field, to.value)
+    else if (!isEntryStep(from)) restore(to.key, to.value as any[], from.value as any[])
+  }
   const history: CmsBuilder['history'] = {
     canUndo, canRedo,
     record(key, before, after, group) {
@@ -207,12 +237,12 @@ function createBridge(): CmsBuilder {
     undo() {
       const step = steps.undo()
       sync()
-      if (step) restore(step.before.key, step.before.value, step.after.value)
+      if (step) apply(step.before, step.after)
     },
     redo() {
       const step = steps.redo()
       sync()
-      if (step) restore(step.after.key, step.after.value, step.before.value)
+      if (step) apply(step.after, step.before)
     },
     undoStep(step) {
       if (steps.top() === step) history.undo()
@@ -223,6 +253,25 @@ function createBridge(): CmsBuilder {
       sync()
     },
   }
+  // ── entries and globals changed in the page (since 2g) ──
+  const pending = createCmsPending({
+    graph: deps.graph, locale: deps.locale, t: deps.t, fieldLabel: deps.fieldLabel, entityLabel: deps.entityLabel, notify: deps.notify,
+    send: (message) => panel?.send(message),
+    record(entity, id, field, before, after, group) {
+      steps.record({ entry: { entity, id }, field, value: before }, { entry: { entity, id }, field, value: after }, { group: `entry:${entity}:${id}:${group ?? field}` })
+      sync()
+    },
+    forget(entity, id) {
+      steps.drop((s) => isEntryStep(s.before) && s.before.entry.entity === entity && s.before.entry.id === id)
+      sync()
+    },
+  })
+  const box = shallowRef<{ entity: string; id: string; values: string[][]; rect: CmsBuilderRect; at: number } | null>(null)
+  function closeBox() {
+    if (!box.value) return
+    box.value = null
+    panel?.send({ type: 'cms:builder:box', open: false })
+  }
   const panelOn = ref(false)
   const focused = computed(() => panelOn.value && !!selection.value && selection.value.along.length === selection.value.path.length)
   function editEntry(entity: string, id: string | null, field?: string | null) {
@@ -230,7 +279,7 @@ function createBridge(): CmsBuilder {
   }
   return {
     lists, selected, selectedPath, selection, openPath, labels, kinds, select, history, fieldRequest, focusPanel,
-    panel: panelOn, focused, sources, entities, entryRequest, editEntry,
+    panel: panelOn, focused, sources, entities, entryRequest, editEntry, pending, box, closeBox,
     closeEntry() { entryRequest.value = null },
     refresh() { panel?.postNow() },
     register(list) {
@@ -288,7 +337,24 @@ function createBridge(): CmsBuilder {
         sources.value = { ...sources.value, [cmsBuilderPathOf(message).join('/')]: message.sources }
         return
       }
+      if (message.type === 'cms:builder:entry-text') {
+        pending.text(message.entity, message.id, message.at, message.value, message.end === true)
+        return
+      }
+      if (message.type === 'cms:builder:value') {
+        box.value = { entity: message.entity, id: message.id, values: message.values, rect: message.rect, at: Date.now() }
+        void pending.open(message.entity, message.id)
+        return
+      }
+      if (message.type === 'cms:builder:anchor') {
+        // The page says where the element is now, or (`null`) that a press elsewhere in it lets go of the box.
+        if (message.rect === null) box.value = null
+        else if (box.value) box.value = { ...box.value, rect: message.rect }
+        return
+      }
       if (message.type === 'cms:builder:entry') {
+        // The entry's own editor takes over: a box over one of its values closes.
+        box.value = null
         if (message.open) {
           window.open(cmsBuilderEntryAddress(message.entity, message.id, !!entities.value[message.entity]?.global), '_blank', 'noopener')
           return
@@ -324,10 +390,27 @@ function createBridge(): CmsBuilder {
  * Provide the bridge as a ref: `null` until `on` is true, then the bridge, created once (it never goes
  * back to `null`). The switch comes with the menu, which may arrive after the editor's setup.
  */
-export function provideCmsBuilder(on: Ref<boolean>): ShallowRef<CmsBuilder | null> {
+export function provideCmsBuilder(on: Ref<boolean>, options: { locale?: Ref<string | null> } = {}): ShallowRef<CmsBuilder | null> {
   const bridge = shallowRef<CmsBuilder | null>(null)
-  watch(on, (value) => { if (value && !bridge.value) bridge.value = createBridge() }, { immediate: true })
+  // Read now, in the editor's setup: the switch (and so the bridge) may come later.
+  const { t, fieldLabel, entityLabel } = useCmsI18n()
+  const { data: graph } = useNuxtData<any[]>('cms-graph')
+  const toast = useToast()
+  const deps: CmsBuilderDeps = {
+    graph, locale: options.locale ?? ref(null), t: t as CmsBuilderDeps['t'], fieldLabel, entityLabel,
+    notify: (title, description) => { toast.add({ title, description, icon: 'i-lucide-lock', color: 'neutral' }) },
+  }
+  watch(on, (value) => { if (value && !bridge.value) bridge.value = createBridge(deps) }, { immediate: true })
   provide(KEY, bridge)
+  // The editor closes (or the page is left): the preview's drafts of the entries changed here are dropped.
+  if (import.meta.client) {
+    const drop = () => bridge.value?.pending.dispose()
+    onMounted(() => window.addEventListener('pagehide', drop))
+    onBeforeUnmount(() => {
+      window.removeEventListener('pagehide', drop)
+      drop()
+    })
+  }
   return bridge
 }
 

@@ -322,10 +322,12 @@ describe('what the admin tells the page', () => {
     const out = cmsBuilderEntities(graph, { entity: (m) => m.label, field: (f) => f.key.toUpperCase() })
     expect(out.notice).toEqual({
       label: 'Oznámení', title: 'title', publish: { field: 'status', published: 'published', date: 'publishedAt' },
-      fields: { title: { kind: 'text', label: 'TITLE' }, body: { kind: 'rich', label: 'BODY' }, photo: { kind: 'picture', label: 'PHOTO' }, author: { kind: 'relation', to: 'x', label: 'AUTHOR' } }, edit: true, create: true,
+      // Since 2g: what a plain text takes, and a choice as a value with its options.
+      fields: { title: { kind: 'text', label: 'TITLE', text: 'line' }, body: { kind: 'rich', label: 'BODY' }, kind: { kind: 'value', value: 'choice', label: 'KIND', options: {} }, photo: { kind: 'picture', label: 'PHOTO' }, author: { kind: 'relation', to: 'x', label: 'AUTHOR' } }, edit: true, create: true,
     })
     expect(out.siteSettings).toMatchObject({ global: true, edit: false, create: false })
-    expect(out.counter).toBeUndefined()
+    // Since 2g a collection of numbers only is described too: a number is found by its form.
+    expect(out.counter!.fields).toEqual({ n: { kind: 'value', value: 'number', label: 'N' } })
     expect(out.locked!.create).toBe(false)
   })
 

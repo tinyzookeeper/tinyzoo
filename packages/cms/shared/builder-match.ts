@@ -40,6 +40,8 @@ export interface CmsMatchField {
   /** For a plain text: one line or several, and its maximum. */
   text?: 'line' | 'lines'
   max?: number
+  /** Since 2g, for a text of an entry: where it is inside the entry, when it is not a field of its own (an item of a list, a group). */
+  at?: string[]
 }
 
 /** A picture field (or a field of an item) and the addresses of its pictures. */

@@ -16,10 +16,15 @@
 // Since 2e a field may be shown by a text node beside other content of its element (`<strong>Title.</strong>
 // text`): its twin is a `<span>` put before it, and the text node is emptied (but for the space after it)
 // until the page has the new text; then it gets its text back, unless the page has drawn a new one.
+//
+// Since 2g the text may be an entry's or a global's (`entry`): it is sent as `cms:builder:entry-text`, with
+// where it is inside the entry, and the page waits for it among the changes the editor holds
+// (`cmsBuilderPending`) before it loads its content anew.
 import { nextTick } from 'vue'
 import { cmsBuilderFieldValue, cmsTextClip, cmsTextOf, type CmsBuilderPath, type CmsBuilderToAdmin } from '../../shared/builder'
 import { cmsMatchOffset } from '../../shared/builder-match'
-import { cmsBuilderDraft, cmsBuilderHold } from './state'
+import { cmsValueAt } from '../../shared/builder-values'
+import { cmsBuilderDraft, cmsBuilderHold, cmsBuilderPending } from './state'
 
 /** A text being typed: the element (or text node), its twin, the field and what was last sent. */
 interface Typing {
@@ -37,6 +42,10 @@ interface Typing {
   style: string | null
   /** For a text node: its text, and the space put before the twin. */
   saved: { text: string; rest: string; lead: Text | null } | null
+  /** Since 2g: the entry or global whose text it is, and where in it; the value it started from; whether it was changed. */
+  entry: { entity: string; id: string; at: string[] } | null
+  initial: string
+  changed: boolean
   off: () => void
   /** Send the value when it changed (`end`: always, and the typing ended). */
   push: (end: boolean) => void
@@ -197,6 +206,8 @@ export interface StartTyping {
   /** The click that started it, for the cursor's place. */
   x: number
   y: number
+  /** Since 2g: the text is an entry's or a global's: which, and where the value is in it. */
+  entry?: { entity: string; id: string; at: string[] }
 }
 
 /** Start typing in a marked element. */
@@ -209,7 +220,10 @@ export function startTyping(o: StartTyping) {
     document.head.appendChild(style)
   }
   const { el } = o
-  const stored = cmsBuilderFieldValue(cmsBuilderDraft.data, o.path, o.field, o.item)
+  // An entry's text: what the editor holds of it and has not saved, else as the page loaded it.
+  const stored = o.entry
+    ? cmsValueAt(cmsBuilderPending.entries.get(`${o.entry.entity}\n${o.entry.id}`), o.entry.at)
+    : cmsBuilderFieldValue(cmsBuilderDraft.data, o.path, o.field, o.item)
   // The field's own value (an empty field is null): from the admin's draft, else as the page drew it (the
   // admin sends its draft only after a first change), and what the element shows only when neither has it.
   const raw = typeof stored === 'string' ? stored : stored === null ? '' : typeof o.drawn === 'string' ? o.drawn : o.drawn === null ? '' : shownText(el)
@@ -279,14 +293,24 @@ export function startTyping(o: StartTyping) {
   caretAt(box, Math.min(at ?? text.length, text.length))
   cmsBuilderHold.count++
 
-  const t: Typing = { el, twin, box, path: o.path, field: o.field, item: o.item, lines: o.lines, max: o.max, last: text, composing: false, style, saved, off: () => {}, push: () => {} }
+  const t: Typing = {
+    el, twin, box, path: o.path, field: o.field, item: o.item, lines: o.lines, max: o.max, last: text, composing: false, style, saved,
+    entry: o.entry ?? null, initial: text, changed: false, off: () => {}, push: () => {},
+  }
   current = t
 
   t.push = (end: boolean) => {
     const value = read(t)
     twin.toggleAttribute('data-cms-empty', !value)
     if (value === t.last && !end) return
+    if (value !== t.last) t.changed = true
     t.last = value
+    if (t.entry) {
+      // Nothing was typed at all: the editor is not asked to load the entry.
+      if (t.changed) post({ type: 'cms:builder:entry-text', entity: t.entry.entity, id: t.entry.id, at: t.entry.at, value, ...(end ? { end: true } : {}) })
+      redraw()
+      return
+    }
     const id = t.path[t.path.length - 1]!
     post({ type: 'cms:builder:text', id, path: t.path, field: t.field, ...(t.item ? { item: t.item } : {}), value, ...(end ? { end: true } : {}) })
     redraw()
@@ -392,6 +416,7 @@ export function endTyping() {
 
 /** Resolves once the admin's draft holds the typed value (or after a while, whatever it holds). */
 function cameBack(t: Typing, value: string): Promise<void> {
+  if (t.entry) return entryCameBack(t, t.entry, value)
   const holds = (data: unknown) => {
     const v = cmsBuilderFieldValue(data, t.path, t.field, t.item)
     return (typeof v === 'string' ? v : v === null || v === undefined ? '' : null) === value
@@ -408,6 +433,34 @@ function cameBack(t: Typing, value: string): Promise<void> {
     if (value === cmsTextClip(String(cmsBuilderFieldValue(cmsBuilderDraft.data, t.path, t.field, t.item) ?? ''), { lines: t.lines, max: t.max }) && !cmsBuilderHold.missed) return finish()
     timer = setTimeout(finish, WAIT)
     cmsBuilderDraft.listeners.add(listener)
+  })
+}
+
+/**
+ * The same for an entry's text: resolves once the changes the editor holds have the typed value (the
+ * preview's draft has it then), or have nothing there when the text is back to what it started from.
+ */
+function entryCameBack(t: Typing, entry: { entity: string; id: string; at: string[] }, value: string): Promise<void> {
+  if (!t.changed) return Promise.resolve()
+  const holds = () => {
+    const v = cmsValueAt(cmsBuilderPending.entries.get(`${entry.entity}\n${entry.id}`), entry.at)
+    // Open in the sheet beside the page: its form has the text, and says when its draft is at the server.
+    const sheet = cmsBuilderPending.sheet
+    if (sheet && sheet.entity === entry.entity && (sheet.id === null || sheet.id === entry.id)) return true
+    return v === undefined ? value === t.initial : (typeof v === 'string' ? v : v === null ? '' : null) === value
+  }
+  return new Promise((done) => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const listener = () => { if (holds()) finish() }
+    function finish() {
+      clearTimeout(timer)
+      cmsBuilderPending.listeners.delete(listener)
+      // What the page shows of the entry is older than what was typed: it loads its content anew.
+      cmsBuilderHold.missed = true
+      done()
+    }
+    timer = setTimeout(finish, WAIT)
+    cmsBuilderPending.listeners.add(listener)
   })
 }
 

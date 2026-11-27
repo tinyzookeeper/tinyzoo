@@ -11,6 +11,13 @@
 // of one id is a block of the page, so the messages of part 1 (an id, no path) stay valid.
 
 import type { CmsBuilderEntity, CmsBuilderSource } from './builder-sources'
+import { isCmsValuePath, type CmsValuePath } from './builder-values'
+
+/** Since 2g: a box in the page's own window, in the pixels the page is laid out in (the admin scales it). */
+export interface CmsBuilderRect { left: number; top: number; width: number; height: number }
+
+/** Since 2g: an entry's (or a global's) fields changed in the page and not saved yet, as the admin holds them. */
+export interface CmsBuilderPending { entity: string; id: string; values: Record<string, unknown> }
 
 /** A block by the ids from the page's list down to it: `[sectionId]`, `[sectionId, groupId, itemId]`. */
 export type CmsBuilderPath = string[]
@@ -44,6 +51,8 @@ export interface CmsBuilderTexts {
   more?: string
   openIn?: string
   untitled?: string
+  /** Since 2g: what the page says while content from elsewhere is typed in ("The change shows everywhere this appears."). */
+  shared?: string
 }
 
 /** One type of block the page may hold in a list: its name, and its own list if it has one. */
@@ -104,6 +113,18 @@ export type CmsBuilderToPage =
    * laid out 1280 px wide shown 768 px wide). The tools keep their size on the screen.
    */
   | { type: 'cms:builder:view'; scale: number }
+  /**
+   * Since 2g: the entries and globals changed in the page that wait in the editor, each with its changed
+   * fields (the preview's draft holds them now, so the page loads its content anew), and those this person
+   * may not change after all (`locked`: the server said so with the row).
+   */
+  | {
+    type: 'cms:builder:pending'; entries: CmsBuilderPending[]; locked?: { entity: string; id: string }[]
+    /** The entry open in the sheet beside the page (`id: null`: a global, or a new entry): its own form holds its changes, and its draft was just sent. */
+    sheet?: { entity: string; id: string | null }
+  }
+  /** Since 2g: the admin closed the box it drew over a value (Escape, a click elsewhere in the admin). */
+  | { type: 'cms:builder:box'; open: false }
 
 /** From the page to the admin. `path`, when given, names a block inside another one; its last id is `id`. */
 export type CmsBuilderToAdmin =
@@ -133,6 +154,19 @@ export type CmsBuilderToAdmin =
    * `field` in view; `open`: open it in its own section instead, in a new tab.
    */
   | { type: 'cms:builder:entry'; entity: string; id: string | null; field?: string; open?: boolean }
+  /**
+   * Since 2g: a plain text of an entry (or a global) typed in the page: the value at `at` (a field, or a
+   * field of an item of a list, the item by its id) is now `value`. `end`: the typing ended.
+   */
+  | { type: 'cms:builder:entry-text'; entity: string; id: string; at: CmsValuePath; value: string; end?: boolean }
+  /**
+   * Since 2g: values of an entry (or a global) that are not typed as page text (a number, a date, a
+   * choice, a rich text, or several values one element shows together) were clicked: the admin draws a box
+   * with their own controls over the preview at `rect`.
+   */
+  | { type: 'cms:builder:value'; entity: string; id: string; values: CmsValuePath[]; rect: CmsBuilderRect }
+  /** Since 2g: the element the box stands at moved (the page scrolled, was laid out anew); `null`: a press elsewhere in the page, the box closes. */
+  | { type: 'cms:builder:anchor'; rect: CmsBuilderRect | null }
 
 const isObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
 const isId = (x: unknown): x is string => typeof x === 'string' && x.length > 0 && x.length <= 200
@@ -166,7 +200,7 @@ export function cmsBuilderPathOf(message: { id: string; path?: CmsBuilderPath })
 }
 
 const TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['drag', 'moveUp', 'moveDown', 'duplicate', 'remove', 'insertHere']
-const MORE_TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['moveLeft', 'moveRight', 'addBlock', 'blank', 'edit', 'more', 'openIn', 'untitled']
+const MORE_TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['moveLeft', 'moveRight', 'addBlock', 'blank', 'edit', 'more', 'openIn', 'untitled', 'shared']
 const KEYS: CmsBuilderKey[] = ['Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
 const isScale = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x >= 0.1 && x <= 4
 
@@ -209,7 +243,20 @@ export function isCmsBuilderToPage(x: unknown): x is CmsBuilderToPage {
   }
   if (x.type === 'cms:builder:key') return KEYS.includes(x.key as CmsBuilderKey)
   if (x.type === 'cms:builder:view') return isScale(x.scale)
+  if (x.type === 'cms:builder:pending') {
+    return Array.isArray(x.entries) && x.entries.length <= 200 && x.entries.every((e) => isObject(e) && isCmsFieldName(e.entity) && isId(e.id) && isObject(e.values) && Object.keys(e.values).every(isCmsFieldName))
+      && (x.locked === undefined || (Array.isArray(x.locked) && x.locked.length <= 200 && x.locked.every((e) => isObject(e) && isCmsFieldName(e.entity) && isId(e.id))))
+      && (x.sheet === undefined || (isObject(x.sheet) && isCmsFieldName(x.sheet.entity) && (x.sheet.id === null || isId(x.sheet.id))))
+  }
+  if (x.type === 'cms:builder:box') return x.open === false
   return false
+}
+
+const isNumber = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= 1e7
+
+/** Since 2g: a box in the page's window. */
+export function isCmsBuilderRect(x: unknown): x is CmsBuilderRect {
+  return isObject(x) && isNumber(x.left) && isNumber(x.top) && isNumber(x.width) && isNumber(x.height) && x.width >= 0 && x.height >= 0
 }
 
 const isLabel = (x: unknown): x is string => typeof x === 'string' && x.length <= 500
@@ -224,8 +271,22 @@ export function isCmsBuilderEntities(x: unknown): x is Record<string, CmsBuilder
       && (e.publish.date === undefined || e.publish.date === null || isCmsFieldName(e.publish.date))))
     && (e.edit === undefined || typeof e.edit === 'boolean') && (e.create === undefined || typeof e.create === 'boolean')
     && isObject(e.fields) && Object.keys(e.fields).length <= 200
-    && Object.entries(e.fields).every(([key, f]) => isCmsFieldName(key) && isObject(f) && (f.kind === 'text' || f.kind === 'rich' || f.kind === 'picture' || (f.kind === 'relation' && isCmsFieldName(f.to)))
-      && (f.label === undefined || isLabel(f.label))))
+    && isEntityFields(e.fields, 3))
+}
+
+const ENTITY_KINDS = new Set(['text', 'rich', 'picture', 'value', 'list', 'group'])
+
+/** A collection's fields as the admin describes them to the page; since 2g with what a value is, and the fields of a list's items and of a group. */
+function isEntityFields(x: unknown, depth: number): boolean {
+  if (!isObject(x) || depth <= 0 || Object.keys(x).length > 200) return false
+  return Object.entries(x).every(([key, f]) => isCmsFieldName(key) && isObject(f) && (ENTITY_KINDS.has(f.kind as string) || (f.kind === 'relation' && isCmsFieldName(f.to)))
+    && (f.label === undefined || isLabel(f.label))
+    && (f.text === undefined || f.text === 'line' || f.text === 'lines')
+    && (f.max === undefined || (typeof f.max === 'number' && Number.isInteger(f.max) && f.max > 0))
+    && (f.value === undefined || f.value === 'number' || f.value === 'date' || f.value === 'choice')
+    && (f.options === undefined || (isObject(f.options) && Object.keys(f.options).length <= 200 && Object.values(f.options).every((names) => Array.isArray(names) && names.length <= 20 && names.every(isLabel))))
+    && (f.locked === undefined || typeof f.locked === 'boolean')
+    && (f.items === undefined || (isObject(f.items) && Object.keys(f.items).length <= 50 && Object.values(f.items).every((inner) => isEntityFields(inner, depth - 1)))))
 }
 
 function isCmsBuilderSource(x: unknown): x is CmsBuilderSource {
@@ -254,6 +315,11 @@ export function isCmsBuilderToAdmin(x: unknown): x is CmsBuilderToAdmin {
     case 'cms:builder:sources': return isId(x.id) && pathOk(x) && Array.isArray(x.sources) && x.sources.length <= 50 && x.sources.every(isCmsBuilderSource)
     case 'cms:builder:entry': return isCmsFieldName(x.entity) && (x.id === null || isId(x.id)) && (x.field === undefined || isCmsFieldName(x.field))
       && (x.open === undefined || typeof x.open === 'boolean')
+    case 'cms:builder:entry-text': return isCmsFieldName(x.entity) && isId(x.id) && isCmsValuePath(x.at) && isCmsFieldName(x.at[0])
+      && typeof x.value === 'string' && x.value.length <= TEXT_MOST && (x.end === undefined || typeof x.end === 'boolean')
+    case 'cms:builder:value': return isCmsFieldName(x.entity) && isId(x.id) && Array.isArray(x.values) && x.values.length >= 1 && x.values.length <= 4
+      && x.values.every((at) => isCmsValuePath(at) && isCmsFieldName(at[0])) && isCmsBuilderRect(x.rect)
+    case 'cms:builder:anchor': return x.rect === null || isCmsBuilderRect(x.rect)
     default: return false
   }
 }

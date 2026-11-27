@@ -706,6 +706,8 @@ html[data-cms-admin] .cms-preview {
   flex-direction: column;
 }
 html[data-cms-admin] .cms-preview--sheet { position: static; height: 100%; }
+/* The editor in the preview: the box over a value is placed in the panel, also in the full-screen sheet. */
+html[data-cms-admin] .cms-preview--sheet.cms-preview--tools { position: relative; }
 html[data-cms-admin] .cms-preview__stage {
   flex: 1;
   min-height: 20rem;

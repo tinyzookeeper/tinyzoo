@@ -41,6 +41,8 @@ export interface BuilderHistory<T> {
   /** End the open typing step: the next change starts a new one. */
   seal: () => void
   clear: () => void
+  /** Since 2g: forget the steps `gone` says (an entry handed to its own editor): they can be neither undone nor done again. */
+  drop: (gone: (step: HistoryStep<T>) => boolean) => void
   readonly canUndo: boolean
   readonly canRedo: boolean
   readonly size: number
@@ -92,6 +94,11 @@ export function createBuilderHistory<T>(options: HistoryOptions = {}): BuilderHi
     clear() {
       done = []
       undone = []
+    },
+    drop(gone) {
+      done = done.filter((s) => !gone(s))
+      undone = undone.filter((s) => !gone(s))
+      open = false
     },
     get canUndo() {
       return done.length > 0

@@ -1,5 +1,5 @@
 import type { ComputedRef, Ref } from 'vue'
-import type { CmsEmbedMessage } from '../../shared/builder-sources'
+import { isCmsEmbedSet, type CmsEmbedMessage } from '../../shared/builder-sources'
 
 // The editor in the preview (experimental, NUXT_CMS_BUILDER=on), since 2f: an entry of a collection, or a
 // global, edited beside the page. The sheet beside the page (CmsBuilderEntrySheet) shows the entry's own
@@ -8,6 +8,11 @@ import type { CmsEmbedMessage } from '../../shared/builder-sources'
 // how it is (unsaved changes, saved) and hands what is typed to the page's preview at once, through the
 // draft the preview reads (POST /api/cms/_preview, per entry: the page's own draft stays as it is).
 // Only with the switch on: without it `?embed=builder` is an address like any other.
+//
+// Since 2g the sheet hands values into the form (`cms:entry:set`): the changes made to this entry in the
+// page before the sheet opened, and those made in the page while it is open. The form holds them from then
+// on, as if typed in it. And the sheet stays the entry's: a link to another admin page opens in a new tab,
+// a change of the address on the same page (another language) keeps `?embed=builder`.
 
 /** Whether this editor is shown in the sheet beside the page. */
 export function useCmsEmbedded(): ComputedRef<boolean> {
@@ -33,8 +38,24 @@ export function useCmsEmbeddedEditor(o: {
   version: Ref<string | null>
   title: Ref<string>
   focus: (key: string) => void
+  /** Since 2g: put a value into the form at a path (a field, or a field of an item of a list), as an edit of this form. */
+  apply?: (at: string[], value: unknown) => void
 }): { saved: (id: string) => void } {
   const route = useRoute()
+  const router = useRouter()
+  // Leaving the entry's own page inside the sheet would show the whole admin in it: another page opens in a
+  // new tab, the same page with another query stays here, still as the sheet's editor.
+  const stopGuard = router.beforeEach((to, from) => {
+    if (!o.embedded.value || to.query.embed === 'builder') return true
+    if (to.path === from.path) return { path: to.path, query: { ...to.query, embed: 'builder' }, hash: to.hash }
+    if (import.meta.client) window.open(router.resolve(to).href, '_blank', 'noopener')
+    return false
+  })
+  onBeforeUnmount(() => stopGuard())
+  function onSet(e: MessageEvent) {
+    if (e.origin !== location.origin || e.source !== window.parent || !isCmsEmbedSet(e.data)) return
+    for (const set of e.data.sets) o.apply?.(set.at, set.value)
+  }
   const inSheet = () => import.meta.client && o.embedded.value && window.parent !== window
   const post = (message: CmsEmbedMessage) => { if (inSheet()) window.parent.postMessage(message, location.origin) }
   let last = ''
@@ -68,6 +89,7 @@ export function useCmsEmbeddedEditor(o: {
       timer = setTimeout(() => { void sendDraft() }, 250)
     }, { deep: true })
     window.addEventListener('pagehide', clearDraft)
+    window.addEventListener('message', onSet)
     const field = typeof route.query.field === 'string' ? route.query.field : null
     if (field) setTimeout(() => o.focus(field), 150)
   })
@@ -75,6 +97,7 @@ export function useCmsEmbeddedEditor(o: {
     clearTimeout(timer)
     if (!inSheet()) return
     window.removeEventListener('pagehide', clearDraft)
+    window.removeEventListener('message', onSet)
     clearDraft()
   })
   return { saved: (id) => post({ type: 'cms:entry:saved', entity: o.entity.value, id }) }
