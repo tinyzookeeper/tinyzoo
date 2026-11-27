@@ -1,15 +1,21 @@
 import { setAdminTimeZone } from '../runtime'
 import { forgetEntryPaths, forgetSettings } from './context'
 import { flushViews, forgetConsentId } from './ingest'
+import { countRobotPage, flushRobots } from './robots'
 
 // The analytics plugin's Nitro plugin: the time zone days are counted in, what waits written
-// when the server stops, what is kept in memory forgotten when content changes, and the consent
-// id of a visitor who takes statistics back removed from their views.
+// when the server stops, the pages robots load, what is kept in memory forgotten when content
+// changes, and the consent id of a visitor who takes statistics back removed from their views.
 export default defineNitroPlugin((nitroApp) => {
   setAdminTimeZone((useAppConfig() as any)?.cms?.admin?.timeZone)
   nitroApp.hooks.hook('close', async () => {
     // Single mode: the one buffer. Multi mode: no current site here, so every site's buffer.
     await flushViews()
+    await flushRobots()
+  })
+  // The pages robots load, counted after the response is sent (robots.ts): it never slows a page.
+  nitroApp.hooks.hook('afterResponse', async (event: any) => {
+    await countRobotPage(event).catch((err) => console.error('[cms] analytics: could not count a robot', scrubError(err)))
   })
   nitroApp.hooks.hook('cms:change', (change: any) => {
     // The hook runs inside the site whose content changed; outside a site there is nothing to forget.

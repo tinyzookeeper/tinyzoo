@@ -1,5 +1,6 @@
-import { and, eq, gte, inArray, lt, sql, type SQL } from 'drizzle-orm'
+import { and, eq, gte, inArray, lt, ne, sql, type SQL } from 'drizzle-orm'
 import type { CmsRetentionContext } from '../src/plugin'
+import { ROBOT_DIMENSION } from './core/robots'
 import { rollupDay } from './core/rollup'
 import { addDays, eachDay } from './core/range'
 import { localDay } from './core/visitor'
@@ -24,7 +25,10 @@ export const SALT_KEY = 'analytics:salt'
 
 const INSERT_CHUNK = 500
 
-/** Write the totals of each day, replacing what the day had: running a day again gives the same rows. */
+/**
+ * Write the totals of each day, replacing what the day had: running a day again gives the same rows.
+ * The robots' rows of the day stay: they are counted as robots come (server/robots.ts), not from views.
+ */
 export async function rollupDays(db: any, days: readonly string[], tz: string): Promise<void> {
   const e = analyticsEvents
   for (const day of days) {
@@ -35,7 +39,7 @@ export async function rollupDays(db: any, days: readonly string[], tz: string): 
       engagedMs: e.engagedMs,
     }).from(e).where(and(gte(e.at, dayStart(day, tz)), lt(e.at, dayStart(addDays(day, 1), tz))))
     const rows = rollupDay(views)
-    await db.delete(analyticsDaily).where(eq(analyticsDaily.day, day))
+    await db.delete(analyticsDaily).where(and(eq(analyticsDaily.day, day), ne(analyticsDaily.dimension, ROBOT_DIMENSION)))
     for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
       await db.insert(analyticsDaily).values(rows.slice(i, i + INSERT_CHUNK).map((r) => ({ day, ...r })))
     }

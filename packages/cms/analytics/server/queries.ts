@@ -1,6 +1,7 @@
 import { and, eq, gte, inArray, isNotNull, lt, sql, type SQL } from 'drizzle-orm'
 import type { Dimension, Filter } from '../core/dimensions'
 import { addDays, type DayRange, seriesKeys, splitByCutoff } from '../core/range'
+import { ROBOT_DIMENSION, robotReport, type RobotReport } from '../core/robots'
 import { addTotals, emptyTotals, type Totals } from '../core/rollup'
 import { dayStart } from '../rollup'
 import { analyticsDaily, analyticsEvents } from '../tables'
@@ -221,4 +222,11 @@ export async function addTitles(db: any, items: { entity?: string; id?: string; 
 export async function activeNow(db: any): Promise<number> {
   const [row]: any[] = await db.select({ n: sql<number>`count(distinct ${e.visitor})::int` }).from(e).where(sql`${e.at} > now() - interval '5 minutes'`)
   return Number(row?.n ?? 0)
+}
+
+/** The pages robots loaded in the range, by robot (rows of `analytics_daily`, dimension `robot`; no filters apply). */
+export async function robotsOf(db: any, r: DayRange): Promise<RobotReport> {
+  const rows: any[] = await db.select({ value: d.value, pageviews: sql<number>`sum(${d.pageviews})::int` })
+    .from(d).where(rolledWhere(r, ROBOT_DIMENSION)).groupBy(d.value)
+  return robotReport(rows)
 }

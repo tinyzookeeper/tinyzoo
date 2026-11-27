@@ -3,6 +3,7 @@
 // Each row is the label and its number, with a thin bar under them on a light track, and a
 // little room between rows. Clicking a row filters the whole page by it; a page that is an entry
 // also links to its editor. A page's address shows under its title only when `paths` is on.
+// A list that filters nothing (`selectable: false`, the robots) has plain rows.
 import { compactNumber } from '../app/format'
 import type { BarItem } from '../app/types'
 
@@ -10,14 +11,18 @@ const props = withDefaults(defineProps<{
   items: BarItem[]
   locale: string
   empty: string
-  filterLabel: (label: string) => string
+  filterLabel?: (label: string) => string
   openLabel?: string
   moreLabel: (count: number) => string
   lessLabel: string
   rows?: number
   /** Show a page's address under its title (the detailed view). */
   paths?: boolean
-}>(), { rows: 8, paths: false })
+  /** Rows filter the page when clicked (off: plain rows). */
+  selectable?: boolean
+  /** The second line is an address, in the code font (off: plain text, the robots' groups). */
+  monoSub?: boolean
+}>(), { rows: 8, paths: false, selectable: true, monoSub: true })
 const emit = defineEmits<{ select: [key: string] }>()
 
 const all = ref(false)
@@ -30,19 +35,20 @@ const max = computed(() => Math.max(1, ...props.items.map((i) => i.value)))
     <p v-if="!items.length" class="py-6 text-center text-sm text-muted">{{ empty }}</p>
     <ul v-else class="an-list">
       <li v-for="item in shown" :key="item.key" class="an-row group relative">
-        <button
-          type="button" class="an-pick cms-dense min-w-0 text-left text-sm"
-          :title="item.detail" :aria-label="filterLabel(item.label)" @click="emit('select', item.key)"
+        <component
+          :is="selectable ? 'button' : 'div'" class="an-pick cms-dense min-w-0 text-left text-sm" :title="item.detail"
+          v-bind="selectable ? { type: 'button', 'aria-label': filterLabel?.(item.label) ?? item.label } : {}"
+          @click="selectable && emit('select', item.key)"
         >
           <span class="an-pick__text">
             <span v-if="item.prefix" class="shrink-0" aria-hidden="true">{{ item.prefix }}</span>
             <span class="min-w-0">
               <span class="block truncate text-highlighted">{{ item.label }}</span>
-              <span v-if="paths && item.sub" class="block truncate font-mono text-xs text-muted">{{ item.sub }}</span>
+              <span v-if="paths && item.sub" class="block truncate text-xs text-muted" :class="monoSub ? 'font-mono' : ''">{{ item.sub }}</span>
             </span>
           </span>
           <span class="an-track" aria-hidden="true"><span class="an-bar" :style="{ width: `${Math.max(1.5, (item.value / max) * 100)}%` }" /></span>
-        </button>
+        </component>
         <UButton
           v-if="item.to" :to="item.to" size="xs" variant="ghost" color="neutral" icon="i-lucide-pencil-line"
           class="an-open shrink-0 opacity-70 group-hover:opacity-100 focus-visible:opacity-100" :aria-label="`${openLabel}: ${item.label}`" :title="openLabel"
@@ -69,7 +75,7 @@ const max = computed(() => Math.max(1, ...props.items.map((i) => i.value)))
   border-radius: calc(var(--ui-radius) * 1.25);
   transition: background-color 0.15s ease;
 }
-.an-row:hover,
+.an-row:has(button):hover,
 .an-row:focus-within { background: var(--ui-bg-muted); }
 .an-pick {
   flex: 1;

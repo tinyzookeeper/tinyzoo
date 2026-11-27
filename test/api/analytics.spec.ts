@@ -112,6 +112,66 @@ describe('collecting', () => {
   })
 })
 
+describe('robots', () => {
+  const CLAUDE_USER = 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-User/1.0; +Claude-User@anthropic.com)'
+  const GOOGLEBOT = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+  const page = (path: string, ua: string) => anonymous().request('GET', path, { headers: { accept: 'text/html', 'user-agent': ua } })
+  async function robotRows(min = 1, timeoutMs = 4000): Promise<any[]> {
+    const until = Date.now() + timeoutMs
+    for (;;) {
+      const { rows } = await db.query(`select value, pageviews from analytics_daily where dimension = 'robot' order by value`)
+      if (rows.reduce((n: number, r: any) => n + r.pageviews, 0) >= min || Date.now() > until) return rows
+      await new Promise((r) => setTimeout(r, 50))
+    }
+  }
+
+  it('counts the pages robots load by name, never a person\'s, an API answer or the admin', async () => {
+    expect((await page('/', CLAUDE_USER)).status).toBe(200)
+    await page('/kontakt', CLAUDE_USER)
+    await page('/', GOOGLEBOT)
+    await page('/', CHROME)
+    await page('/admin', GOOGLEBOT)
+    await anonymous().request('GET', '/api/content/post', { headers: { 'user-agent': GOOGLEBOT } })
+    await page('/no-such-page-here', GOOGLEBOT)
+    expect(await robotRows(3)).toEqual([
+      { value: 'assistant:Claude', pageviews: 2 },
+      { value: 'search:Google', pageviews: 1 },
+    ])
+    await settle()
+    expect(await rows(1, 300)).toEqual([])
+
+    const { body } = await admin.get('/api/cms/_p/analytics/stats?period=today')
+    expect(body.robots.groups).toEqual({ assistant: 2, ai: 0, search: 1, other: 0 })
+    expect(body.robots.items[0]).toEqual({ group: 'assistant', name: 'Claude', pages: 2 })
+    // Robots have no page or source to filter by: no robots with a filter, rather than numbers that ignore it.
+    expect((await admin.get('/api/cms/_p/analytics/stats?period=today&f.source=Google')).body.robots).toBeNull()
+  })
+
+  it('counts nothing while an administrator has switched counting off', async () => {
+    expect((await admin.put('/api/cms/_singleton/analytics_settings', { collect: false })).status).toBe(200)
+    await page('/', CLAUDE_USER)
+    await settle()
+    expect(await robotRows(1, 300)).toEqual([])
+  })
+
+  it('keeps the robots of a day when the night makes its totals', async () => {
+    const { rows: [{ day }] } = await db.query(`select ((now() - interval '100 days') at time zone 'Europe/Prague')::date::text as day`)
+    await db.query(`insert into analytics_daily (day, dimension, value, pageviews) values ($1, 'robot', 'assistant:ChatGPT', 7)`, [day])
+    await db.query(`insert into analytics_events (at, path, visitor, session, view, is_entry, source) values (now() - interval '100 days', '/', 'v1', 's1', 'x1', true, 'Direct')`)
+    const until = Date.now() + 15_000
+    for (;;) {
+      const { rows: left } = await db.query('select count(*)::int as n from analytics_events')
+      if (left[0].n === 0 || Date.now() > until) break
+      await new Promise((r) => setTimeout(r, 200))
+    }
+    const { rows: kept } = await db.query(`select dimension, value, pageviews from analytics_daily where day = $1 and dimension in ('total', 'robot') order by dimension`, [day])
+    expect(kept).toEqual([
+      { dimension: 'robot', value: 'assistant:ChatGPT', pageviews: 7 },
+      { dimension: 'total', value: '', pageviews: 1 },
+    ])
+  })
+})
+
 describe('the reports', () => {
   it('headline numbers, the chart and the lists; entries by their title', async () => {
     const a = await createAuthor(admin)
