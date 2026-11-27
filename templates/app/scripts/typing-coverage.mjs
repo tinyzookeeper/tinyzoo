@@ -23,8 +23,12 @@
 // `date` (a date or a time), `number`, `derived` (made from a value: shortened, joined, put in a sentence),
 // `form` (a part of a form: a label, a button, an option) and `word` (a look's own word).
 //
+// Since part 2g a text of an entry or a global may be found by a form of a value that is no text (a number
+// with its unit, a date as the page writes it, a choice by its name) or as several values in a row (the
+// "from" and the "to" of one row): these are counted apart (`by form`), within `entry` and `global`.
+//
 // Writes <out>/report.json (every look, page, block and miss) and prints a line per look and the totals
-// per template. `--prefix` must start with `tzx_`: the databases it names are dropped at the end, unless
+// per template. `--prefix` must start with `tzx_` (or another `tz…_` of the run's own): the databases it names are dropped at the end, unless
 // `--keep`. `--seeded` takes the sites of a run kept before (its data folder's sites.json) as they are,
 // without making or seeding them again. `--port` defaults to the first free from 4900.
 import { createRequire } from 'node:module'
@@ -108,12 +112,14 @@ function tally(blocks) {
 
 /** Totals of the visible texts of a page's blocks: what they resolve to, and the kinds of the rest. */
 function tallyTexts(blocks) {
-  const t = { pieces: 0, own: 0, entry: 0, global: 0, none: 0, rest: {} }
+  const t = { pieces: 0, own: 0, entry: 0, global: 0, none: 0, entryByForm: 0, globalByForm: 0, rest: {} }
   for (const b of blocks ?? []) {
     for (const p of b.pieces) {
       t.pieces++
       t[p.res]++
       if (p.res === 'none') t.rest[p.rest] = (t.rest[p.rest] ?? 0) + 1
+      // Found by a form of a value, or as values in a row (since 2g).
+      if (p.by === 'value' && (p.res === 'entry' || p.res === 'global')) t[`${p.res}ByForm`]++
     }
   }
   return t
@@ -126,7 +132,7 @@ function addTexts(into, t) {
   }
 }
 
-const textsLine = (t) => `visible texts ${t.pieces}: own ${t.own}, entry ${t.entry}, global ${t.global} (resolved ${t.own + t.entry + t.global}, ${pct(t.own + t.entry + t.global, t.pieces)}), none ${t.none}${Object.keys(t.rest).length ? ` (${Object.entries(t.rest).sort((a, b) => b[1] - a[1]).map(([r, n]) => `${r} ${n}`).join(', ')})` : ''}`
+const textsLine = (t) => `visible texts ${t.pieces}: own ${t.own}, entry ${t.entry}, global ${t.global}, of them by form ${(t.entryByForm ?? 0) + (t.globalByForm ?? 0)} (resolved ${t.own + t.entry + t.global}, ${pct(t.own + t.entry + t.global, t.pieces)}), none ${t.none}${Object.keys(t.rest).length ? ` (${Object.entries(t.rest).sort((a, b) => b[1] - a[1]).map(([r, n]) => `${r} ${n}`).join(', ')})` : ''}`
 
 function add(into, t) {
   for (const [k, v] of Object.entries(t)) {
@@ -147,8 +153,8 @@ async function main() {
     console.error('usage: typing-coverage.mjs --entry <server> --out <folder> --pg <postgres url> --prefix tzx_ [--templates a,b] [--keep] [--seeded] [--port <n>]')
     process.exit(2)
   }
-  if (!prefix.startsWith('tzx_')) {
-    console.error(`--prefix must start with tzx_ (the databases it names are dropped): ${prefix}`)
+  if (!/^tz[a-z0-9]+_/.test(prefix)) {
+    console.error(`--prefix must start with tzx_ or another tz…_ of its own (the databases it names are dropped): ${prefix}`)
     process.exit(2)
   }
   const keep = arg('keep', false) === true

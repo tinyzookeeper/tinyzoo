@@ -245,6 +245,8 @@ export function createCmsPending(deps: CmsPendingDeps): CmsBuilderPendingStore {
     const failed: CmsPendingEntry[] = []
     if (!entries.value.length) return { saved, failed }
     saving.value = true
+    // A draft on its way is let through first, so none of them arrives after its entry was saved.
+    await sending.catch(() => {})
     try {
       for (const entry of entries.value) {
         const key = keyOf(entry.entity, entry.id)
