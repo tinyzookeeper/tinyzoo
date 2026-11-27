@@ -900,6 +900,8 @@ export default {
     unboundShort: { one: '{count} not bound', other: '{count} not bound' },
     quietLine: 'List from a content type · the card repeats {count}×',
     quietNone: 'List from a content type · no entry yet',
+    quietLineOf: '{label} · the card repeats {count}×',
+    quietNoneOf: '{label} · no entry yet',
     noEntries: '{type} has no entry yet. The card shows the names of the fields. The section will not show on the website.',
     addFirst: 'Add the first entry',
   },
@@ -913,6 +915,8 @@ export default {
     hint: 'You can also select a section by clicking it in the preview.',
     toFix: { one: '{count} to fix', other: '{count} to fix' },
     blank: 'Nothing to show yet',
+    sheetPage: 'Page sections',
+    sheetSections: { one: '{count} section · tap one in the preview', other: '{count} sections · tap one in the preview' },
   },
   builderCard: {
     chooseField: 'Choose a field',

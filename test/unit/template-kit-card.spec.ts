@@ -3,7 +3,7 @@ import { customFieldKind } from 'tinyzoo'
 import type { CustomFieldKind } from 'tinyzoo'
 import type { CustomType, CustomTypeField } from '../../templates/kit/app/utils/customTypes'
 import {
-  CARD_GROUP_MAX, CARD_MAX, CARD_TAKES, cardDate, cardEntries, cardFieldKind, cardHref, cardItems, cardLinkOf, cardListClasses, cardListPlan, cardMailto,
+  CARD_GROUP_MAX, CARD_MAX, CARD_TAKES, cardDate, cardEntries, cardFieldKind, cardsHaveSide, cardHref, cardItems, cardLinkOf, cardListClasses, cardListPlan, cardMailto,
   cardMedia, cardNumber, cardPageHref, cardRich, cardSource, cardText, cardTried, type CardBlockType, type CardListPlan,
 } from '../../templates/kit/app/utils/card'
 
@@ -271,6 +271,32 @@ describe('the list plan', () => {
     expect(cardListClasses(plan([]))).toEqual(['kit-cards', 'kit-cards-cards', 'kit-cards-cols-3', 'kit-cards-gap-medium', 'kit-cards-soft'])
     expect(cardListClasses(plan([], { arrangement: 'rows', columns: '2', space: 'small', surface: 'none' })))
       .toEqual(['kit-cards', 'kit-cards-rows', 'kit-cards-cols-2', 'kit-cards-gap-small', 'kit-cards-none'])
+  })
+
+  it('adds kit-cards-sided to rows where any card has a side picture, and only then', () => {
+    const rows = plan([], { arrangement: 'rows' })
+    const withPic = { items: [{ id: 'p', type: 'picture', image: null, shape: 'landscape', ratio: null, side: true }] } as any
+    const without = { items: [{ id: 'h', type: 'heading' }] } as any
+    expect(cardsHaveSide([without, withPic])).toBe(true)
+    expect(cardsHaveSide([without])).toBe(false)
+    expect(cardsHaveSide([])).toBe(false)
+    expect(cardsHaveSide(null)).toBe(false)
+    expect(cardListClasses(rows, [without, withPic])).toContain('kit-cards-sided')
+    expect(cardListClasses(rows, [without])).not.toContain('kit-cards-sided')
+    expect(cardListClasses(rows)).not.toContain('kit-cards-sided')
+    expect(cardListClasses(plan([], { arrangement: 'cards' }), [withPic])).not.toContain('kit-cards-sided')
+  })
+
+  it('finds the side picture of the cards drawn: an entry with no picture value has none, a placeholder picture counts', () => {
+    const design = [picture({ field: 'cover' }), heading({ field: 'name' })]
+    const p = cardListPlan({ source: { type: 'custom_course' }, items: design }, types, 'cs')
+    if (!p.ok) throw new Error(p.reason)
+    expect(cardsHaveSide(cardEntries(p, [entry(), entry({ cover: null })], { lang: 'cs' }))).toBe(true)
+    expect(cardsHaveSide(cardEntries(p, [entry({ cover: null })], { lang: 'cs' }))).toBe(false)
+    const ph = cardListPlan({ source: { type: 'custom_course' }, items: [picture({}), heading({ field: 'name' })] }, types, 'cs')
+    if (!ph.ok) throw new Error(ph.reason)
+    expect(cardsHaveSide(cardEntries(ph, [entry()], { lang: 'cs', editing: true }))).toBe(true)
+    expect(cardsHaveSide(cardEntries(ph, [entry()], { lang: 'cs' }))).toBe(false)
   })
 })
 

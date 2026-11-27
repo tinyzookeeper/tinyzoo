@@ -246,3 +246,80 @@ export function innerArea(b: Box, min = 24): Box {
   const iy = Math.max((b.bottom - b.top) * 0.3, Math.min(min, (b.bottom - b.top) / 4))
   return { left: b.left + ix, top: b.top + iy, right: b.right - ix, bottom: b.bottom - iy }
 }
+
+// ── since 3e: the phone-sized admin's sheet covers the bottom of the frame ──
+
+/**
+ * The bottom of what the person sees (px, as `height` is): the frame's height less what the admin covers
+ * (`inset`, in the same unit), but never above `min` px under a header that stays at the top, so a sheet
+ * taller than the frame cannot leave the tools no room at all.
+ */
+export function visibleBottom(height: number, inset: number, sticky: number, min = 48): number {
+  if (inset <= 0) return height
+  return Math.min(height, Math.max(height - inset, sticky + min))
+}
+
+/**
+ * Where the window must scroll (px) to bring a block into the room between `top` (the bottom of a header that
+ * stays at the top) and `bottom` (the visible bottom): a block that fits is centred in the room, a taller one
+ * gets its top 24 px under `top`. `rect` is the block's box in the viewport.
+ */
+export function scrollTargetFor(rect: { top: number; bottom: number }, scrollY: number, top: number, bottom: number): number {
+  const room = bottom - top
+  const height = rect.bottom - rect.top
+  const at = height < room ? rect.top + scrollY - top - (room - height) / 2 : rect.top + scrollY - top - 24
+  return Math.max(0, at)
+}
+
+/**
+ * How far to scroll so a block is in sight between `top` + `margin` and `bottom` - `margin`: the new scroll
+ * position, or `null` when it is in sight already (or the scroll would not move: a block too tall to show whole).
+ */
+export function scrollToShow(rect: { top: number; bottom: number }, scrollY: number, top: number, bottom: number, margin = 16): number | null {
+  if (rect.top >= top + margin && rect.bottom <= bottom - margin) return null
+  const at = scrollTargetFor(rect, scrollY, top, bottom)
+  return Math.abs(at - scrollY) < 1 ? null : at
+}
+
+// ── taps: pressing twice, whatever the browser says `detail` is ──
+
+/** A press on the page (or the tools): when and where (screen px), how many in a row, and whether the first of them was on the tools. */
+export interface PressRecord { at: number; x: number; y: number; count: number; inside: boolean }
+
+/**
+ * The record after a press: it continues the row of the one before when it comes within `ms` and `px` of it
+ * (`px` Infinity: by time alone), else it starts a new one. `inside` stays that of the row's first press.
+ */
+export function nextPress(prev: PressRecord | null, now: { at: number; x: number; y: number; inside: boolean }, o: { ms?: number; px?: number } = {}): PressRecord {
+  const { ms = 400, px = 24 } = o
+  const again = !!prev && now.at - prev.at <= ms && Math.hypot(now.x - prev.x, now.y - prev.y) <= px
+  return { at: now.at, x: now.x, y: now.y, count: again ? prev!.count + 1 : 1, inside: again ? prev!.inside : now.inside }
+}
+
+/**
+ * How many presses in a row a mouse event is: the browser's `detail`, or, when it says less (a touch's
+ * synthesized mouse event often says 1 or 0), the count of the touch presses just before it (`fresh`: how
+ * long ago the last of them was at most, ms).
+ */
+export function pressCount(detail: number, touch: PressRecord | null, now: number, fresh = 1000): number {
+  if (touch && now - touch.at <= fresh && touch.count > detail) return touch.count
+  return detail
+}
+
+/** The text on a page, as boxes, with what a toolbar costs over each: the block's own 4, the rest of its card 3, any other 1. */
+export function weighCovers(own: readonly Box[], other: readonly Box[], card: Box | null): { box: Box; weight: number }[] {
+  const inCard = (b: Box) => !!card && b.left >= card.left - 1 && b.right <= card.right + 1 && b.top >= card.top - 1 && b.bottom <= card.bottom + 1
+  return [...own.map((box) => ({ box, weight: 4 })), ...other.map((box) => ({ box, weight: inCard(box) ? 3 : 1 }))]
+}
+
+/**
+ * Where the toolbar of a block of a card's design may stand besides near the block: inside the card's top
+ * edge (left, right), when the card is tall enough, and just below the card.
+ */
+export function cardPlaces(card: Box, w: number, h: number, gap: number, clampX: (x: number) => number): { left: number; top: number }[] {
+  const tall = card.bottom - card.top >= h * 2 + gap * 2
+  return [
+    ...(tall ? [{ left: clampX(card.left + gap), top: card.top + gap }, { left: clampX(card.right - w - gap), top: card.top + gap }] : []),
+    { left: clampX(card.left), top: card.bottom + gap },
+  ]
+}

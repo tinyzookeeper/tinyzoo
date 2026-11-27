@@ -17,6 +17,9 @@
 // text`): its twin is a `<span>` put before it, and the text node is emptied (but for the space after it)
 // until the page has the new text; then it gets its text back, unless the page has drawn a new one.
 //
+// Since 3e the admin hears when a text starts and stops being typed (`cms:builder:typing`): the phone-sized
+// admin's sheet steps aside for the keyboard meanwhile.
+//
 // Since 2g the text may be an entry's or a global's (`entry`): it is sent as `cms:builder:entry-text`, with
 // where it is inside the entry, and the page waits for it among the changes the editor holds
 // (`cmsBuilderPending`) before it loads its content anew.
@@ -70,6 +73,14 @@ const WAIT = 2500
 export function setupTyping(send: (message: CmsBuilderToAdmin) => void, schedule: () => void) {
   post = send
   redraw = schedule
+}
+
+/** Since 3e: whether the admin was told a text is being typed (once on, once off, never two of a kind in a row). */
+let announced = false
+function announce(on: boolean) {
+  if (announced === on) return
+  announced = on
+  post({ type: 'cms:builder:typing', on })
 }
 
 /** The twin being typed in, if any. */
@@ -212,7 +223,8 @@ export interface StartTyping {
 
 /** Start typing in a marked element. */
 export function startTyping(o: StartTyping) {
-  endTyping()
+  // Another text typed straight after one: the typing never stopped, the admin hears nothing between.
+  endTyping(true)
   if (!document.getElementById(STYLE_ID)) {
     const style = document.createElement('style')
     style.id = STYLE_ID
@@ -290,7 +302,21 @@ export function startTyping(o: StartTyping) {
     element.setAttribute('data-cms-hidden', '')
   }
   twin.focus({ preventScroll: true })
-  caretAt(box, Math.min(at ?? text.length, text.length))
+  const placed = Math.min(at ?? text.length, text.length)
+  caretAt(box, placed)
+  // A double tap on a touch screen selects the word under the finger after the cursor was put there (a touch's
+  // press is not one the page can prevent), and the first letter typed would replace it. For a moment a selection
+  // nobody made with the keys goes back to the cursor (since 3e).
+  const keepUntil = performance.now() + 700
+  const keepCaret = () => {
+    const sel = document.getSelection()
+    if (performance.now() > keepUntil) document.removeEventListener('selectionchange', keepCaret)
+    else if (sel && !sel.isCollapsed && sel.anchorNode && twin.contains(sel.anchorNode)) caretAt(box, placed)
+  }
+  const stopKeeping = () => document.removeEventListener('selectionchange', keepCaret)
+  document.addEventListener('selectionchange', keepCaret)
+  twin.addEventListener('keydown', stopKeeping, { once: true })
+  setTimeout(stopKeeping, 800)
   cmsBuilderHold.count++
 
   const t: Typing = {
@@ -298,6 +324,7 @@ export function startTyping(o: StartTyping) {
     entry: o.entry ?? null, initial: text, changed: false, off: () => {}, push: () => {},
   }
   current = t
+  announce(true)
 
   t.push = (end: boolean) => {
     const value = read(t)
@@ -394,7 +421,7 @@ export function startTyping(o: StartTyping) {
 }
 
 /** End the typing (Enter in a field of one line, Escape, a click elsewhere, the page losing focus): the text stays. */
-export function endTyping() {
+export function endTyping(next = false) {
   const t = current
   if (!t) return
   current = null
@@ -407,6 +434,8 @@ export function endTyping() {
   const selection = getSelection()
   if (selection?.rangeCount && t.twin.contains(selection.getRangeAt(0).commonAncestorContainer)) selection.removeAllRanges()
   ended.push({ el: t.el, twin: t.twin, style: t.style, saved: t.saved })
+  // After the last value, so the admin has the text before it hears the typing is over (`next`: another one starts).
+  if (!next) announce(false)
   void cameBack(t, value).then(() => {
     cmsBuilderHold.count = Math.max(0, cmsBuilderHold.count - 1)
     return release()

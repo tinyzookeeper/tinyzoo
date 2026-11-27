@@ -549,7 +549,18 @@ export function cardEntries(plan: Extract<CardListPlan, { ok: true }>, entries: 
   return out
 }
 
-/** The classes of the list of cards: how they stand, how many side by side at most, the space, the surface. */
-export function cardListClasses(plan: Pick<Extract<CardListPlan, { ok: true }>, 'arrangement' | 'columns' | 'space' | 'surface'>): string[] {
-  return ['kit-cards', `kit-cards-${plan.arrangement}`, `kit-cards-cols-${plan.columns}`, `kit-cards-gap-${plan.space}`, `kit-cards-${plan.surface}`]
+/** Whether any card of the list has a picture at the side of its row (a placeholder picture counts). */
+export function cardsHaveSide(cards: Pick<CardEntry, 'items'>[] | null | undefined): boolean {
+  return Array.isArray(cards) && cards.some((c) => c.items.some((x) => x.type === 'picture' && x.side))
+}
+
+/**
+ * The classes of the list of cards: how they stand, how many side by side at most, the space, the surface.
+ * Given the cards, rows with a side picture on any of them also get `kit-cards-sided`: the cards without
+ * one keep that column empty, so every row's texts start at the same place.
+ */
+export function cardListClasses(plan: Pick<Extract<CardListPlan, { ok: true }>, 'arrangement' | 'columns' | 'space' | 'surface'>, cards?: Pick<CardEntry, 'items'>[] | null): string[] {
+  const classes = ['kit-cards', `kit-cards-${plan.arrangement}`, `kit-cards-cols-${plan.columns}`, `kit-cards-gap-${plan.space}`, `kit-cards-${plan.surface}`]
+  if (plan.arrangement === 'rows' && cardsHaveSide(cards)) classes.push('kit-cards-sided')
+  return classes
 }

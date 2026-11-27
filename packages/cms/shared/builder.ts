@@ -149,6 +149,8 @@ export type CmsBuilderToPage =
    */
   | {
     type: 'cms:builder:on'; labels: Record<string, string>; texts: CmsBuilderTexts; selected: string | null; selectedPath?: CmsBuilderPath | null; lists?: CmsBuilderListKinds; scale?: number
+    /** Since 3e: as in `cms:builder:view`. */
+    bottom?: number
     /** Since 2f: the collections and globals the person may read, for content a block draws from them, and the entry being edited (its blocks are its own). */
     entities?: Record<string, CmsBuilderEntity>
     self?: { entity: string; id: string } | null
@@ -161,7 +163,15 @@ export type CmsBuilderToPage =
    * Since 2c: how much smaller the admin draws the page than it lays it out (1: as large; 0.6: a page
    * laid out 1280 px wide shown 768 px wide). The tools keep their size on the screen.
    */
-  | { type: 'cms:builder:view'; scale: number }
+  | {
+    type: 'cms:builder:view'; scale: number
+    /**
+     * Since 3e: how many screen pixels at the bottom of the frame the admin covers (the phone-sized admin's
+     * sheet; 0 or none: nothing). The page keeps the selected block and its tools above that edge, and brings
+     * the selected block into view above it when it was covered.
+     */
+    bottom?: number
+  }
   /**
    * Since 2g: the entries and globals changed in the page that wait in the editor, each with its changed
    * fields (the preview's draft holds them now, so the page loads its content anew), and those this person
@@ -221,6 +231,8 @@ export type CmsBuilderToAdmin =
   | { type: 'cms:builder:value'; entity: string; id: string; values: CmsValuePath[]; rect: CmsBuilderRect; also?: CmsBuilderValueAlso[] }
   /** Since 2g: the element the box stands at moved (the page scrolled, was laid out anew); `null`: a press elsewhere in the page, the box closes. */
   | { type: 'cms:builder:anchor'; rect: CmsBuilderRect | null }
+  /** Since 3e: a text began (`on: true`) or stopped being typed in the page: the phone-sized admin's sheet steps aside for the keyboard meanwhile. */
+  | { type: 'cms:builder:typing'; on: boolean }
 
 const isObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
 const isId = (x: unknown): x is string => typeof x === 'string' && x.length > 0 && x.length <= 200
@@ -258,6 +270,8 @@ const TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['drag', 'moveUp', 'moveDown', 'dup
 const MORE_TEXT_KEYS: (keyof CmsBuilderTexts)[] = ['moveLeft', 'moveRight', 'addBlock', 'blank', 'edit', 'more', 'openIn', 'untitled', 'shared', 'chooseField', 'fieldMissing', 'fieldUnfit', 'emptyCard', 'sampleCard', 'editEntry']
 const KEYS: CmsBuilderKey[] = ['Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
 const isScale = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x >= 0.1 && x <= 4
+/** Since 3e: screen pixels the admin covers at the bottom of the frame. */
+const isInset = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 10_000
 
 /** A list's kinds, as far down as `depth` lists. */
 export function isCmsBuilderListKinds(x: unknown, depth = 4): x is CmsBuilderListKinds {
@@ -311,6 +325,7 @@ export function isCmsBuilderToPage(x: unknown): x is CmsBuilderToPage {
       && (x.selectedPath === undefined || x.selectedPath === null || isCmsBuilderPath(x.selectedPath))
       && (x.lists === undefined || isCmsBuilderListKinds(x.lists))
       && (x.scale === undefined || isScale(x.scale))
+      && (x.bottom === undefined || isInset(x.bottom))
       && (x.entities === undefined || isCmsBuilderEntities(x.entities))
       && (x.self === undefined || x.self === null || (isObject(x.self) && isCmsFieldName(x.self.entity) && isId(x.self.id)))
   }
@@ -319,7 +334,7 @@ export function isCmsBuilderToPage(x: unknown): x is CmsBuilderToPage {
       && (x.path === undefined || x.path === null || isCmsBuilderPath(x.path))
   }
   if (x.type === 'cms:builder:key') return KEYS.includes(x.key as CmsBuilderKey)
-  if (x.type === 'cms:builder:view') return isScale(x.scale)
+  if (x.type === 'cms:builder:view') return isScale(x.scale) && (x.bottom === undefined || isInset(x.bottom))
   if (x.type === 'cms:builder:pending') {
     return Array.isArray(x.entries) && x.entries.length <= 200 && x.entries.every((e) => isObject(e) && isCmsFieldName(e.entity) && isId(e.id) && isObject(e.values) && Object.keys(e.values).every(isCmsFieldName))
       && (x.locked === undefined || (Array.isArray(x.locked) && x.locked.length <= 200 && x.locked.every((e) => isObject(e) && isCmsFieldName(e.entity) && isId(e.id))))
@@ -401,6 +416,7 @@ export function isCmsBuilderToAdmin(x: unknown): x is CmsBuilderToAdmin {
       && (x.also === undefined || (Array.isArray(x.also) && x.also.length >= 1 && x.also.length <= 3
         && x.also.every((a) => !!a && typeof a === 'object' && isId((a as { id?: unknown }).id) && isValuePaths((a as { values?: unknown }).values))))
     case 'cms:builder:anchor': return x.rect === null || isCmsBuilderRect(x.rect)
+    case 'cms:builder:typing': return typeof x.on === 'boolean'
     default: return false
   }
 }

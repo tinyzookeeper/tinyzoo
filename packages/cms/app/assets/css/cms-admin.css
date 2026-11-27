@@ -726,6 +726,9 @@ html[data-cms-admin] .cms-preview__stage--fit { position: relative; align-items:
 html[data-cms-admin] .cms-preview__box { position: relative; flex: none; height: 100%; overflow: hidden; max-width: 100%; }
 html[data-cms-admin] .cms-preview__box--phone { box-shadow: -1px 0 0 var(--ui-border), 1px 0 0 var(--ui-border); }
 html[data-cms-admin] .cms-preview__frame--fit { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+/* The phone-sized admin's sheet at the bottom of the preview (CmsBuilderSheet, since 3e) is on screen: the toasts
+   stand above it, at its handle or its open height (the sheet sets the variable). */
+html[data-cms-admin][data-cms-sheet] ol[data-slot="viewport"] { bottom: calc(var(--cms-sheet-covers, 0px) + 0.75rem); }
 html[data-cms-admin] .cms-preview__box--morph,
 html[data-cms-admin] .cms-preview__box--morph .cms-preview__frame--fit { transition: width 260ms cubic-bezier(.2,.7,.2,1), height 260ms cubic-bezier(.2,.7,.2,1), transform 260ms cubic-bezier(.2,.7,.2,1); }
 @media (prefers-reduced-motion: reduce) {

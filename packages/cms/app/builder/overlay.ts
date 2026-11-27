@@ -51,6 +51,18 @@
 // names the entry, the block its field: no guessing), and the block's toolbar opens the whole entry. While
 // the section is selected the card under the pointer names what each of its blocks shows; while the panel
 // points at a field (`cms:builder:try`) every card draws it in that block (useCmsEditingTry() in the kit).
+//
+// Since 3e the admin may be phone-sized: the preview fills the screen and the selected block's panel is a
+// sheet over the bottom of the frame (`bottom`, screen pixels). The bottom of what is seen is the frame's
+// less the sheet: the toolbar, the "+", the chips and the notes keep above its top edge, a drag scrolls the
+// page at it, and the selected block is brought into view above it (geometry.ts: scrollToShow) when the
+// sheet rises or a block is picked that it covers. The admin hears when a text starts and stops being typed
+// (typing.ts), to put the sheet aside for the keyboard. For a touch screen the tools' buttons have a target
+// of 40 px at least, a second tap within 400 ms and 24 px counts as a double click when the browser's mouse
+// event says it does not, and for 450 ms after a press on the page the tools take no press: the second press
+// of a double click meant for the card's text under the toolbar goes to the text, never to a button. On a touch
+// screen the "+" places between the selected block's blocks are left out (they covered the text a tap was meant
+// for; the sheet's panel adds there), and the toolbar on a narrow screen shows its buttons without the name.
 import { cmsBuilderFieldInfo, cmsBuilderFieldValue, cmsFieldOf, type CmsBuilderCard, type CmsBuilderField, type CmsBuilderKey, type CmsBuilderKind, type CmsBuilderListKinds, type CmsBuilderPath, type CmsBuilderPlace, type CmsBuilderTexts, type CmsBuilderToAdmin, type CmsBuilderToPage, type CmsBuilderTry, type CmsBuilderValueAlso } from '../../shared/builder'
 import { cardBlockName, cardChipAt, cardNameLine, cardPageKey, cardSectionName, cardStagger, cardTryLanded, cardValueEdit, cardValuePart } from '../../shared/builder-card-page'
 import {
@@ -66,9 +78,9 @@ import { cmsSourceChanges, cmsSourceRecords, cmsSourcesLoadedBy } from './source
 import { cmsBuilderBlocks, cmsBuilderDraft, cmsBuilderHold, cmsBuilderInstances, cmsBuilderMarkers, cmsBuilderPending, cmsBuilderTry } from './state'
 import { endTyping, setupTyping, startTyping, typingEl } from './typing'
 import {
-  addSlots, axisOf, cellShifts, dropPlace, droppedOrder, edgeSpeed, innerArea, leastHidden, nearestBoundary, nearestSlot, oneLine, placeInList, sameSizes, selectDepth,
-  shiftFor, slotsOf, targetAmongOthers,
-  type Box, type Slot,
+  addSlots, axisOf, cardPlaces, cellShifts, dropPlace, droppedOrder, edgeSpeed, innerArea, leastHidden, nearestBoundary, nearestSlot, nextPress, oneLine, placeInList, pressCount,
+  sameSizes, scrollTargetFor, scrollToShow, selectDepth, shiftFor, slotsOf, targetAmongOthers, visibleBottom, weighCovers,
+  type Box, type PressRecord, type Slot,
 } from './geometry'
 
 const MARK = '[data-cms-block]'
@@ -78,6 +90,8 @@ const FALLBACK_MS = 2000
 const BAR_HEIGHT = 30
 /** How long a dragged block hovers over a group before the group takes it (ms). */
 const DWELL = 400
+/** How long after a press on the page the tools take no press (ms): a double click's second press goes to the page. */
+const LULL = 450
 
 let labels: Record<string, string> = {}
 let kinds: CmsBuilderListKinds | null = null
@@ -99,6 +113,18 @@ let ui: Ui | null = null
 let scale = 1
 /** Page pixels per screen pixel: the tools are drawn this much larger, so they keep their size on the screen. */
 const k = () => 1 / scale
+/** Since 3e: screen pixels at the bottom of the frame the admin covers (a sheet over it). */
+let inset = 0
+/** The bottom of what is seen (viewport px): the frame's, less the sheet, never close under a header that stays at the top. */
+const seenBottom = (sticky: number) => visibleBottom(innerHeight, inset * k(), sticky)
+/** After the sheet moved (`bottom`: always) or a block was picked (`pick`: one that fits): bring the selected block into view above it. */
+let coverCheck: 'bottom' | 'pick' | null = null
+/** Until when (ms) a scroll that brought the block into view runs: the tools follow it. */
+let followUntil = 0
+/** The last touch or pen press, and the last press of any kind (by time alone): for the double tap and for the toolbar's second press. */
+let touchPress: PressRecord | null = null
+let anyPress: PressRecord | null = null
+let lullTimer: ReturnType<typeof setTimeout> | undefined
 let nodes: BNode[] = []
 let nodeOfEl = new WeakMap<Element, BNode>()
 /** What the pointer is over that a click (or a double click) edits: a text cursor, or a field of the selected block. */
@@ -521,7 +547,13 @@ function above(el: HTMLElement, host: DOMRect, rect: DOMRect, height: number, in
   el.style.left = `${left - host.left}px`
   const top = rect.top - h - gap
   const room = !inside && top >= sticky + 2 && rect.top + scrollY >= h + gap
-  el.style.top = `${(room ? top : Math.max(rect.top, sticky) + gap) - host.top}px`
+  el.style.top = `${aboveSheet(room ? top : Math.max(rect.top, sticky) + gap, h, sticky) - host.top}px`
+}
+
+/** A top edge that keeps something `h` tall above the sheet (the bottom of what is seen); as it was when no sheet covers the frame. */
+function aboveSheet(top: number, h: number, sticky: number): number {
+  if (inset <= 0) return top
+  return Math.min(top, Math.max(sticky, seenBottom(sticky) - h - 4 * k()))
 }
 
 function render() {
@@ -545,22 +577,41 @@ function render() {
   drawCardChips(current, host)
   drawBoxed(current, host)
   sendSources(current)
+  const bottom = seenBottom(sticky)
   if (current && keepInView && !scrollToSelected && !drag) {
     keepInView = false
     const r = rectOf(current)
-    if (r.bottom < sticky + 24 || r.top > innerHeight - 24) {
-      const room = innerHeight - sticky
+    if (r.bottom < sticky + 24 || r.top > bottom - 24) {
+      const room = bottom - sticky
       window.scrollTo({ top: Math.max(0, r.top + scrollY - sticky - Math.max(24, (room - Math.min(r.height, room)) / 2)), behavior: 'auto' })
     }
   }
   if (current && scrollToSelected) {
     scrollToSelected = false
+    coverCheck = null
     // Only this page scrolls: scrollIntoView would scroll the admin around the frame too.
     const r = rectOf(current)
-    const room = innerHeight - sticky
-    const top = r.height < room ? r.top + scrollY - sticky - (room - r.height) / 2 : r.top + scrollY - sticky - 24
-    window.scrollTo({ top: Math.max(0, top), behavior: reduced() ? 'auto' : 'smooth' })
+    follow()
+    window.scrollTo({ top: scrollTargetFor(r, scrollY, sticky, bottom), behavior: reduced() ? 'auto' : 'smooth' })
   }
+  else if (coverCheck) {
+    const check = coverCheck
+    coverCheck = null
+    if (current && !drag && !typingEl()) {
+      const r = rectOf(current)
+      // A block picked by a press in the page that is too tall for the room stays: the person is looking at it already.
+      const at = check === 'pick' && r.height >= bottom - sticky ? null : scrollToShow(r, scrollY, sticky, bottom)
+      if (at !== null) {
+        follow()
+        window.scrollTo({ top: at, behavior: reduced() ? 'auto' : 'smooth' })
+      }
+    }
+  }
+}
+
+/** The page scrolls by itself for a moment (a block brought into view): the tools are drawn again as it goes. */
+function follow() {
+  followUntil = performance.now() + 900
 }
 
 const ARROWS = { y: ['up', 'down'], x: ['left', 'right'] } as const
@@ -618,7 +669,9 @@ function textAround(node: BNode): { own: Box[]; other: Box[] } {
     const at = list.indexOf(node)
     return [list[at - 1], node, list[at + 1]].filter((n): n is BNode => !!n)
   })()
-  const key = `${node.key}\n${near.flatMap((n) => n.els.map((el) => el.offsetHeight)).join()}`
+  // The card the tools stand in is part of what is looked at: another card of the design has other own text.
+  const li = liOfNode(node)
+  const key = `${node.key}\n${li ? liKey(li) : ''}\n${near.flatMap((n) => n.els.map((el) => el.offsetHeight)).join()}`
   if (textCache?.key === key) return textCache
   const own: Box[] = []
   const other: Box[] = []
@@ -652,18 +705,23 @@ function placeNested(node: BNode, host: DOMRect, rect: DOMRect, sticky: number) 
   const width = document.documentElement.clientWidth
   const clampX = (x: number) => Math.min(Math.max(x, 4 * k()), Math.max(4 * k(), width - w - 4 * k()))
   const tall = rect.height >= h * 2 + gap * 2
+  // Since 3e: a block of a card's design may stand inside the card's top edge (over its picture) or below the card too.
+  const li = liOfNode(node)
+  const card = li ? li.getBoundingClientRect() : null
   const places: { left: number; top: number }[] = [
     { left: clampX(rect.left), top: rect.top - h - gap },
     ...(tall ? [{ left: clampX(rect.left + gap), top: rect.top + gap }, { left: clampX(rect.right - w - gap), top: rect.top + gap }] : []),
     { left: clampX(rect.left), top: rect.bottom + gap },
     // A block taller than the screen, scrolled past its top: at the top of what shows of it.
     ...(rect.top < sticky && rect.bottom > sticky + h * 3 ? [{ left: clampX(rect.left + gap), top: sticky + gap }] : []),
+    ...(card ? cardPlaces(card, w, h, gap, clampX) : []),
   ]
   const text = textAround(node)
   const doc = (b: Box): Box => ({ left: b.left - scrollX, top: b.top - scrollY, right: b.right - scrollX, bottom: b.bottom - scrollY })
-  const covers = [...text.own.map((b) => ({ box: doc(b), weight: 4 })), ...text.other.map((b) => ({ box: doc(b), weight: 1 }))]
+  // The text of the card's other rows weighs 3: the toolbar goes over the picture sooner than over the price row.
+  const covers = weighCovers(text.own.map(doc), text.other.map(doc), card)
   const boxes = places.map((p) => ({ left: p.left, top: p.top, right: p.left + w, bottom: p.top + h }))
-  const best = places[leastHidden(boxes, covers, { left: 0, top: sticky, right: width, bottom: innerHeight })]!
+  const best = places[leastHidden(boxes, covers, { left: 0, top: sticky, right: width, bottom: seenBottom(sticky) })]!
   ui.bar.style.left = `${best.left - host.left}px`
   ui.bar.style.top = `${best.top - host.top}px`
 }
@@ -721,7 +779,10 @@ function pool<T extends HTMLElement>(list: T[], count: number, make: () => T) {
 /** A "+" at each place of the selected container's list, along its direction. */
 function drawAdds(current: BNode | null, host: DOMRect) {
   if (!ui) return
-  const context = drag || holding || typingEl() ? null : addContext(current)
+  // On a touch screen the "+" places between the selected block's blocks stand over their text (a narrow price
+  // in a card's row) and take the taps meant for it: the panel's own *Add* does it there (since 3e).
+  const coarse = matchMedia('(pointer: coarse)').matches
+  const context = drag || holding || typingEl() || coarse ? null : addContext(current)
   const list = context ? listKindsOf(context.container) : null
   const full = !!list && list.max !== null && (context?.items.length ?? 0) >= list.max
   const items = context && list && !full ? context.items : []
@@ -932,6 +993,40 @@ const sizes = new ResizeObserver(() => {
   schedule()
 })
 
+// ---- presses: taps, and the second press of a double click that began outside the tools (since 3e)
+
+/**
+ * Every press, first (a capture listener on the window): the last touch or pen press with its count, for a
+ * double tap; the last press of any kind, by time alone, for whether a row of presses began on the tools; and
+ * a press on the page quiets the tools for a moment.
+ */
+function notePress(e: PointerEvent) {
+  if (!ui) return
+  const inside = e.composedPath().includes(ui.host)
+  const here = { at: performance.now(), x: e.clientX * scale, y: e.clientY * scale, inside }
+  anyPress = nextPress(anyPress, here, { ms: 500, px: Infinity })
+  if (e.pointerType === 'touch' || e.pointerType === 'pen') touchPress = nextPress(touchPress, here)
+  if (inside) return
+  // The second press of a double click on the page's text may land where the toolbar has just appeared: it
+  // goes to what is under the toolbar. (The toolbar's own double click, "move down" twice, began on it.)
+  ui.host.classList.add('lull')
+  clearTimeout(lullTimer)
+  lullTimer = setTimeout(() => ui?.host.classList.remove('lull'), LULL)
+}
+
+/** Whether the press being handled is the second of a row that began outside the tools: a tool takes none of it. */
+function startsOutside(): boolean {
+  return !!anyPress && !anyPress.inside && anyPress.count >= 2 && performance.now() - anyPress.at <= 1000
+}
+
+/** A click on a tool that is the second of a double click begun on the page is nobody's: the page took the press. */
+function guardTools(e: MouseEvent) {
+  if (!anyPress || anyPress.inside || performance.now() - anyPress.at > 1000) return
+  if (pressCount(e.detail, anyPress, performance.now()) < 2) return
+  e.preventDefault()
+  e.stopImmediatePropagation()
+}
+
 // ---- pointer: hover, "+", select
 
 function track(e: PointerEvent) {
@@ -1015,6 +1110,7 @@ function choose(path: CmsBuilderPath | null) {
   entry = null
   entryMenu = false
   sourcesAt = sourcesSent = ''
+  if (path && inset > 0) coverCheck = 'pick'
   // What the pointer's hint says depends on the selection: asked again at the next move.
   hintTarget = null
   if (hint?.kind === 'field') setHint(null)
@@ -1119,13 +1215,14 @@ function onMouseDown(e: MouseEvent) {
   if (boxed && !boxed.node.contains(target)) closeBox(true)
   const typing = typingEl()
   if (typing?.contains(target)) {
-    if (e.detail >= 2 && performance.now() - startedAt < 700) e.preventDefault()
+    if (pressCount(e.detail, touchPress, performance.now()) >= 2 && performance.now() - startedAt < 700) e.preventDefault()
     return
   }
   e.preventDefault()
   // A press whose default is prevented does not move the focus: the page still takes the keys (Escape, Alt with an arrow).
   if (!document.hasFocus()) window.focus()
-  if (e.detail !== 2) return
+  // A second touch within 400 ms and 24 px counts as a double click where the browser's mouse event says it does not.
+  if (pressCount(e.detail, touchPress, performance.now()) !== 2) return
   nodes = scan()
   const pressed = nodeOf(target)
   if (pressed && cardOf(sectionOf(pressed))) {
@@ -1632,7 +1729,10 @@ function drawCards(current: BNode | null, host: DOMRect, sticky: number) {
       ui.cardMenu.hidden = false
       const bar = ui.cardBar.getBoundingClientRect()
       ui.cardMenu.style.left = `${inPage(bar.right - ui.cardMenu.offsetWidth * k(), ui.cardMenu.offsetWidth * k()) - host.left}px`
-      ui.cardMenu.style.top = `${bar.bottom + 4 * k() - host.top}px`
+      // Under the toolbar, or above it when the sheet would cover it.
+      const menuHeight = ui.cardMenu.offsetHeight * k()
+      const under = bar.bottom + 4 * k()
+      ui.cardMenu.style.top = `${(inset > 0 && under + menuHeight > seenBottom(sticky) ? Math.max(sticky, bar.top - 4 * k() - menuHeight) : under) - host.top}px`
     }
   }
   if (!cardHover || cardHover.key !== current.key || (chosen && chosen.entity === cardHover.entity && chosen.id === cardHover.id && entry?.piece === cardHover.piece)) return
@@ -1699,7 +1799,7 @@ function leastHiddenAt(el: HTMLElement, node: BNode, host: DOMRect, rect: DOMRec
   const inCard = (b: Box) => card && b.left >= rect.left - 1 && b.right <= rect.right + 1 && b.top >= rect.top - 1 && b.bottom <= rect.bottom + 1
   const covers = [...text.own.map(doc).map((box) => ({ box, weight: inCard(box) ? 2 : 4 })), ...text.other.map((b) => ({ box: doc(b), weight: card ? 2 : 1 }))]
   const boxes = places.map((p) => ({ left: p.left, top: p.top, right: p.left + w, bottom: p.top + h }))
-  const best = places[leastHidden(boxes, covers, { left: 0, top: sticky, right: width, bottom: innerHeight })]!
+  const best = places[leastHidden(boxes, covers, { left: 0, top: sticky, right: width, bottom: seenBottom(sticky) })]!
   el.style.left = `${best.left - host.left}px`
   el.style.top = `${best.top - host.top}px`
 }
@@ -1865,7 +1965,7 @@ function onKey(e: KeyboardEvent) {
 
 function startPress(e: PointerEvent) {
   const node = selectedNode()
-  if (!node || holding || e.button !== 0 || typingEl()) return
+  if (!node || holding || e.button !== 0 || typingEl() || startsOutside()) return
   e.preventDefault()
   press = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, node }
   ui!.handle.setPointerCapture(e.pointerId)
@@ -2017,7 +2117,8 @@ function updateDrag() {
 /** Scroll the page while the pointer is near the top or bottom of the viewport, so a block can be carried further. */
 function scrollLoop() {
   if (!drag) return
-  const speed = edgeSpeed(drag.lastY, innerHeight, 60 * k(), 22 * k())
+  // The bottom edge is the sheet's top, when one covers the frame.
+  const speed = edgeSpeed(drag.lastY, visibleBottom(innerHeight, inset * k(), 0), 60 * k(), 22 * k())
   if (speed) {
     window.scrollBy({ top: speed, behavior: 'instant' as ScrollBehavior })
     updateDrag()
@@ -2219,6 +2320,18 @@ svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .name i{font-style:normal;font-weight:500;opacity:.7}
 .name i.warn{color:#f0c36a;opacity:1}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+:host(.lull) :is(.bar,.add,.empty,.menu){pointer-events:none!important}
+@media (pointer:coarse){
+.tool,.menu button{position:relative}
+.tool{width:40px;height:28px}
+.tool::after,.add::after,.empty::after{content:'';position:absolute}
+.tool::after{inset:-6px 0}
+.add::after{inset:-8px}
+.empty::after{inset:-5px 0}
+.menu button{min-height:40px}
+}
+/* A page as narrow as a phone's, touched: the name would make the bar wider than the page (the sheet names the block). */
+@media (pointer:coarse) and (max-width:520px){.name,.name+.rule{display:none}}
 `
 
 function make<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, parent: Node, text?: string): HTMLElementTagNameMap[K] {
@@ -2343,6 +2456,8 @@ function start() {
   ;(window as unknown as { __cmsBuilderRecords?: () => number }).__cmsBuilderRecords = () => cmsSourceRecords.size
   cmsSourceChanges.listeners.add(schedule)
   cmsBuilderDraft.listeners.add(landed)
+  window.addEventListener('pointerdown', notePress, true)
+  ui.root.addEventListener('click', (e) => guardTools(e as MouseEvent), true)
   window.addEventListener('mousedown', onMouseDown, true)
   window.addEventListener('click', onClick, true)
   window.addEventListener('dblclick', onDoubleClick, true)
@@ -2355,7 +2470,7 @@ function start() {
     schedule()
   })
   // The admin's box follows the element it stands at while the page scrolls.
-  window.addEventListener('scroll', () => { if (boxed) schedule() }, { passive: true })
+  window.addEventListener('scroll', () => { if (boxed || performance.now() < followUntil) schedule() }, { passive: true })
   document.documentElement.addEventListener('pointerleave', () => { hover = null; plus = null; hintTarget = null; setHint(null); cardHover = null; setCardHint(null); schedule() })
   sizes.observe(document.documentElement)
   new MutationObserver(() => {
@@ -2375,6 +2490,13 @@ function setTexts(t: CmsBuilderTexts) {
   label(ui!.add, t.insertHere)
 }
 
+/** The sheet's height changed: the selected block, if the sheet now covers it, is brought into view above it. */
+function setInset(bottom: number) {
+  if (bottom === inset) return
+  inset = bottom
+  if (selected) coverCheck = 'bottom'
+}
+
 /** The admin's messages: switch the tool on (once), keep what it says about the selection, take a key pressed in the admin. */
 export function handleCmsBuilderMessage(message: CmsBuilderToPage) {
   if (message.type === 'cms:builder:on') {
@@ -2384,6 +2506,7 @@ export function handleCmsBuilderMessage(message: CmsBuilderToPage) {
     setTexts(message.texts)
     selected = message.selectedPath ?? (message.selected === null ? null : [message.selected])
     if (message.scale) scale = message.scale
+    setInset(message.bottom ?? 0)
     if (message.entities) {
       entities = message.entities
       entitiesVersion++
@@ -2393,6 +2516,7 @@ export function handleCmsBuilderMessage(message: CmsBuilderToPage) {
   }
   else if (message.type === 'cms:builder:view') {
     scale = message.scale
+    setInset(message.bottom ?? 0)
   }
   else if (message.type === 'cms:builder:pending') {
     // What the editor holds of entries and globals: the preview's draft has it now, so the page loads its
@@ -2430,6 +2554,8 @@ export function handleCmsBuilderMessage(message: CmsBuilderToPage) {
     hintTarget = null
     if (hint?.kind === 'field') setHint(null)
     scrollToSelected = message.scroll && message.id !== null
+    // Picked in the admin while a sheet covers the frame: the block follows into the room above it.
+    if (path && !scrollToSelected && inset > 0) coverCheck = 'pick'
   }
   else {
     if (!ui) return

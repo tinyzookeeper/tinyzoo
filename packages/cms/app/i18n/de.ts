@@ -898,6 +898,8 @@ export default {
     unboundShort: { one: '{count} nicht verbunden', other: '{count} nicht verbunden' },
     quietLine: 'Liste aus einem Inhaltstyp · die Karte wiederholt sich {count}×',
     quietNone: 'Liste aus einem Inhaltstyp · noch kein Eintrag',
+    quietLineOf: '{label} · die Karte wiederholt sich {count}×',
+    quietNoneOf: '{label} · noch kein Eintrag',
     noEntries: '{type} hat noch keinen Eintrag. Die Karte zeigt die Feldnamen. Der Abschnitt erscheint nicht auf der Website.',
     addFirst: 'Ersten Eintrag hinzufügen',
   },
@@ -911,6 +913,8 @@ export default {
     hint: 'Einen Abschnitt wählen Sie auch per Klick in der Vorschau.',
     toFix: { one: '{count} zu prüfen', other: '{count} zu prüfen' },
     blank: 'Noch nichts zu sehen',
+    sheetPage: 'Abschnitte der Seite',
+    sheetSections: { one: '{count} Abschnitt · in der Vorschau antippen', other: '{count} Abschnitte · in der Vorschau antippen' },
   },
   builderCard: {
     chooseField: 'Feld wählen',

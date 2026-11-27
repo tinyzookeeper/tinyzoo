@@ -36,6 +36,33 @@ import { createCmsPending, type CmsBuilderPendingStore } from './useCmsBuilderPe
 // value in a box the admin draws over the preview (`box`, with the element's place as the page says it).
 // These changes wait in the editor (`pending`, useCmsBuilderPending) with the page's own: the history holds
 // them as steps in the order they were made, and the editor's save stores them with the page.
+//
+// Since 3e the phone-sized admin has the panel as a sheet at the bottom of the preview (CmsBuilderSheet).
+// The lists say what a row of them (and the sheet's handle) tells about a block (`rows`, `describe`), the page
+// says when a text is being typed in it (`typing`, so the sheet makes room for the keyboard), and the bridge
+// knows who made the last selection (`selectedBy`: the page, or the admin) and can send to the page (`send`).
+
+/** Since 3e: what a row of a list, or the phone-sized admin's sheet, says about a block. */
+export interface CmsBuilderRowInfo {
+  id: string
+  icon: string
+  /** Its name: a card section's is its type's (Kurzy); any other block's, its type's label. */
+  name: string
+  /** A card section: its block type's label (the quiet line says it); else null. */
+  kind: string | null
+  /** One line of what it shows: its summary; a card's block: what it shows (← Cena). */
+  shows: string
+  /** A card section: the type it shows (for the count of entries); else null. */
+  cardType: string | null
+  /** A card section: the limit of entries its binding sets (for the count); else null. */
+  limit?: number | null
+  /** A card section: its blocks that show nothing. */
+  unbound: number
+  /** Errors to fix in it. */
+  issues: number
+  /** A card's block that shows nothing. */
+  warn: boolean
+}
 
 /** What a page-blocks field lets the bridge do. The changes do nothing on a field that is read-only. */
 export interface CmsBuilderList {
@@ -69,6 +96,10 @@ export interface CmsBuilderList {
   notice: (message: Parameters<ReturnType<typeof useToast>['add']>[0]) => void
   /** Put a whole value back (an undo or a redo): no step of the history. */
   apply: (items: any[]) => void
+  /** Since 3e: what a row says about each of the list's own blocks, in order. */
+  rows?: () => CmsBuilderRowInfo[]
+  /** Since 3e: the same for any block of the list by its path, at any depth; null when it is not there. */
+  describe?: (path: CmsBuilderPath) => CmsBuilderRowInfo | null
 }
 
 /** The mounted preview panel. */
@@ -150,6 +181,12 @@ export interface CmsBuilder {
    * `field` is '' for the own text; `chosen`: the row was clicked, not only pointed at.
    */
   cardTry: ShallowRef<{ path: CmsBuilderPath; field: string; chosen?: boolean } | null>
+  /** Since 3e: a text is being typed in the page (the phone-sized admin's sheet makes room for the keyboard). */
+  typing: Readonly<Ref<boolean>>
+  /** Since 3e: who made the last selection: the page (a click there, a key there) or the admin (a row, a breadcrumb, *All sections*). */
+  selectedBy: Readonly<Ref<'page' | 'admin'>>
+  /** Since 3e: say something to the page (a key the sheet forwards); nothing when no preview is shown. */
+  send: (message: CmsBuilderToPage) => void
   /** Since 2g: the changes to entries and globals made in the page, waiting for the editor's save. */
   pending: CmsBuilderPendingStore
   /** Since 2g: the values the page asked a box for (their own controls, drawn over the preview at `rect`, the page's pixels). */
@@ -202,6 +239,8 @@ function createBridge(deps: CmsBuilderDeps): CmsBuilder {
   const cardEntry = shallowRef<{ section: string; entity: string; id: string } | null>(null)
   const cardTry = shallowRef<{ path: CmsBuilderPath; field: string; chosen?: boolean } | null>(null)
   const entriesChanged = ref(0)
+  const typing = ref(false)
+  const selectedBy = ref<'page' | 'admin'>('admin')
   // A card clicked in one section says nothing about another's.
   watch(() => selectedPath.value?.[0] ?? null, () => { cardEntry.value = null; cardTry.value = null }, { flush: 'sync' })
   let panel: CmsBuilderPanel | null = null
@@ -222,6 +261,7 @@ function createBridge(deps: CmsBuilderDeps): CmsBuilder {
     void nextTick(() => panel?.postNow())
   }
   function select(path: CmsBuilderPath | null) {
+    selectedBy.value = 'admin'
     selectedPath.value = path
     if (path) owner(path[0])?.reveal(path)
     panel?.send(path ? { type: 'cms:builder:select', id: path[path.length - 1]!, path, scroll: true } : { type: 'cms:builder:select', id: null, scroll: false })
@@ -309,6 +349,7 @@ function createBridge(deps: CmsBuilderDeps): CmsBuilder {
   }
   return {
     lists, selected, selectedPath, selection, openPath, labels, kinds, select, history, fieldRequest, focusPanel,
+    typing, selectedBy, send: (message) => panel?.send(message),
     panel: panelOn, focused, locale: deps.locale, cardEntry, cardTry, sources, entities, entryRequest, editEntry, pending, box, closeBox,
     closeEntry() { entryRequest.value = null },
     entriesChanged, entryDone() { entriesChanged.value++ },
@@ -324,6 +365,7 @@ function createBridge(deps: CmsBuilderDeps): CmsBuilder {
     opened(target) {
       const path = typeof target === 'string' ? [target] : target
       if (selectedPath.value?.join('/') === path.join('/')) return
+      selectedBy.value = 'admin'
       selectedPath.value = path
       panel?.send({ type: 'cms:builder:select', id: path[path.length - 1]!, path, scroll: true })
     },
@@ -331,10 +373,12 @@ function createBridge(deps: CmsBuilderDeps): CmsBuilder {
       openPath.value = { path, at: Date.now() }
     },
     fromPage(message) {
-      if (message.type === 'cms:builder:ready') return
+      // A page that loads anew types nothing yet.
+      if (message.type === 'cms:builder:ready') { typing.value = false; return }
       if (message.type === 'cms:builder:select') {
         // The page has this block selected already: no message back.
         const path = message.id === null ? null : cmsBuilderPathOf({ id: message.id, path: message.path })
+        selectedBy.value = 'page'
         selectedPath.value = path
         if (path) owner(path[0])?.reveal(path)
         // The watcher on the section cleared the card of the one before; the page names the card clicked now.
@@ -343,6 +387,10 @@ function createBridge(deps: CmsBuilderDeps): CmsBuilder {
       }
       if (message.type === 'cms:builder:history') {
         history[message.action]()
+        return
+      }
+      if (message.type === 'cms:builder:typing') {
+        typing.value = message.on
         return
       }
       if (message.type === 'cms:builder:text') {
@@ -360,6 +408,7 @@ function createBridge(deps: CmsBuilderDeps): CmsBuilder {
       if (message.type === 'cms:builder:field') {
         const path = cmsBuilderPathOf(message)
         if (selectedPath.value?.join('/') !== path.join('/')) {
+          selectedBy.value = 'page'
           selectedPath.value = path
           owner(path[0])?.reveal(path)
         }

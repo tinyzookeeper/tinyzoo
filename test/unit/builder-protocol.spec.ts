@@ -77,6 +77,28 @@ describe('builder messages of a card (3c)', () => {
   })
 })
 
+describe('builder messages of the phone-sized admin\'s sheet (3e)', () => {
+  it('accepts how much of the frame the sheet covers, on the view and on the first message', () => {
+    expect(isCmsBuilderToPage({ type: 'cms:builder:view', scale: 0.94, bottom: 312 })).toBe(true)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:view', scale: 1, bottom: 0 })).toBe(true)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:view', scale: 1 })).toBe(true)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:on', labels: {}, texts, selected: null, bottom: 64 })).toBe(true)
+  })
+  it('refuses a covered height that is no number of pixels', () => {
+    expect(isCmsBuilderToPage({ type: 'cms:builder:view', scale: 1, bottom: -1 })).toBe(false)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:view', scale: 1, bottom: Number.NaN })).toBe(false)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:view', scale: 1, bottom: '64' })).toBe(false)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:view', scale: 1, bottom: 20_000 })).toBe(false)
+    expect(isCmsBuilderToPage({ type: 'cms:builder:on', labels: {}, texts, selected: null, bottom: null })).toBe(false)
+  })
+  it('hears when a text starts and stops being typed in the page', () => {
+    expect(isCmsBuilderToAdmin({ type: 'cms:builder:typing', on: true })).toBe(true)
+    expect(isCmsBuilderToAdmin({ type: 'cms:builder:typing', on: false })).toBe(true)
+    expect(isCmsBuilderToAdmin({ type: 'cms:builder:typing' })).toBe(false)
+    expect(isCmsBuilderToAdmin({ type: 'cms:builder:typing', on: 1 })).toBe(false)
+  })
+})
+
 describe('builder messages to the admin', () => {
   it('accepts each message of the page', () => {
     expect(isCmsBuilderToAdmin({ type: 'cms:builder:ready' })).toBe(true)

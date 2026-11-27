@@ -2,6 +2,7 @@
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { isLinkRef } from '../../src/linkref'
 import type { CmsBuilderPath, CmsBuilderPlace } from '../../shared/builder'
+import type { CmsBuilderRowInfo } from '../composables/useCmsBuilder'
 import { cmsBindingRead, cmsBindingTypes } from '../utils/cmsBinding'
 import { cmsCardBindingOf, cmsRefFields, type CmsCardBlock, type CmsCardBlockOf } from '../utils/cmsFieldRef'
 import { cmsCardTypeOf } from '../utils/cmsCardType'
@@ -10,7 +11,7 @@ import {
 } from '../../shared/builder-card'
 import type { CmsCardOwner } from '../composables/useCmsCardEdit'
 import {
-  blankBlock, blockListField, blockListFull, blockListKinds, blockListMax, findBlock, isLockedBlock, listOfPlaceIn, treeDuplicate, treeInsert, treeMove, treeRemove, treeSet, typingGroup, withNewIds,
+  blankBlock, blockListField, blockListFull, blockListKinds, blockListMax, findBlock, isLockedBlock, keyOfPath, listOfPlaceIn, treeDuplicate, treeInsert, treeMove, treeRemove, treeSet, typingGroup, withNewIds,
   type BlockList,
 } from '../../shared/block-tree'
 
@@ -28,6 +29,10 @@ import {
 // again, one level deeper ("sections.2.items.0.items"). A block's settings (`.setting()`)
 // come after its content, under one heading. Ids, empty blocks, copies and limits come from
 // shared/block-tree.ts, which the editor in the preview uses too.
+//
+// Since 3e a section made for one of the site's own types is named by that type (*Kurzy*) in its row, with the
+// block type's label as the quiet line; and the list tells the phone-sized admin's sheet what a row of it says
+// about a block (`rows`, `describe`).
 const props = defineProps<{ field: any; entity: string; readOnly?: boolean }>()
 // Text inside blocks is edited on its own (not shared), even on a shared entry.
 provide('cmsCollab', null)
@@ -94,7 +99,9 @@ const pathTo = (id: string): CmsBuilderPath | null => (above.value ? [...above.v
 // The focus panel (the preview beside the form): a list of the page's blocks, at any depth, is a list of
 // rows; a click selects the block, in the page too, and the form shows it alone (CmsBuilderPanel). A
 // list of items (`f.list()`) keeps its rows that open in place.
-const panelMode = computed(() => !!builderRef.value?.panel.value && !list.value && above.value !== null)
+// A list inside the panel of the phone-sized admin's sheet is rows too: the panel is there, the form is not beside it.
+const inPanel = inject<boolean>('cmsInBuilderPanel', false)
+const panelMode = computed(() => (!!builderRef.value?.panel.value || (inPanel && !!builderRef.value)) && !list.value && above.value !== null)
 function opened(id: string) {
   const path = pathTo(id)
   if (path) builderRef.value?.opened(path)
@@ -344,6 +351,8 @@ if (takesPart) {
         lastSet = items
         model.value = items
       },
+      rows: () => blocks.value.filter((b) => typeof b?.id === 'string').map((b) => describeAt([b.id])).filter((x): x is CmsBuilderRowInfo => !!x),
+      describe: describeAt,
     })
     onCleanup(unregister)
   }, { immediate: true })
@@ -448,10 +457,10 @@ function setField(index: number, key: string, value: unknown) {
 function summary(b: any): string {
   return summaryOf(b, defs.value)
 }
-function summaryOf(b: any, kinds: Record<string, any>): string {
+function summaryOf(b: any, kinds: Record<string, any>, card: unknown = cardSource?.value): string {
   const parts: string[] = []
   const fields = kinds[b?.type]?.fields ?? []
-  textsOf(b, fields, parts, 0, cmsCardBindingOf(b, kinds[b?.type]) ?? cardSource?.value)
+  textsOf(b, fields, parts, 0, cmsCardBindingOf(b, kinds[b?.type]) ?? card)
   if (!parts.length) namesOf(b, fields, parts)
   return parts.join(' · ')
 }
@@ -659,6 +668,51 @@ function openKid(groupId: string, kidId: string, e: MouseEvent) {
   builderRef.value.select([...at, kidId])
 }
 
+/**
+ * A section bound to one of the site's own types (editor in the preview on): the type's name, icon and limit, and
+ * the block type's label, which is the quiet line. `null` for any other block, and when the graph has no such type.
+ */
+function cardSectionOf(b: any, kinds: Record<string, any> = defs.value) {
+  if (!builderOn.value || !takesPart || list.value || !cardBindingFieldOf(kinds[b?.type])) return null
+  const binding = cmsBindingRead(cmsCardBindingOf(b, kinds[b?.type]))
+  const found = cmsCardTypeOf(cardGraph.value, binding?.type, tl, t('fieldRef.page'))
+  return found && binding ? { name: found.meta.label, icon: found.meta.icon, type: found.type, limit: binding.limit ?? null, label: tl(kinds[b.type]?.label, b.type) } : null
+}
+/** What a row (or the sheet's handle) says about the block at `path`, at any depth of this list. */
+function describeAt(path: CmsBuilderPath): CmsBuilderRowInfo | null {
+  const found = findBlock(tree(), path)
+  if (!found) return null
+  const b = found.block
+  const kinds = found.list.defs as Record<string, any>
+  const top = path.length === 1 ? cardSectionOf(b) : null
+  const section = path.length > 1 ? findBlock(tree(), [path[0]!]) : null
+  const around = section ? cardSectionOf(section.block) : null
+  // A block of a card, or of a group in it: what it shows from the entry.
+  let words: ReturnType<typeof cardBlockWords> | null = null
+  if (around && section && (path.length === 2 || path.length === 3)) {
+    const field = blockListField(section.list.defs[section.block.type])
+    const topDefs = (field?.meta?.blocks ?? {}) as Record<string, any>
+    const inGroup = path.length === 3 ? !!blockListField(topDefs[findBlock(tree(), path.slice(0, 2))?.block.type ?? '']) : true
+    const state = inGroup ? cardBlockState(b, kinds[b?.type], around.type) : { state: 'other' as const }
+    if (state.state !== 'other') words = cardBlockWords(state, locale.value, cardWords.value, state.state === 'group' ? cardGroupCount(b, kinds[b?.type]) : 0)
+  }
+  const key = keyOfPath(props.field.key, tree(), path)
+  const issues = key ? Object.keys(form?.issues ?? {}).filter((k) => k === key || k.startsWith(`${key}.`)).length : 0
+  const own = cmsBindingRead(cmsCardBindingOf(b, kinds[b?.type]))
+  return {
+    id: String(b?.id),
+    icon: top?.icon ?? kinds[b?.type]?.icon ?? 'i-lucide-square',
+    name: top?.name ?? tl(kinds[b?.type]?.label, String(b?.type ?? '')),
+    kind: top?.label ?? null,
+    shows: words?.shows ?? summaryOf(b, kinds, cmsCardBindingOf(section?.block, section?.list.defs[section.block.type])),
+    cardType: top ? own?.type ?? null : null,
+    limit: top ? top.limit : null,
+    unbound: path.length === 1 ? sectionUnbound(b) : 0,
+    issues,
+    warn: words?.warn ?? false,
+  }
+}
+
 // A list says "Add item" (a label like "Opening hours" doesn't bend into a sentence); a card's, "Add to the card".
 const addLabel = computed(() => {
   if (formCard.value) return t(formCard.value.group ? 'card.addToGroup' : 'card.addToCard')
@@ -760,9 +814,10 @@ watch(pickerOpen, (value) => { if (!value) pickerFor.value = null })
               <span class="text-sm font-medium text-highlighted truncate">{{ summary(b) || itemLabel(b, i) }}</span>
             </template>
             <template v-else>
-              <UIcon :name="defs[b.type]?.icon ?? 'i-lucide-square'" class="size-4 text-muted shrink-0" />
-              <span class="text-sm font-medium text-highlighted shrink-0">{{ tl(defs[b.type]?.label, b.type) }}</span>
+              <UIcon :name="cardSectionOf(b)?.icon ?? defs[b.type]?.icon ?? 'i-lucide-square'" class="size-4 text-muted shrink-0" />
+              <span class="text-sm font-medium text-highlighted shrink-0">{{ cardSectionOf(b)?.name ?? tl(defs[b.type]?.label, b.type) }}</span>
               <span v-if="cardRow(b)" class="min-w-0 truncate text-sm" :class="cardRow(b)!.cls">{{ cardRow(b)!.text }}</span>
+              <span v-else-if="cardSectionOf(b) && (panelMode || !open[b.id])" class="text-sm text-muted truncate">{{ cardSectionOf(b)!.label }}</span>
               <span v-else-if="(panelMode || !open[b.id]) && summary(b)" class="text-sm text-muted truncate">{{ summary(b) }}</span>
             </template>
             <span v-if="sectionUnbound(b)" class="ml-auto shrink-0 inline-flex items-center gap-1 text-xs font-medium text-warning">

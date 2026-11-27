@@ -12,6 +12,10 @@
 // Reloaded after every save; the unsaved values are dropped when the editor closes.
 // Since 2g the panel also draws the box with an entry's own controls over the page, at the element the
 // page names (CmsBuilderValueBox): it knows where the frame is and how much smaller it draws the page.
+// Since 3e, in the full-screen modal of a phone-sized admin with the builder on (`sheet`), the panel draws the
+// selected block's sheet at the bottom (CmsBuilderSheet), starts at the phone's width, keeps the closed handle's
+// room free under the page, and tells the page how many pixels of it the open sheet covers (`bottom`).
+import { cmsSheetCovers, cmsSheetStagePad } from '../../shared/builder-sheet'
 import { cmsBuilderFit, isCmsBuilderToAdmin, type CmsBuilderKey, type CmsBuilderToPage } from '../../shared/builder'
 import { cmsBuilderEntities } from '../../shared/builder-sources'
 import { kindsAlong } from '../../shared/block-tree'
@@ -34,6 +38,33 @@ const frame = ref<HTMLIFrameElement | null>(null)
 const stage = ref<HTMLElement | null>(null)
 const root = ref<HTMLElement | null>(null)
 const width = ref<'desktop' | 'phone'>('desktop')
+// In the modal with the builder on, the page starts at the phone's width (a desktop page at a third of its size cannot be touched).
+let widthChosen = false
+function chooseWidth(mode: 'desktop' | 'phone') {
+  widthChosen = true
+  width.value = mode
+}
+watch(() => !!builder.value, (on) => { if (on && props.sheet && !widthChosen) width.value = 'phone' }, { immediate: true })
+
+// ── the sheet at the bottom (since 3e) ──
+/** Bumped when the page's box moves (2g's value box, and the sheet's room, follow it). Declared first: the watchers below read it at once. */
+const boxTick = ref(0)
+const sheetShape = ref<{ open: boolean; handle: number; height: number } | null>(null)
+const stagePad = computed(() => {
+  void room.value
+  void boxTick.value
+  const shape = sheetShape.value
+  const el = stage.value
+  return shape && el ? cmsSheetStagePad(shape.handle, window.innerHeight, el.getBoundingClientRect().bottom) : 0
+})
+/** How many screen pixels of the frame the open sheet covers. */
+const covers = computed(() => {
+  void room.value
+  void boxTick.value
+  const shape = sheetShape.value
+  const el = frame.value
+  return shape && el ? cmsSheetCovers(shape.open, shape.height, window.innerHeight, el.getBoundingClientRect().bottom) : 0
+})
 
 // ── the scaled page (the editor in the preview only; without it the frame fills the stage as before) ──
 const room = ref<{ width: number; height: number } | null>(null)
@@ -76,10 +107,11 @@ watch(stage, (el) => {
   })
   sizes.observe(el)
 }, { flush: 'post' })
-watch(() => fit.value?.scale, (scale) => { if (scale && loaded) sendToPage({ type: 'cms:builder:view', scale }) })
+watch(() => fit.value?.scale, (scale) => { if (scale && loaded) sendToPage({ type: 'cms:builder:view', scale, ...(sheetShape.value ? { bottom: covers.value } : {}) }) })
+// The sheet opened or closed (its final height, not every frame of its movement): the page keeps its tools above it.
+watch(covers, (bottom) => { if (loaded && sheetShape.value) sendToPage({ type: 'cms:builder:view', scale: fit.value?.scale ?? 1, bottom }) })
 // ── the box over a value of an entry (since 2g) ──
 // The page gives the element's box in its own pixels; here it is in the panel's, with the visible page around it.
-const boxTick = ref(0)
 const boxPlace = computed(() => {
   void boxTick.value
   void room.value
@@ -253,6 +285,7 @@ function sendOn() {
     selectedPath: bridge.selectedPath.value,
     lists: JSON.parse(JSON.stringify(bridge.kinds.value)),
     ...(fit.value ? { scale: fit.value.scale } : {}),
+    ...(sheetShape.value ? { bottom: covers.value } : {}),
     entities: JSON.parse(JSON.stringify(entities)),
     self: { entity: props.entity, id: props.id },
   })
@@ -320,7 +353,10 @@ watch(builder, (bridge, _old, onCleanup) => {
   if (!bridge || !import.meta.client) return
   const onMessage = (e: MessageEvent) => {
     if (e.source !== frame.value?.contentWindow || e.origin !== target.value || !isCmsBuilderToAdmin(e.data)) return
-    if (e.data.type === 'cms:builder:ready') sendOn()
+    if (e.data.type === 'cms:builder:ready') {
+      bridge.fromPage(e.data)
+      sendOn()
+    }
     else if (e.data.type === 'cms:builder:history') bridge.history[e.data.action]()
     else bridge.fromPage(e.data)
   }
@@ -390,11 +426,11 @@ onBeforeUnmount(() => {
         <span class="text-xs text-muted mr-2 max-sm:hidden">{{ t('editor.previewHint') }}</span>
         <UButton
           size="xs" variant="ghost" :color="width === 'desktop' ? 'primary' : 'neutral'" icon="i-lucide-monitor"
-          :aria-label="t('editor.previewDesktop')" :aria-pressed="width === 'desktop'" @click="() => { width = 'desktop' }"
+          :aria-label="t('editor.previewDesktop')" :aria-pressed="width === 'desktop'" @click="chooseWidth('desktop')"
         />
         <UButton
           size="xs" variant="ghost" :color="width === 'phone' ? 'primary' : 'neutral'" icon="i-lucide-smartphone"
-          :aria-label="t('editor.previewPhone')" :aria-pressed="width === 'phone'" @click="() => { width = 'phone' }"
+          :aria-label="t('editor.previewPhone')" :aria-pressed="width === 'phone'" @click="chooseWidth('phone')"
         />
         <template v-if="builder">
           <span class="mx-1 h-4 w-px bg-(--ui-border)" aria-hidden="true" />
@@ -429,7 +465,7 @@ onBeforeUnmount(() => {
         <UButton class="mt-4" size="sm" color="neutral" variant="outline" icon="i-lucide-rotate-cw" @click="() => { reloads++ }">{{ t('editor.previewReload') }}</UButton>
       </div>
     </div>
-    <div v-else-if="builder" ref="stage" class="cms-preview__stage cms-preview__stage--fit">
+    <div v-else-if="builder" ref="stage" class="cms-preview__stage cms-preview__stage--fit" :style="sheetShape ? { paddingBottom: `${stagePad}px` } : undefined">
       <div class="cms-preview__box" :class="[width === 'phone' ? 'cms-preview__box--phone' : '', morphing ? 'cms-preview__box--morph' : '']" :style="boxStyle">
         <iframe
           :key="reloads" ref="frame" :src="url" :title="t('editor.previewPanel')"
@@ -443,6 +479,7 @@ onBeforeUnmount(() => {
         class="cms-preview__frame" :class="width === 'phone' ? 'cms-preview__frame--phone' : ''" @load="onLoad()"
       />
     </div>
+    <CmsBuilderSheet v-if="sheet && builder" :entity="entity" @shape="(shape) => { sheetShape = shape }" />
     <CmsBuilderValueBox
       v-if="builder?.box.value && boxPlace" :key="builder.box.value.at" :request="builder.box.value"
       :anchor="boxPlace.anchor" :bounds="boxPlace.bounds" :room="boxPlace.room" @close="closeBox"

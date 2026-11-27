@@ -957,6 +957,8 @@ export default {
     unboundShort: { one: '{count} nenapojený', few: '{count} nenapojené', many: '{count} nenapojeného', other: '{count} nenapojených' },
     quietLine: 'Seznam z typu obsahu · karta se opakuje {count}×',
     quietNone: 'Seznam z typu obsahu · zatím žádný záznam',
+    quietLineOf: '{label} · karta se opakuje {count}×',
+    quietNoneOf: '{label} · zatím žádný záznam',
     noEntries: 'Typ {type} zatím nemá žádný záznam. Karta ukazuje názvy polí. Na webu se sekce nezobrazí.',
     addFirst: 'Přidat první záznam',
   },
@@ -970,6 +972,8 @@ export default {
     hint: 'Sekci vyberete i kliknutím do náhledu.',
     toFix: { one: '{count} k opravě', few: '{count} k opravě', many: '{count} k opravě', other: '{count} k opravě' },
     blank: 'Zatím tu nic není vidět',
+    sheetPage: 'Sekce stránky',
+    sheetSections: { one: '{count} sekce · klepněte na sekci v náhledu', few: '{count} sekce · klepněte na sekci v náhledu', many: '{count} sekce · klepněte na sekci v náhledu', other: '{count} sekcí · klepněte na sekci v náhledu' },
   },
   builderCard: {
     chooseField: 'Vyberte pole',

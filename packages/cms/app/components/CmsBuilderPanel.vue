@@ -18,6 +18,11 @@
 // Since 2f, after the block's own fields and settings: where else its content comes from (*Content from
 // elsewhere*), as the page found it: each collection or global it shows, the entries it shows now (a click
 // edits one beside the page), *Add entry* and *All entries*. What the person may not do is not offered.
+//
+// Since 3e a section made for one of the site's own types is called by that type (*Kurzy*), in the title and
+// the breadcrumb, with the block type's label as the quiet line. And on a phone-sized admin the panel is the
+// body of the sheet at the bottom of the preview (`inSheet`): the sheet's handle has the title row's content,
+// so the panel leaves that row out and keeps everything else.
 import type { CmsBuilderPath } from '../../shared/builder'
 import { cmsCardBindingOf, type CmsCardBlock, type CmsCardBlockOf } from '../utils/cmsFieldRef'
 import { cmsCardTypeOf } from '../utils/cmsCardType'
@@ -26,7 +31,7 @@ import type { CmsCardOwner } from '../composables/useCmsCardEdit'
 import { cmsBindingRead } from '../utils/cmsBinding'
 import { blockListFull, findBlock, isLockedBlock, issueCounts, keyOfPath } from '../../shared/block-tree'
 
-const props = defineProps<{ entity: string; readOnly?: boolean }>()
+const props = defineProps<{ entity: string; readOnly?: boolean; inSheet?: boolean }>()
 const { data: graph } = useNuxtData<any[]>('cms-graph')
 // Text inside blocks is edited on its own (not shared), as in the form's list.
 provide('cmsCollab', null)
@@ -67,8 +72,15 @@ const def = computed(() => (found.value ? found.value.list.defs[found.value.bloc
 const locked = computed(() => !found.value || isLockedBlock(found.value.list.defs, found.value.block))
 const key = computed(() => (owner.value && tree.value ? keyOfPath(owner.value.key, tree.value, path.value) : null))
 const along = computed(() => selection.value?.along ?? [])
-const name = (i: number) => tl(along.value[i]?.def?.label as any, along.value[i]?.type ?? '')
-const icon = (i: number) => along.value[i]?.def?.icon ?? 'i-lucide-square'
+// A section made for one of the site's own types: its name is the type's (*Kurzy*), its label the quiet line.
+const topCard = computed(() => {
+  const top = rootList.value
+  if (!builderOn.value || !top) return null
+  const binding = cmsBindingRead(cmsCardBindingOf(top.block, top.list.defs[top.block.type]))
+  return cmsCardTypeOf(graph.value, binding?.type, tl, t('fieldRef.page'))?.meta ?? null
+})
+const name = (i: number) => (i === 0 && topCard.value ? topCard.value.label : tl(along.value[i]?.def?.label as any, along.value[i]?.type ?? ''))
+const icon = (i: number) => (i === 0 && topCard.value ? topCard.value.icon : along.value[i]?.def?.icon ?? 'i-lucide-square')
 const isSection = computed(() => path.value.length === 1)
 const builderOn = useCmsBuilderOn()
 // A card section (bound to one of the site's own types): its quiet line says how often the card repeats.
@@ -87,6 +99,11 @@ const repeat = computed(() => {
 const lang = useCmsContentLang(() => props.entity)
 const cardEdit = useCmsCardEdit(() => lang.value)
 const about = computed(() => {
+  if (topCard.value && isCardSection.value) {
+    const label = tl(def.value?.label as any, block.value?.type ?? '')
+    if (repeat.value !== null) return repeat.value > 0 ? t('card.quietLineOf', { label, count: repeat.value }) : t('card.quietNoneOf', { label })
+    return label
+  }
   if (repeat.value !== null) return repeat.value > 0 ? t('card.quietLine', { count: repeat.value }) : t('card.quietNone')
   const own = tl(def.value?.description as any, '')
   if (own) return own
@@ -145,6 +162,8 @@ const heading = ref<HTMLElement | null>(null)
 function back() {
   const section = path.value[0]
   builder.value?.select(null)
+  // In the sheet there is no row to come back to.
+  if (props.inSheet) return
   // The keyboard goes back to the row of the section that was open.
   void nextTick(() => {
     const row = section ? [...document.querySelectorAll<HTMLElement>('[data-cms-block-row]')].find((el) => el.dataset.cmsBlockRow === section && el.offsetParent !== null) : null
@@ -250,8 +269,8 @@ function remove() {
       </template>
     </nav>
 
-    <div class="flex items-center gap-3">
-      <span class="cms-focus__icon"><UIcon :name="def?.icon ?? 'i-lucide-square'" class="size-[1.125rem]" aria-hidden="true" /></span>
+    <div v-if="!inSheet" class="flex items-center gap-3">
+      <span class="cms-focus__icon"><UIcon :name="icon(path.length - 1)" class="size-[1.125rem]" aria-hidden="true" /></span>
       <div class="min-w-0">
         <h2 ref="heading" class="cms-focus__title" tabindex="-1">{{ name(path.length - 1) }}</h2>
         <p class="text-xs text-muted text-pretty">{{ about }}</p>

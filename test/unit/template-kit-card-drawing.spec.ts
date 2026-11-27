@@ -38,6 +38,14 @@ describe('card list: how it is drawn', () => {
     expect(style).not.toMatch(/border-left|border-inline-start/)
   })
 
+  it('keeps the picture\'s column empty in a sided list, and drops it in a narrow section', () => {
+    const style = kit('BlockSectionList.vue').split('<style>')[1]!.split('</style>')[0]!
+    expect(style).toContain('.kit-cards-sided .kit-card-body:not(:has(> .kit-card-side))')
+    expect(style).toMatch(/\.kit-cards-sided \.kit-card-body:not\(:has\(> \.kit-card-side\)\) > \.kit-card-item \{ grid-column: 2; \}/)
+    expect(style.split('@container (max-width: 30rem) {')[1]).toContain('.kit-cards-sided .kit-card-body:not(:has(> .kit-card-side)) { display: flex')
+    expect(kit('BlockSectionList.vue')).toContain('cardListClasses(plan, cards)')
+  })
+
   it('registers the section and the five small blocks globally', () => {
     const module = readFileSync(join(repoRoot, 'templates', 'kit', 'module.ts'), 'utf8')
     expect(module).toMatch(/const KIT_BLOCKS = \[[^\]]*'BlockSectionList'/)

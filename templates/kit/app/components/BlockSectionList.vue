@@ -16,7 +16,8 @@
 //
 // Responsive by rule, with no breakpoint of its own. Cards are the cards' rule (KitEntries): at most N
 // side by side, fewer on a narrower section, one on a phone. Rows stand under each other, a side picture
-// beside the rest, and above it when the section is narrow (a container query on the section).
+// beside the rest, and above it when the section is narrow (a container query on the section). When any
+// card has a side picture (kit-cards-sided), the cards without one keep that column empty.
 //
 // Placeholders (a block that shows nothing, a sample card for a type with no entries, an empty card for a
 // card with no blocks) exist only while an editor works on the page (useCmsEditing()); a visitor sees none.
@@ -34,7 +35,7 @@ const intro = computed(() => (plan.value.ok ? paragraphs(plan.value.text) : []))
     <div v-if="intro.length" class="kit-card-intro prose-look" v-bind="cmsField('text')">
       <p v-for="(p, i) in intro" :key="i">{{ p }}</p>
     </div>
-    <ul :class="[...cardListClasses(plan), intro.length ? 'kit-cards-after-intro' : '']">
+    <ul :class="[...cardListClasses(plan, cards), intro.length ? 'kit-cards-after-intro' : '']">
       <li
         v-for="(card, i) in cards"
         :key="card.id || `${card.sample ? 'sample' : card.empty ? 'empty' : 'card'}-${i}`"
@@ -100,8 +101,13 @@ const intro = computed(() => (plan.value.ok ? paragraphs(plan.value.text) : []))
 .kit-section .kit-cards-rows .kit-card-body > .kit-card-side { grid-column: 1; grid-row: 1 / -1; align-self: start; }
 .kit-section .kit-cards-rows .kit-card-body:has(> .kit-card-side) > .kit-card-item:not(.kit-card-side) { grid-column: 2; }
 .kit-section .kit-cards-rows .kit-card-body:has(> .kit-card-side) > .kit-card-content { justify-self: start; }
-/* A narrow section puts the picture above again. */
+/* A card without a side picture in a list where another has one: the same two columns, its blocks in the second, so all texts line up. */
+.kit-section .kit-cards-sided .kit-card-body:not(:has(> .kit-card-side)) { display: grid; grid-template-columns: minmax(0, clamp(8rem, 30%, 18rem)) minmax(0, 1fr); column-gap: clamp(1rem, 3vw, 2rem); row-gap: var(--kit-card-gap); align-content: start; }
+.kit-section .kit-cards-sided .kit-card-body:not(:has(> .kit-card-side)) > .kit-card-item { grid-column: 2; }
+.kit-section .kit-cards-sided .kit-card-body:not(:has(> .kit-card-side)) > .kit-card-content { justify-self: start; }
+/* A narrow section puts the picture above again, and drops the empty column. */
 @container (max-width: 30rem) {
+  .kit-section .kit-cards-sided .kit-card-body:not(:has(> .kit-card-side)) { display: flex; flex-direction: column; }
   .kit-section .kit-cards-rows .kit-card-body:has(> .kit-card-side) { display: flex; flex-direction: column; }
 }
 
